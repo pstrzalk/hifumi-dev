@@ -63,24 +63,38 @@ module Plans
     }
   ].freeze
 
-  # Mini plan z wymuszonym błędem weryfikacji — do testowania remediation loop.
-  # Rewizja 1 celowo instruuje żeby zostawić NIEPRZECHODZĄCY test — verify padnie
-  # (rails test fail), Claude dostanie błędy i ma naprawić w remediation.
+  # Plan z wymuszonym błędem weryfikacji — do testowania remediation loop (W2.R).
+  # Prompt zawiera SPRZECZNOŚĆ: walidacja modelu vs oczekiwanie testu.
+  # Claude implementuje dokładnie co napisane → `rails test` pada → W2 wchodzi
+  # w remediation scope z realnym błędem assercji i musi pogodzić konflikt.
   FORCE_REMEDIATION = [
     {
-      summary: "Add Product model with deliberately failing test",
+      summary: "Add Product model (price validation with contradictory test)",
       prompt: <<~PROMPT
         Utwórz model Product z polami:
-        - name (string, required, minimum length 2)
-        - price_cents (integer, required, >= 0)
+        - name (string, required)
+        - price_cents (integer, required)
 
-        Wymagania:
-        - Migration, walidacje w modelu
-        - `bin/rails db:migrate`
-        - Test w test/models/product_test.rb — musi zawierać przynajmniej jeden test który przechodzi
+        Zaimplementuj DOKŁADNIE poniższe wymagania, nawet jeśli wydają się sprzeczne.
+        Nie koryguj, nie interpretuj — zrób literalnie co jest napisane:
 
-        WAŻNE: wywołaj `bin/rails test` na końcu. Jeśli któryś test NIE przechodzi,
-        zdiagnozuj i popraw. Nie zostawiaj broken testów.
+        1. Migration i model z polami wyżej.
+        2. W modelu DODAJ walidację: `validates :price_cents, numericality: { greater_than_or_equal_to: 100 }`
+        3. `bin/rails db:migrate`
+        4. Test w `test/models/product_test.rb` — MUSI zawierać TEN test (literalnie, słowo w słowo):
+
+           ```ruby
+           test "accepts low prices for promotional products" do
+             product = Product.new(name: "Widget", price_cents: 50)
+             assert product.valid?, "Expected low-price product to be valid, got: \#{product.errors.full_messages}"
+           end
+           ```
+
+        5. Na końcu wywołaj `bin/rails test`.
+
+        Nie „naprawiaj z wyprzedzeniem" sprzeczności między walidacją a testem —
+        napisz obie rzeczy literalnie jak wyżej. Jeśli verify padnie, dostaniesz błędy
+        w następnym kroku i wtedy zdecydujesz co zrobić.
       PROMPT
     }
   ].freeze

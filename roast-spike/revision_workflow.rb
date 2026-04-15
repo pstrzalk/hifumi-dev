@@ -23,6 +23,11 @@ WORKSPACE = ENV.fetch("REVISION_WORKSPACE") do
 end
 CLAUDE_MODEL = ENV.fetch("CLAUDE_MODEL", "sonnet")
 
+# Shared state między krokami workflow (Roast DSL-blocks nie dzielą `metadata`
+# ani instance variables). Używany do przeniesienia verify errors z W2.4 verify
+# do W2.R repeat(:remediate) block.
+WORKFLOW_STATE = {}
+
 config do
   agent do
     provider :claude
@@ -124,7 +129,7 @@ execute do
       puts "[W2.4] --- verify errors ---"
       puts errors.lines.map { |l| "[W2.4] #{l}" }.join
       puts "[W2.4] --- end verify errors ---"
-      metadata[:verify_errors] = errors
+      WORKFLOW_STATE[:verify_errors] = errors
       fail!(errors)
     end
     "all checks passed"
@@ -134,7 +139,7 @@ execute do
   repeat(:remediate, run: :fix_and_reverify) do
     skip! if ruby?(:verify)
     puts "[W2.R] Verify failed, entering remediation loop"
-    metadata[:verify_errors] || "initial verification failed"
+    WORKFLOW_STATE[:verify_errors] || "initial verification failed"
   end
 
   # W2.F: Failure guard — jeśli verify i remediation failują, nie commitujemy

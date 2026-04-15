@@ -1,0 +1,19 @@
+{
+  "plan": "force-remediation",
+  "app_name": "remediation-spike",
+  "model": "sonnet",
+  "revisions": [
+    {
+      "index": 1,
+      "summary": "Add Product model (price validation with contradictory test)",
+      "status": "completed",
+      "exit_code": 0,
+      "wall_seconds": 130.87,
+      "git_sha": "3bcf4d5b6ad2c6731fa0e5f20a0da474426fb979"
+    }
+  ],
+  "started_at": "2026-04-16T00:08:10+02:00",
+  "finished_at": "2026-04-16T00:10:35+02:00",
+  "total_wall_seconds": 130.87,
+  "all_succeeded": true
+}
