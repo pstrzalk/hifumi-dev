@@ -214,5 +214,7 @@ Znane ograniczenia i gotchas udokumentowane:
 2. ✅ ~~Przetestować happy path na prawdziwej Rails app (plan todo-list, 3 rewizje)~~
 3. ✅ ~~Uruchomić plan `force-remediation` — remediation loop zweryfikowany~~
 4. ⬜ (Opcjonalnie, odłożone) realny koszt przez OpenRouter — subskrypcja nie pokazuje tokenów; do zmierzenia gdy DoD Toru 2 tego wymaga
-5. 🔄 Update dokumentów (ten plik ✅, `agents-vs-workflows.md` 🔄, `index.md` 🔄)
-6. ⬜ Cleanup: usunąć `tor-1-plan.md`, pamięci `project_tor_1_plan` / `project_tor_1_run_status`
+5. ✅ ~~Update dokumentów (`findings.md`, `agents-vs-workflows.md`, `index.md` — commit ff73377)~~
+6. ✅ ~~Cleanup: `tor-1-plan.md` usunięty (commit ff73377), pamięci `project_tor_1_*` nigdy nie istniały na tym hoście~~
+
+**Tor 1 domknięty 2026-04-16. Dalej: rozpisać `tor-2-plan.md` (PoC apki generatora — RubyLLM + Solid Queue + Roast).**
