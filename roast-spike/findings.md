@@ -178,10 +178,41 @@ Wszystkie silent killers, każdy blokował cały run. Fixy w commit b94e9a7. Szc
 4. **Session replay:** darmowe z Roast, można wznowić workflow od kroku — dobre do debugowania i `--replay` po rate limit.
 5. **ENV hygiene w driverze/wrapperze:** trzy leaks (punkt wyżej) są na tyle systemowe, że warto je opisać w architekturze jako requirement, nie tylko workaround.
 
+## Krok 4 domknięty — remediation loop zweryfikowany (2026-04-16)
+
+Plan `force-remediation` (1 rewizja × Sonnet) — prompt z jawną sprzecznością: walidacja `price_cents >= 100` + test oczekujący valid dla `price_cents: 50`. Wynik: **all_succeeded, 131s wall, 1 iteracja remediation**. Dowód: `tmp/metrics_force-remediation_1776291035.json`, `tmp/remediation-spike/`.
+
+Pełna ścieżka workflow:
+1. `generate_code` → Claude napisał literalnie jak kazaliśmy (walidacja + test ze sprzecznością)
+2. `verify` (W2.4) → `bundle` / `db:prepare` / `boot` PASS, `rails test` **FAIL** z assercji "Price cents must be greater than or equal to 100"
+3. `repeat(:remediate)` → `fix_and_reverify[0]` → `agent(:fix)` zdiagnozował i wybrał: usunąć `greater_than_or_equal_to: 100`, zachować test
+4. `reverify` → PASS → `break!` po pierwszej próbie
+5. W2.5 commit kod → W2.6 update docs → W2.7 commit docs → W2.8 report
+
+### Bug wyłapany: `metadata` nie istnieje w Roast DSL blocks
+
+Pierwsza próba wysypała się z `NameError: undefined local variable or method 'metadata' for Roast::CogInputContext`. W `test_agent.rb` i happy path todo-list bug nie wystrzelił, bo `verify` zawsze przechodził za pierwszym razem i linia z `metadata[:verify_errors] = errors` się nie wykonywała.
+
+**Fix:** moduł-level hash `WORKFLOW_STATE = {}` zdefiniowany na górze pliku `revision_workflow.rb`, używany do przeniesienia errors z `ruby(:verify)` do `repeat(:remediate)` bloku. Commit `fc5f4cd`.
+
+**Implikacja dla docs:** przykład W2 w `agents-vs-workflows.md` używał `ruby(:verify).error` — to też nie zadziałało w praktyce (cog po `fail!` nie udostępnia `.error`). Zaktualizowany do `WORKFLOW_STATE` pattern.
+
+---
+
+## Verdict: IDZIEMY do Toru 2 (PoC głównej apki generatora)
+
+Architektura W1 → W2 + remediation zweryfikowana end-to-end na realnej Rails app. Happy path i failure path oba domknięte. Stack Roast 1.1 + Claude Code CLI + Ruby wrapper (odpowiednik Solid Queue joba) działa.
+
+Znane ograniczenia i gotchas udokumentowane:
+- `metadata` niedostępne w DSL blocks — workaround: moduł-level hash
+- Trzy ENV leaks (`ANTHROPIC_API_KEY` / frum Ruby shim / `BUNDLE_GEMFILE`) — workaround: `bin/roast` wrapper + `VerifyRevision.with_clean_bundler_env`
+- `skip_permissions!` wymaga izolowanego workspace (→ Tor X: preview isolation z Kamal+Docker)
+
 ## Next steps (co zostało z tor-1-plan.md)
 
 1. ✅ ~~Przepisać revision_workflow.rb na wzór test_agent.rb~~
-2. ✅ ~~Przetestować na prawdziwej Rails app~~
-3. ⬜ Uruchomić plan `force-remediation` — zweryfikować że pętla remediation faktycznie działa przy wymuszonym błędzie
-4. ⬜ (Opcjonalnie) realny koszt przez OpenRouter
-5. ⬜ Zaktualizować `agents-vs-workflows.md`, `stack.md`, `index.md` (spike domknięty → Tor 2 ready)
+2. ✅ ~~Przetestować happy path na prawdziwej Rails app (plan todo-list, 3 rewizje)~~
+3. ✅ ~~Uruchomić plan `force-remediation` — remediation loop zweryfikowany~~
+4. ⬜ (Opcjonalnie, odłożone) realny koszt przez OpenRouter — subskrypcja nie pokazuje tokenów; do zmierzenia gdy DoD Toru 2 tego wymaga
+5. 🔄 Update dokumentów (ten plik ✅, `agents-vs-workflows.md` 🔄, `index.md` 🔄)
+6. ⬜ Cleanup: usunąć `tor-1-plan.md`, pamięci `project_tor_1_plan` / `project_tor_1_run_status`

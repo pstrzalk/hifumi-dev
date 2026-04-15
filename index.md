@@ -89,4 +89,12 @@ Solid Queue łączy warstwy asynchronicznie. Szczegóły: `agents-vs-workflows.m
 
 ## Status
 
-Faza: koncepcja zamknięta, gotowe do roadmapy i PoC
+Faza: **spike Roast domknięty (2026-04-16), Tor 2 ready to start**.
+
+Zwalidowane end-to-end:
+- Architektura W1 → W2 z remediation loop (`roast-spike/`)
+- Happy path: plan `todo-list` (3 rewizje × Sonnet, 496s)
+- Failure path: plan `force-remediation` (1 rewizja, 1 iteracja remediation, 131s)
+- Stack Roast 1.1 + Claude Code CLI + Ruby wrapper (odpowiednik przyszłego Solid Queue joba)
+
+Verdict w `roast-spike/findings.md`. Tor 2: PoC głównej apki generatora (RubyLLM chat + Solid Queue + wywołanie Roast per Instruction).

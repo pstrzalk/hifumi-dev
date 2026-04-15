@@ -213,67 +213,92 @@ Ale nawet agent jest ograniczony:
 
 Roast (Shopify) — Ruby DSL do orkiestracji workflow'ów z mieszanymi krokami (deterministyczne + LLM). Session replay, Claude Code integration, production-tested w Shopify.
 
-Przykład W2 w Roast (zwalidowany w spike — `roast-spike/test_agent.rb`):
+Przykład W2 w Roast — **zsynchronizowany z działającym `roast-spike/revision_workflow.rb`** (zwalidowany end-to-end planami `todo-list` i `force-remediation`, 2026-04-15/16).
 
 ```ruby
 # workflows/revision_workflow.rb
-# Uruchomienie: roast revision_workflow.rb -- revision_id=123 workspace=/path/to/project
+# Uruchomienie: roast revision_workflow.rb -- revision_id=123 revision_summary="..." revision_prompt="..."
+# Workspace przez ENV: REVISION_WORKSPACE=/path/to/project
+
+WORKSPACE = ENV.fetch("REVISION_WORKSPACE")
+CLAUDE_MODEL = ENV.fetch("CLAUDE_MODEL", "sonnet")
+
+# Shared state między krokami. Roast DSL blocks NIE dzielą `metadata` ani
+# instance variables — jedyny reliable sposób przeniesienia danych między
+# krokami (poza `kwarg` i bang-suffix) to moduł-level kontener.
+WORKFLOW_STATE = {}
 
 config do
   agent do
     provider :claude
-    model "sonnet"
-    working_directory WORKSPACE   # Claude CLI pisze do workspace'u projektu
-    skip_permissions!             # batch mode, nie pytamy o pozwolenie
+    model CLAUDE_MODEL
+    working_directory WORKSPACE
+    skip_permissions!             # batch mode, brak interakcji
+    show_stats!
   end
   cmd { display! }
 end
 
-# Remediation scope — naprawia błędy weryfikacji
-execute(:fix_and_verify) do
-  agent(:fix) do |_, errors|
-    "Weryfikacja nie przeszła. Napraw błędy:\n\n#{errors}"
+# W2.R — Remediation scope (max 2 próby)
+execute(:fix_and_reverify) do
+  agent(:fix) do |_, errors, idx|
+    "Weryfikacja nie przeszła (próba #{idx + 1}/2). Błędy:\n\n#{errors}\n\nNapraw dokładnie to, co zepsute."
   end
-  ruby(:verify) do
-    errors = run_checks(kwarg(:workspace))
-    fail!(errors) if errors.present?
-    "all checks passed"
+  ruby(:reverify) do
+    result = VerifyRevision.run(WORKSPACE)
+    fail!(VerifyRevision.format_errors(result)) if VerifyRevision.failed?(result)
+    VerifyRevision.summary(result)
   end
-  ruby { |_, _, idx| break! if ruby?(:verify) || idx >= 2 }
-  outputs { ruby?(:verify) ? "ok" : ruby(:verify).error }
+  ruby { |_, _, idx| break! if ruby?(:reverify) || idx >= 1 }
+  outputs { ruby?(:reverify) ? :succeeded : :failed }
 end
 
 # Main workflow
 execute do
-  ruby(:mark_generating) { ... }  # update DB
+  ruby(:log_start) { ... }                        # W2.1 deterministic
 
-  agent(:generate_code) do
-    prompt = build_revision_prompt(kwarg(:revision_id))
-    prompt  # string zwrócony z bloku = prompt dla Claude CLI
-  end
+  ruby(:build_prompt) { ... }                     # W2.2 zbierz manifest + notes
+  agent(:generate_code) { ruby!(:build_prompt).value }  # W2.3 Claude CLI
 
-  ruby(:verify) do
-    errors = run_checks(kwarg(:workspace))  # bundle check, db:prepare, herb, boot, tests
-    fail!(errors) if errors.present?
+  ruby(:verify) do                                # W2.4 sekwencja checków
+    result = VerifyRevision.run(WORKSPACE)
+    if VerifyRevision.failed?(result)
+      errors = VerifyRevision.format_errors(result)
+      WORKFLOW_STATE[:verify_errors] = errors     # <- kluczowe: zachowaj errors
+      fail!(errors)
+    end
     "all checks passed"
   end
 
-  # Remediation loop — skip jeśli verify przeszedł
-  repeat(:remediate, run: :fix_and_verify) do
+  # W2.R remediation — skip jeśli verify zielony
+  repeat(:remediate, run: :fix_and_reverify) do
     skip! if ruby?(:verify)
-    ruby(:verify).error  # przekaż błędy jako input
+    WORKFLOW_STATE[:verify_errors] || "initial verification failed"
   end
 
-  cmd(:git_commit) do |my|
-    my.command = "sh"
-    my.args = ["-c", "cd #{kwarg(:workspace)} && git add -A && git commit -m '#{kwarg(:summary)}'"]
+  # W2.F failure guard — nie commitujemy jeśli remediation też padł
+  ruby(:ensure_passing) do
+    passed = ruby?(:verify) || (ruby?(:remediate) && repeat!(:remediate).value == :succeeded)
+    unless passed
+      system("cd #{WORKSPACE} && git reset --hard HEAD && git clean -fd")
+      fail!("W2.F: revision failed, workspace reset to parent HEAD")
+    end
+    "ready to commit"
   end
 
-  agent(:update_docs) { "Update app manifest and write revision notes..." }
-
-  ruby(:mark_completed) { ... }  # update DB, git sha
+  cmd(:git_commit) { ... }                        # W2.5 commit kod
+  agent(:update_docs) { ... }                     # W2.6 update manifest + revision notes
+  cmd(:git_commit_docs) { ... }                   # W2.7 commit docs (allow-empty)
+  ruby(:report) { ... }                           # W2.8 raport + git_sha
 end
 ```
+
+**Gotchas ujawnione w spike (do zachowania):**
+
+- `metadata[:key] = ...` w `ruby(:...)` blockach **wybucha** z `NameError: undefined local variable 'metadata' for Roast::CogInputContext`. Workaround: moduł-level `WORKFLOW_STATE = {}`.
+- `ruby(:verify).error` po `fail!` **nie jest dostępne** — błędy trzeba capturować ręcznie przed `fail!`.
+- Agent bez `skip_permissions!` timeout'uje w batch mode (pyta o `--dangerously-skip-permissions`). Akceptowalne bo workspace izolowany — ale potwierdza konieczność preview isolation (kontenery) w produkcji.
+- W1 nie woła W2 natywnie przez Roast composition. Pattern: **Ruby wrapper** (`new_app_driver.rb` w spike — odpowiednik przyszłego Solid Queue joba) odpala `bin/roast revision_workflow.rb` per rewizja przez `system()`. ENV hygiene (`REVISION_WORKSPACE`, `CLAUDE_MODEL`) przekazywane przez env, parametry per-rewizja przez `kwarg=value`.
 
 ## Podział technologii
 
