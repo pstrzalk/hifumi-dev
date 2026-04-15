@@ -86,15 +86,16 @@ Solid Queue łączy warstwy asynchronicznie. Szczegóły: `agents-vs-workflows.m
 - `git-integration-ideas.md` — pomysły na integrację z git
 - `preview-isolation.md` — izolacja preview: Kamal + Docker + kamal-proxy
 - `roast-spike/` — spike walidujący Roast 1.1.0 (wyniki w `findings.md`)
+- `tor-2-plan.md` — plan PoC głównej apki generatora (RubyLLM + Solid Queue + Roast)
 
 ## Status
 
-Faza: **spike Roast domknięty (2026-04-16), Tor 2 ready to start**.
+Faza: **Tor 2 rozpisany (2026-04-16), gotowy do implementacji**.
 
-Zwalidowane end-to-end:
+Zwalidowane end-to-end (Tor 1):
 - Architektura W1 → W2 z remediation loop (`roast-spike/`)
 - Happy path: plan `todo-list` (3 rewizje × Sonnet, 496s)
 - Failure path: plan `force-remediation` (1 rewizja, 1 iteracja remediation, 131s)
 - Stack Roast 1.1 + Claude Code CLI + Ruby wrapper (odpowiednik przyszłego Solid Queue joba)
 
-Verdict w `roast-spike/findings.md`. Tor 2: PoC głównej apki generatora (RubyLLM chat + Solid Queue + wywołanie Roast per Instruction).
+Verdict Toru 1 w `roast-spike/findings.md`. Plan Toru 2 w `tor-2-plan.md` — siedem kroków (skeleton, model, chat baseline, tools, ExecuteInstructionJob, eventy, E2E). Oszacowanie: 5-6 dni fokusa.
