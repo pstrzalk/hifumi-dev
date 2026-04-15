@@ -126,22 +126,62 @@ Dla pełnej generacji Rails app (6 rewizji × Sonnet) szacunek: 6 × ~$0.10-0.30
 
 - `test_basic.rb` — cmd + ruby + data passing (10s test)
 - `test_remediation.rb` — repeat + fail! + break! pattern
-- `test_agent.rb` — pełny agent → verify → commit pipeline
-- `revision_workflow.rb` — W2 draft (nie testowany, do przepisania po lekcjach ze spike'a)
-- `new_app_workflow.rb` — W1 draft (nie testowany, do przepisania)
+- `test_agent.rb` — pełny agent → verify → commit pipeline (proven pattern)
+- `revision_workflow.rb` — W2 (proven, odpalone na planie todo-list)
+- `new_app_driver.rb` — Ruby wrapper odpowiadający przyszłemu Solid Queue job'owi: rails new + pętla shellująca `bin/roast revision_workflow.rb`
+- `new_app_workflow.rb` — W1 draft (nieużywany — driver go zastąpił)
+- `verify_revision.rb` + `bin/verify` — deterministyczny verify helper
+- `plans.rb` — `todo-list` (3 rewizje happy path) i `force-remediation` (1 rewizja z wymuszonym failem)
+- `bin/roast` — wrapper na subskrypcję Claude Code (unset API env + pin Ruby z .ruby-version)
+- `bin/roast-openrouter` — fallback płatny przez OpenRouter
+
+---
+
+## Pełny pipeline przetestowany end-to-end (2026-04-15)
+
+Plan `todo-list` (3 rewizje × Sonnet) uruchomiony przez `new_app_driver.rb` pod subskrypcją Claude Code. Wynik: **3/3 completed, 496s wall, zero remediation**. Dowód: `tmp/metrics_todo-list_1776288069.json`, git log w `tmp/todo-spike/`.
+
+| Rewizja | Wall | SHA |
+|---|---|---|
+| Todo model + walidacje + testy | 128s | 404e402 |
+| TodosController (REST) + testy | 142s | ef00bc3 |
+| Widoki Tailwind + Hotwire Turbo | 226s | dc141e3 |
+
+Każda rewizja verify'owana przez sekwencję: `bundle check` → `db:prepare` → `herb lint` (skipped bo gem nie zainstalowany) → `boot check` → `rails test`. Wszystkie PASS.
+
+### Trzy ENV gotchas które trzeba było naprawić żeby pipeline przeszedł
+
+Wszystkie silent killers, każdy blokował cały run. Fixy w commit b94e9a7. Szczegóły w memory `feedback_roast_rails_env_gotchas.md`:
+
+1. **`ANTHROPIC_API_KEY` wycieka do Claude CLI** (driver przez `bundle exec roast` zamiast `bin/roast`) → Claude idzie na API, dostaje 429. Fix: driver MUSI wołać `bin/roast`.
+2. **frum shim rozwiązuje złą wersję Ruby** gdy `bundle` jest spawnowany jako subprocess pod innym Ruby niż `.ruby-version`. `GemNotFound` dla gemów Roasta. Fix: `bin/roast` pinuje PATH na `$HOME/.frum/versions/$(cat .ruby-version)/bin`.
+3. **`BUNDLE_GEMFILE` wycieka z `bundle exec roast` do `bin/rails` w workspace** — workspace ładuje gemy spike'a, `bootsnap/setup` LoadError. Fix: `VerifyRevision.with_clean_bundler_env` unsetuje `BUNDLE*`/`BUNDLER*`/`RUBYOPT` przed shellem do workspace.
+
+---
+
+## Koszty (zmierzone)
+
+| Operacja | Model | Czas | Koszt |
+|---|---|---|---|
+| agent(:generate) — 2 pliki Ruby | Haiku | 7s | $0.015 |
+| Pełny W1 todo-list (3 rewizje) | Sonnet przez subskrypcję | 496s wall | $0 realnie (pokryte subskrypcją) |
+
+**Uwaga:** Claude CLI w logu Roasta raportuje "informacyjną" wycenę (np. $0.13 za rewizję 1, ~$1.5 sumarycznie dla todo-list) — to wycena API, nie realne obciążenie subskrypcji. Jeśli potrzebna twarda liczba do DoD, trzeba uruchomić ten sam pipeline przez `bin/roast-openrouter` jednorazowo (plan Kroku 5 w tor-1-plan.md — opcjonalny).
 
 ---
 
 ## Lekcje dla docs
 
-1. **Aktualizacja `agents-vs-workflows.md`:** Poprawić Roast example — pliki zamiast klas, `fail!`/`break!` zamiast `rescue_from`
-2. **`skip_permissions!` jako requirement:** Dodać do opisu agent config
-3. **Ruby 3.3+ requirement:** Roast 1.x wymaga Ruby >= 3.3. Dodać do stack.md.
-4. **Session replay:** Darmowe z Roast. Można wznowić workflow od dowolnego kroku — idealne do debugowania i do `--replay` po rate limit.
+1. **`agents-vs-workflows.md`:** Poprawić Roast example — pliki zamiast klas, `fail!`/`break!` zamiast `rescue_from`
+2. **`skip_permissions!` jako requirement** dla agent config
+3. **Ruby 3.3+ requirement** (Roast 1.x). Dodać do `stack.md`.
+4. **Session replay:** darmowe z Roast, można wznowić workflow od kroku — dobre do debugowania i `--replay` po rate limit.
+5. **ENV hygiene w driverze/wrapperze:** trzy leaks (punkt wyżej) są na tyle systemowe, że warto je opisać w architekturze jako requirement, nie tylko workaround.
 
-## Next steps
+## Next steps (co zostało z tor-1-plan.md)
 
-1. Przepisać `revision_workflow.rb` na wzór `test_agent.rb` (proven pattern)
-2. Przetestować na prawdziwej Rails app (nie Calculator)
-3. Zmierzyć koszt pełnej generacji z Sonnet
-4. Zaktualizować `agents-vs-workflows.md` z poprawnymi przykładami Roast API
+1. ✅ ~~Przepisać revision_workflow.rb na wzór test_agent.rb~~
+2. ✅ ~~Przetestować na prawdziwej Rails app~~
+3. ⬜ Uruchomić plan `force-remediation` — zweryfikować że pętla remediation faktycznie działa przy wymuszonym błędzie
+4. ⬜ (Opcjonalnie) realny koszt przez OpenRouter
+5. ⬜ Zaktualizować `agents-vs-workflows.md`, `stack.md`, `index.md` (spike domknięty → Tor 2 ready)
