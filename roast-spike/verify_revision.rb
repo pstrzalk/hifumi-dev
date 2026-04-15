@@ -45,11 +45,22 @@ module VerifyRevision
   end
 
   def self.run_cmd(workspace, cmd, name)
-    output = `cd #{workspace} && #{cmd} 2>&1`
+    output = with_clean_bundler_env { `cd #{workspace} && #{cmd} 2>&1` }
     { name: name, passed: $?.success?, output: output }
   end
 
   def self.gem_available?(workspace, name)
-    system("cd #{workspace} && bundle show #{name} > /dev/null 2>&1")
+    with_clean_bundler_env { system("cd #{workspace} && bundle show #{name} > /dev/null 2>&1") }
+  end
+
+  # Roast działa pod `bundle exec`, więc ENV ma BUNDLE_GEMFILE spike'a.
+  # Shell do workspace musi dostać czyste env, żeby workspace'owy Gemfile był widoczny.
+  def self.with_clean_bundler_env
+    saved = {}
+    bundler_keys = ENV.keys.select { |k| k.start_with?("BUNDLE", "BUNDLER", "RUBYOPT") }
+    bundler_keys.each { |k| saved[k] = ENV.delete(k) }
+    yield
+  ensure
+    saved.each { |k, v| ENV[k] = v }
   end
 end

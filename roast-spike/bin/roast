@@ -14,4 +14,14 @@ unset ANTHROPIC_DEFAULT_SONNET_MODEL
 unset ANTHROPIC_DEFAULT_HAIKU_MODEL
 
 cd "$(dirname "$0")/.."
+
+# Pin Ruby do 4.0.2 (patrz .ruby-version). Gdy wrapper jest wołany jako subprocess
+# z shella pod innym Ruby (np. 3.2.6 domyślnym), frum shim bundle rozwiązuje
+# złą wersję i szuka gemów w 3.2.0 zamiast 4.0.0.
+RUBY_VERSION_PIN=$(cat .ruby-version)
+FRUM_RUBY_BIN="$HOME/.frum/versions/$RUBY_VERSION_PIN/bin"
+if [ -d "$FRUM_RUBY_BIN" ]; then
+  export PATH="$FRUM_RUBY_BIN:$PATH"
+fi
+
 exec bundle exec roast "$@"

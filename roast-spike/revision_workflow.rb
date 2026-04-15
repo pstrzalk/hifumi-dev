@@ -119,7 +119,14 @@ execute do
   ruby(:verify) do
     result = VerifyRevision.run(WORKSPACE)
     puts "[W2.4] " + VerifyRevision.summary(result).gsub("\n", "\n[W2.4] ")
-    fail!(VerifyRevision.format_errors(result)) if VerifyRevision.failed?(result)
+    if VerifyRevision.failed?(result)
+      errors = VerifyRevision.format_errors(result)
+      puts "[W2.4] --- verify errors ---"
+      puts errors.lines.map { |l| "[W2.4] #{l}" }.join
+      puts "[W2.4] --- end verify errors ---"
+      metadata[:verify_errors] = errors
+      fail!(errors)
+    end
     "all checks passed"
   end
 
@@ -127,7 +134,7 @@ execute do
   repeat(:remediate, run: :fix_and_reverify) do
     skip! if ruby?(:verify)
     puts "[W2.R] Verify failed, entering remediation loop"
-    ruby!(:verify).error
+    metadata[:verify_errors] || "initial verification failed"
   end
 
   # W2.F: Failure guard — jeśli verify i remediation failują, nie commitujemy

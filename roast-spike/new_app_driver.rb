@@ -130,7 +130,7 @@ class NewAppDriver
     }
 
     args = [
-      "bundle", "exec", "roast", "revision_workflow.rb",
+      File.join(SPIKE_DIR, "bin", "roast"), "revision_workflow.rb",
       "--",
       "revision_id=#{idx}",
       "revision_summary=#{revision[:summary]}",

@@ -1,0 +1,35 @@
+{
+  "plan": "todo-list",
+  "app_name": "todo-spike",
+  "model": "sonnet",
+  "revisions": [
+    {
+      "index": 1,
+      "summary": "Add Todo model with title, body, done, category",
+      "status": "completed",
+      "exit_code": 0,
+      "wall_seconds": 128.07,
+      "git_sha": "dd53ae266c7325224fbbf34b67f8b3583830c6cb"
+    },
+    {
+      "index": 2,
+      "summary": "Add TodosController with index/show/new/create/edit/update/destroy",
+      "status": "completed",
+      "exit_code": 0,
+      "wall_seconds": 141.8,
+      "git_sha": "d3e93f81dae9f28353d018320fcebf38f14d2ec2"
+    },
+    {
+      "index": 3,
+      "summary": "Add Tailwind views for Todo with Hotwire Turbo",
+      "status": "completed",
+      "exit_code": 0,
+      "wall_seconds": 226.19,
+      "git_sha": "44307ff048ed04ec1c4f1fb98761e510eef43fe6"
+    }
+  ],
+  "started_at": "2026-04-15T23:12:42+02:00",
+  "finished_at": "2026-04-15T23:21:09+02:00",
+  "total_wall_seconds": 496.06,
+  "all_succeeded": true
+}
