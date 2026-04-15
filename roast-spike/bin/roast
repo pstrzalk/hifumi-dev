@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+# Wrapper: roast przez lokalny `claude -p` (Claude Code subscription).
+# Żadnego ANTHROPIC_API_KEY / OPENROUTER — Claude CLI używa OAuth z `claude login`.
+# Dla trybu OpenRouter (płatne): bin/roast-openrouter
+
+set -e
+
+# Wyczyść ewentualne nadpisania z shell env, żeby claude CLI użył subskrypcji.
+unset ANTHROPIC_API_KEY
+unset ANTHROPIC_AUTH_TOKEN
+unset ANTHROPIC_BASE_URL
+unset ANTHROPIC_DEFAULT_OPUS_MODEL
+unset ANTHROPIC_DEFAULT_SONNET_MODEL
+unset ANTHROPIC_DEFAULT_HAIKU_MODEL
+
+cd "$(dirname "$0")/.."
+exec bundle exec roast "$@"

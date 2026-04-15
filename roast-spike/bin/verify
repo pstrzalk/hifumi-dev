@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Standalone verify — do debugowania i do testów unit helpera.
+# Usage: bin/verify <workspace-path>
+
+require_relative "../verify_revision"
+
+workspace = ARGV[0] or abort("Usage: bin/verify <workspace>")
+abort("Workspace does not exist: #{workspace}") unless Dir.exist?(workspace)
+
+result = VerifyRevision.run(workspace)
+puts VerifyRevision.summary(result)
+
+if VerifyRevision.failed?(result)
+  puts "\n--- Errors ---"
+  puts VerifyRevision.format_errors(result)
+  exit 1
+end
+
+puts "\nAll checks passed."
