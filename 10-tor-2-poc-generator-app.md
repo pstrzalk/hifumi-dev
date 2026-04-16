@@ -6,7 +6,7 @@ Rails skeleton + RubyLLM chat + Solid Queue job odpalający proven workflow z To
 
 Udowodnić end-to-end, że pipeline ze spike'a odpala się z poziomu Rails appki zamiast `new_app_driver.rb`. Driver staje się `ExecuteInstructionJob`, hardcoded `plans.rb` — Instruction + Revision w DB wywołane przez tool call z chatu RubyLLM (poprzez service `CreatePlan`).
 
-Tor 1 pokazał, że Roast + Claude CLI działają. Tor 2 pokazuje, że potrafimy to opakować w apkę zgodną z `happy-path.md` i `agents-vs-workflows.md`.
+Tor 1 pokazał, że Roast + Claude CLI działają. Tor 2 pokazuje, że potrafimy to opakować w apkę zgodną z `02-user-journey.md` i `03-workflows-and-decisions.md`.
 
 ## Decyzje architektoniczne (potwierdzone 2026-04-16)
 
@@ -45,7 +45,7 @@ Apka spełnia wszystkie poniższe:
 
 | Odcięte | Gdzie to trafia |
 |---------|-----------------|
-| Preview (iframe z działającą apką) | Tor 3 — osobny plan oparty o `preview-isolation.md` (Kamal+Docker) |
+| Preview (iframe z działającą apką) | Tor 3 — osobny plan oparty o `20-tor-3-preview-isolation.md` (Kamal+Docker) |
 | Cancel mid-workflow + SIGTERM na PID | Tor 2.5 lub Tor 3 — wymaga PID trackingu i process supervisora |
 | Undo / `UndoLastChange` / W5 | Późniejszy tor — git revert jako nowa rewizja, ale architektonicznie oddzielne |
 | Export ZIP / GitHub push (W7) | Późniejszy tor — UI action, nie krytyczne dla PoC |
@@ -59,7 +59,7 @@ Te wycięcia nie są na zawsze — to świadome zmniejszenie zakresu pierwszego 
 
 ## Architektura — skrót
 
-Diagram pełny: `happy-path.md` § Architektura. Integracja warstw: `layer-integration.md`. Tutaj tylko shape specyficzny dla Toru 2.
+Diagram pełny: `02-user-journey.md` § Architektura. Integracja warstw: `04-layer-integration.md`. Tutaj tylko shape specyficzny dla Toru 2.
 
 ```
 HTTP request                           Solid Queue worker
@@ -89,7 +89,7 @@ Kluczowe granice:
 
 ## Model danych
 
-Cytat z `happy-path.md` (kanoniczny). Tu tylko to co implementujemy w Tor 2:
+Cytat z `02-user-journey.md` (kanoniczny). Tu tylko to co implementujemy w Tor 2:
 
 ```ruby
 Project
@@ -130,7 +130,7 @@ Revision
   - metrics: jsonb               # wall_seconds, exit_code itd. — struktura z drivera
 ```
 
-Odłożone z `happy-path.md`: `research_output` (nie używamy researchu D1 w PoC), `cli_pid` (nie implementujemy cancela w Torze 2).
+Odłożone z `02-user-journey.md`: `research_output` (nie używamy researchu D1 w PoC), `cli_pid` (nie implementujemy cancela w Torze 2).
 
 ## Przeniesienie spike'a do apki
 
@@ -161,7 +161,7 @@ Każdy krok ma własny DoD. Zielone wszystkie = Tor 2 domknięty.
 
 - `rails new generator --css tailwind --database sqlite3 --skip-jbuilder --skip-kamal --skip-ci`
 - `.ruby-version` = `4.0.2` (to samo co spike — Roast 1.1 wymaga 3.3+, lepiej pin na to co działa)
-- Gemfile — stack z `stack.md` § "Stack naszej aplikacji (generator)", plus dev: `debug`, `web-console`
+- Gemfile — stack z `05-tech-stack.md` § "Stack naszej aplikacji (generator)", plus dev: `debug`, `web-console`
 - Solid Queue + Solid Cable skonfigurowane (`bin/rails solid_queue:install`, mount w `routes.rb` opcjonalnie)
 - Skopiuj `revision_workflow.rb`, `verify_revision.rb`, `bin/roast`, `bin/roast-openrouter` do nowego Gemfile context
 - Dodaj plik `tmp/smoke_workflow.sh` — odpala `bin/roast lib/roast/revision_workflow.rb` na pustym workspace z dummy kwargiem
@@ -365,7 +365,7 @@ end
 Dodatkowo:
 
 - `app/jobs/application_job.rb`: `queue_as :generation` + `retry_on StandardError, wait: :polynomially_longer, attempts: 1` (generowanie nie retryujemy automatycznie — po failu user decyduje)
-- Solid Queue config: queue `generation` z concurrency 1 (jedno generowanie na raz, happy-path.md § "Równoległe instrukcje" — jedna aktywna)
+- Solid Queue config: queue `generation` z concurrency 1 (jedno generowanie na raz, 02-user-journey.md § "Równoległe instrukcje" — jedna aktywna)
 - `storage/workspaces/` dodane do `.gitignore`
 - Timeout — na razie bez twardego timeout'u. Obserwujemy, czy rewizja nie utyka (spike mierzony: max 226s). Twardy timeout (np. 20 min) dopiszemy w Kroku 7 jeśli będzie potrzeba
 - **DoD**: ręcznie utworzona Instruction + 1 Revision → `ExecuteInstructionJob.perform_now(id)` → powstaje Rails app w workspace, git ma 2 commity (scaffolding baseline + rewizja), Revision w DB ma `status=completed` i `git_sha`
@@ -456,119 +456,25 @@ Dodatkowo:
 
 Razem: **5-6 dni fokusa**. Realny kalendarz pewnie 1.5-2 tygodnie przy przerywaniu.
 
-## Alternatywne podejścia (rozpatrzone 2026-04-16)
+## Alternatywy (do potencjalnego powrotu)
 
-Każda z poniższych decyzji jest odwracalna. Decyzje podjęte i zapisane w sekcji "Decyzje architektoniczne" na górze. Tutaj zachowane pełne rozumowanie dla przyszłego-mnie / Pawła.
+Każda decyzja z sekcji "Decyzje architektoniczne" na górze jest odwracalna. Tabela sygnalizuje kiedy warto wrócić do alternatywy. Pełne rozumowanie za tymi wyborami — w historii git (commit rozpisania planu, 2026-04-16).
 
-### A1. Subprocess `bin/roast` vs. native Ruby embedding — ROZSTRZYGNIĘTE: subprocess
-
-**Plan**: Job woła `bin/roast revision_workflow.rb` przez `system()` z ENV-passingiem. Subprocess izolacja + za darmo session replay + wrapper leczy 3 ENV leaks.
-
-**Alternatywa**: Załadować Roast jako gem do apki (`require "roast"`) i odpalać workflow in-process (`Roast::Workflow.load(path).execute(kwargs)`). Zero subprocess overhead, łatwiejszy debugger/stack trace, prościej przekazywać obiekty (np. `instruction` zamiast `instruction_id` przez ENV).
-
-**Dlaczego wybrane subprocess**: Spike to walidował. Wrapper `bin/roast` już rozwiązuje ANTHROPIC_API_KEY leak + frum shim. In-process wymaga rozwiązania tych gotchas w Ruby (unset ENV w Bundler.with_unbundled_env? Reloadery Rails nie pokochają).
-
-**Kiedy reconsiderować**: gdy obserwujemy że subprocess startup to znaczący % czasu rewizji (spike pokazuje ~226s per rewizja → startup <1% → unimportant). Albo gdy zaczniemy potrzebować streamowania logów z Roasta do UI w real-time — subprocess pipe to robi, ale live Turbo Stream z in-process workflow byłby czystszy.
-
-### A2. Claude CLI vs. RubyLLM do generacji kodu — ROZSTRZYGNIĘTE: Claude CLI
-
-**Plan**: `agent(:generate_code)` w Roast woła Claude CLI (subskrypcja, file tools + bash).
-
-**Alternatywa**: Zastąpić agentem RubyLLM z customowymi toolami (WriteFile, RunBash, ReadFile). Wszystko w jednym procesie, spójny LLM client, łatwiej testować.
-
-**Dlaczego wybrane Claude CLI**: Darmowe (subskrypcja) dla PoC, proven w spike'u, ma battle-tested tooling. RubyLLM+tools wymagałby napisania warstwy agentowej od zera — duży workstream.
-
-**Kiedy reconsiderować**: gdy subskrypcja Claude Code przestaje pokrywać koszt (limity API), albo gdy chcemy dać userom własne klucze Anthropic/OpenRouter. Wtedy RubyLLM daje kontrolę nad ile tokenów per user.
-
-### A3. Roast jako orchestrator vs. plain Ruby job — ROZSTRZYGNIĘTE: Roast
-
-**Plan**: `ExecuteInstructionJob` loops po rewizjach → każda woła Roast workflow. W2 (verify + remediation + commit) jest w Roast DSL.
-
-**Alternatywa**: Usunąć Roast całkowicie. `ExecuteRevisionJob` w plain Ruby: `build_prompt → claude_cli → verify → remediation loop → git commit → update docs → commit docs`. Mniej zależności, wszystko w Rails idiom.
-
-**Dlaczego wybrane Roast**: Session replay za darmo (dla Pawła jako debug tool), DSL narzuca strukturę, Shopify testuje to w produkcji, spike zwalidował end-to-end.
-
-**Kiedy reconsiderować**: gdy Roast DSL okaże się bardziej frustrujący niż pomocny (3 gotchas ze spike'a to już sygnał). Gdy dołożymy wymagania którym Roast nie sprzyja (np. real-time streaming do UI, complex branching workflows). Plain Ruby byłby 200-300 linii — nie duży koszt przepisania.
-
-### A4. Workspace: lokalny filesystem vs. container / tmpdir — ROZSTRZYGNIĘTE: lokalny FS dla PoC + jawny TODO izolacji dla Tor 3
-
-**Plan**: `storage/workspaces/<project_id>/` na lokalnym filesystem.
-
-**Alternatywa A**: `Dir.mktmpdir` per instruction — workspace efemeryczny, po instrukcji archiwizowany jako git bundle w Active Storage. Czysciej, ale bez incremental iteracji (Krok 6 z `happy-path.md`).
-
-**Alternatywa B**: Od razu Docker container per projekt (jak w `preview-isolation.md`). Łączy Tor 2 z Tor 3.
-
-**Dlaczego wybrany lokalny FS**: Najprostszy do debugowania (mogę `cd storage/workspaces/123/` i zobaczyć stan), wystarczający dla single-user PoC, kompatybilny z incremental iteracją.
-
-**Kiedy reconsiderować**: gdy wychodzimy poza dev-only (multi-user → izolacja konieczna), gdy workspace state zaczyna kolidować z `rails new` w różnych katalogach, albo gdy chcemy testować generator w CI (tam tmpdir ma sens).
-
-### A5. Jedno job per Instruction vs. per Revision — ROZSTRZYGNIĘTE: jeden `ExecuteInstructionJob`
-
-**Plan**: `ExecuteInstructionJob` w pętli robi wszystkie rewizje sekwencyjnie.
-
-**Alternatywa**: `ExecuteRevisionJob` chainowany przez after_perform — każda rewizja osobny job, lepsza observability (Solid Queue UI), retry granularny per rewizja.
-
-**Dlaczego wybrany jeden job**: Prostsza kontrola flow (break na failure, workspace state między rewizjami jest w pamięci joba), mniej glue code. Spike robił tak samo.
-
-**Kiedy reconsiderować**: gdy chcemy retry pojedynczej failed rewizji bez odpalania całej Instruction (scenariusz "W3 padło na bug w promcie, napraw prompt, retry tylko W3"). Wtedy per-revision job daje to za darmo.
-
-### A6. Plan: LLM-generated vs. archetype template + slot-filling — ROZSTRZYGNIĘTE: LLM ad-hoc za abstrakcją `CreatePlan`
-
-**Plan oryginalny**: LLM generuje plan rewizji ad-hoc z promptu usera + system prompt z zasadami stack'u.
-
-**Alternatywa**: Biblioteka archetypów (`archetypes/ecommerce.yml`, `archetypes/saas.yml`, ...) z template'ami planów. LLM tylko wybiera archetyp + wypełnia sloty.
-
-**Decyzja (2026-04-16)**: LLM ad-hoc teraz, **ALE za abstrakcją `CreatePlan`** (interface: `call(intent, clarifications, context) → [Revision, ...]`). Pierwsza implementacja `CreatePlan::AdHocLLM`. Przyszłe swap'owalne: `CreatePlan::Archetypes`, `CreatePlan::Hybrid`, `CreatePlan::CheapButGoodLLM`. Jakość planów jest uznawana za **klucz do jakości generatora** — ale to osobny workstream, poza Tor 2.
-
-**Kiedy przełączyć implementację**:
-- Gdy jakość planów LLM-ad-hoc okaże się zmienna (logi z pierwszych 5-10 runów to pokażą)
-- Gdy znajdziemy tani-ale-dobry model (Haiku? GPT-4.1 mini?) — szybki swap
-- Gdy Paweł zrobi content workstream archetypów — dodajemy `CreatePlan::Archetypes` jako nowa opcja bez zmian w chat/tool layer
-
-### A7. Chat tools vs. structured output (JSON) — ROZSTRZYGNIĘTE: lightweight tools (`StartGeneration`)
-
-**Plan oryginalny (porzucony)**: LLM wywołuje `CreateInstruction(description, revisions: [...])` tool — detailed plan przechodzi przez tool args.
-
-**Alternatywa rozpatrzona**: RubyLLM z `response_format: json_schema`. LLM odpowiada JSON-em, parser tworzy Instruction.
-
-**Decyzja (2026-04-16)**: Tools TAK — ale **lightweight**. Tool `StartGeneration(intent, clarifications)` przekazuje TYLKO high-level intent w plain language. **Detailed prompts dla Claude CLI generowane są wewnętrznie przez `CreatePlan` service — nigdy nie opuszczają backendu.**
-
-**Dlaczego ta zmiana vs. oryginalny plan**:
-- **Secret sauce (prompt engineering plannera) to core IP Pawła** — nie chcemy żeby wyciekał w API roundtrip Anthropic ani żeby był widoczny w `Message.tool_calls` jsonb jako leakage
-- **Separacja odpowiedzialności**: chat = rozmowa z userem, `CreatePlan` = planowanie implementacji. Dwie różne domeny, dwa różne prompt contexts, dwie różne jakości
-- **System prompt chatu jest publiczny (w sensie: przechodzi przez API)** — nie umieszczamy tam wiedzy o Rails Way/Tailwind/strukturze rewizji. Ta wiedza żyje w `CreatePlan::AdHocLLM`'s prywatnym system prompcie
-
-**Kiedy reconsiderować**: gdy tool reliability okaże się problemem (LLM nie woła `StartGeneration` w spodziewanym momencie). Fallback: UI button "Zacznij generować" który wymusza tool call z treścią ostatniej wiadomości usera jako intent.
-
----
-
-## Kontekst do wczytania przy powrocie (po /clear)
-
-Jeśli wracasz do tego planu w nowej sesji, przeczytaj **w tej kolejności**:
-
-1. **Ten plik (`tor-2-plan.md`)** — plan + alternatywy + otwarte pytania
-2. **`roast-spike/findings.md`** — co zostało zwalidowane w Torze 1, jakie gotchas ujawnione
-3. **`happy-path.md`** — full user story, model danych, architektura (kanon)
-4. **`agents-vs-workflows.md`** — W1-W6 workflow definitions, Roast example (zsynchronizowany ze spike'iem)
-5. **`layer-integration.md`** — event bus, RubyLLM↔Roast↔Solid Queue
-6. **`stack.md`** — gemy (stack generatora vs. stack generowanych apek)
-
-Dodatkowo — pliki spike'a które są proof-of-concept do skopiowania do Toru 2:
-- `roast-spike/revision_workflow.rb` — W2 DSL
-- `roast-spike/verify_revision.rb` — verify helper
-- `roast-spike/new_app_driver.rb` — logika którą przenosimy do `ExecuteInstructionJob`
-- `roast-spike/bin/roast` — wrapper rozwiązujący 3 ENV gotchas
-
-Pamięci projektowe (`~/.claude/.../memory/`) relevantne:
-- `feedback_roast_rails_env_gotchas.md` — 3 ENV leaks i fixy
-- `reference_roast_dsl_gotchas.md` — Roast 1.1 DSL gotchas (metadata, .error, WORKFLOW_STATE)
-- `project_rails_app_generator_openrouter.md` — bin/roast vs bin/roast-openrouter
+| # | Wybrane | Alternatywa | Wrócić gdy |
+|---|---------|-------------|------------|
+| A1 | Subprocess `bin/roast` | Native Ruby embedding (`require "roast"` in-process) | Startup subprocessa staje się znaczącym % czasu rewizji, albo chcemy live Turbo Stream z workflow bez subprocess pipe |
+| A2 | Claude CLI (subskrypcja) | RubyLLM + własne toole (WriteFile/RunBash/ReadFile) w jednym procesie | Subskrypcja przestaje pokrywać koszt, albo chcemy dać userom własne klucze Anthropic/OpenRouter |
+| A3 | Roast jako orchestrator | Plain Ruby job (`build_prompt → cli → verify → remediation → commit`) | Roast DSL przeszkadza bardziej niż pomaga (3 gotchas ze spike'a to już sygnał), albo pojawiają się wymagania poza jego zasięgiem (real-time streaming, branching) |
+| A4 | Lokalny FS `storage/workspaces/<id>/` | `Dir.mktmpdir` per instruction, albo Docker container per projekt | Wychodzimy poza dev-only (multi-user → izolacja konieczna), albo testujemy generator w CI (tmpdir) |
+| A5 | Jeden `ExecuteInstructionJob` z pętlą rewizji | `ExecuteRevisionJob` chainowany per rewizja (lepsza observability, retry granularny) | Chcemy retry pojedynczej failed rewizji bez odpalania całej Instruction |
+| A6 | `CreatePlan::AdHocLLM` za abstrakcją `CreatePlan` | `CreatePlan::Archetypes` (template'y + slot-filling), albo hybrid | Jakość planów ad-hoc okaże się zmienna (logi z 5-10 runów), content workstream archetypów ruszy, albo znajdziemy tani-ale-dobry model (Haiku? GPT-4.1 mini?) |
+| A7 | Lightweight tool `StartGeneration(intent, clarifications)` | `CreateInstruction(description, revisions: [...])` z detailed planem w tool args, albo `response_format: json_schema` | Tool reliability okaże się problemem — LLM nie woła `StartGeneration` w spodziewanym momencie. Fallback: UI button "Zacznij generować" wymusza tool call |
 
 ## Wyjścia z Toru 2
 
 Po domknięciu:
 
-- **Dalej po warstwę preview** (Tor 3) — `preview-isolation.md` z Kamal+Docker, osobny plan
+- **Dalej po warstwę preview** (Tor 3) — `20-tor-3-preview-isolation.md` z Kamal+Docker, osobny plan
 - **Albo polish PoC dla demo** — lepszy UI, cancel, kilka archetypów, żeby pokazać na Tropical/Rails World jako demo
 - **Albo monetyzacja / sponsorship** — token costs liczone, teraz mamy dane do rozmowy z Anthropic local ambassadors
 

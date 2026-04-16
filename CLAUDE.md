@@ -5,17 +5,30 @@ Generator aplikacji Ruby on Rails — odpowiednik Lovable/bolt.new dla ekosystem
 ## Status (2026-04-16)
 
 - **Tor 1** (spike Roast 1.1 + Claude CLI): **domknięty**. Pipeline driver → Roast → Claude CLI → verify → remediation zwalidowany end-to-end. Kod w `roast-spike/`, wyniki w `roast-spike/findings.md`.
-- **Tor 2** (PoC głównej apki generatora: RubyLLM + Solid Queue + Roast per Instruction): **rozpisany** w `tor-2-plan.md`, **alternatywy A1-A7 rozstrzygnięte 2026-04-16** (dwie zmiany architektoniczne: `CreatePlan` service + lightweight `StartGeneration` tool). Ready do Kroku 1.
+- **Tor 2** (PoC głównej apki generatora: RubyLLM + Solid Queue + Roast per Instruction): **rozpisany** w `10-tor-2-poc-generator-app.md`, **alternatywy A1-A7 rozstrzygnięte 2026-04-16** (dwie zmiany architektoniczne: `CreatePlan` service + lightweight `StartGeneration` tool). Ready do Kroku 1.
+- **Tor 3** (preview isolation przez Kamal + Docker): **analiza gotowa** w `20-tor-3-preview-isolation.md`. Poza zakresem Toru 2.
+
+## Struktura dokumentacji
+
+Pliki w głównym katalogu pogrupowane numerycznie:
+
+- **`0X-*`** — kanon (wizja, user journey, architektura, stack). Czyta się raz, odwołuje wielokrotnie.
+- **`1X-*`** — aktywny plan implementacji (obecnie Tor 2).
+- **`2X-*`** — plany przyszłych torów (obecnie Tor 3 preview isolation — analiza, jeszcze nieaktywna).
+- **`9X-*`** — brainstorm / idea dump (jawnie oznaczone jako nie-kanon).
+- **`roast-spike/`** — referencyjna implementacja Toru 1 (proven, nie ruszać bez powodu).
 
 ## Kolejność czytania przy wznawianiu
 
-1. `tor-2-plan.md` — plan Toru 2 + sekcja "Decyzje architektoniczne" na górze (summary A1-A7) + pełne rozumowanie w "Alternatywne podejścia" + otwarte pytania
-2. `roast-spike/findings.md` — co zwalidowane, jakie gotchas ujawnione
-3. `happy-path.md` — user story, model danych, architektura (kanon)
-4. `agents-vs-workflows.md` — W1-W6 workflow definitions + Roast example
-5. `layer-integration.md` — RubyLLM ↔ Roast ↔ Solid Queue przez event bus
-6. `stack.md` — gemy (stack generatora vs. stack generowanych apek)
-7. `index.md` — oryginalny wstęp projektu (z hub pawel-claude)
+1. `10-tor-2-poc-generator-app.md` — plan Toru 2: decyzje architektoniczne, DoD, kroki 1-7, tabela alternatyw, otwarte pytania
+2. `roast-spike/findings.md` — co zwalidowane w Torze 1, jakie gotchas ujawnione
+3. `02-user-journey.md` — user story, model danych, architektura (kanon)
+4. `03-workflows-and-decisions.md` — W1-W6 workflow definitions + decyzje D1-D6 + Roast example
+5. `04-layer-integration.md` — RubyLLM ↔ Roast ↔ Solid Queue przez event bus
+6. `05-tech-stack.md` — gemy (stack generatora vs. stack generowanych apek)
+7. `01-vision-and-principles.md` — wizja, stałe założenia, ścieżki A/B Quick/Guided, odłożone
+
+Przy aktywacji Toru 3: dopisać `20-tor-3-preview-isolation.md` do kolejności powyżej, przed kanonem.
 
 Dodatkowe źródła po spike'u:
 - `roast-spike/revision_workflow.rb` — W2 DSL (Implement → Verify → Commit + remediation)

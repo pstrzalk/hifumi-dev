@@ -1,4 +1,4 @@
-# Rails App Generator
+# Wizja i zasady
 
 > **From PROMPT to IPO.**
 > Convention over configuration means agents write token-efficient code that's easy to generate and beautiful for humans to review.
@@ -46,6 +46,8 @@ Dwie ścieżki do wyboru przez użytkownika:
 - **HERB + ReActionView** — lintowanie i formatowanie plików ERB
 - Standardowe Rails'owe podejście (Action Mailer, Active Storage, etc.)
 
+Pełna lista gemów: `05-tech-stack.md`.
+
 ### Interfejs generatora
 - **Od razu web UI** — to jest docelowa forma produktu
 - **Skrypty CLI obok** — każdy element procesu generowania powinien być wykonywalny z CLI, żeby można było testować, debugować i powtarzalnie sprawdzać kroki pipeline'u
@@ -62,40 +64,9 @@ Dwie ścieżki do wyboru przez użytkownika:
 - **In-house hosting** — jeśli aplikacje trzymane są "u nas" (model SaaS?)
 - Deployment jest ważny, ale szczegóły do wypracowania później
 
-## Silnik generowania
-
-Trzy warstwy:
-- **RubyLLM** — komunikacja z userem, chat, tools. Triggeruje workflow'y.
-- **Roast** (Shopify) — orkiestracja workflow'ów po stronie serwera. Zdefiniowane kroki z LLM w środku.
-- **Claude Code CLI** — generowanie kodu wewnątrz workflow'ów Roast.
-
-Solid Queue łączy warstwy asynchronicznie. Szczegóły: `agents-vs-workflows.md`, `happy-path.md`
-
 ## Odłożone na później
 
 - **In-house hosting** — model do wypracowania (Kamal dla self-hosted)
 - **Mailer styling** — Tailwind for email? Premailer? Do rozwiązania przy mailach.
 - **Rails on WebAssembly** — Evil Martians pokazali, że da się odpalić Rails + część gemów w WASM bezpośrednio w przeglądarce. Do sprawdzenia jako ścieżka "try it now" dla wygenerowanych projektów — zero setup, game-changer dla UX generatora. Deployment nie jest pierwszym zmartwieniem, ale gdyby zadziałało, byłoby bardzo mocne. Źródła: [evilmartians.com/chronicles/ruby-on-rails-on-webassembly](https://evilmartians.com/chronicles/ruby-on-rails-on-webassembly-a-guide-to-full-stack-in-browser-action), kontynuacja na [writebook-on-wasm.fly.dev](https://writebook-on-wasm.fly.dev/5/ruby-on-rails-on-webassembly/).
 - **Finansowanie tokenów LLM** — trzeba znaleźć sponsora na koszty tokenów. Świadomie nie chcę polegać na Visuality — jeśli projekt wypali, chcę być jedynym właścicielem. Anthropic historycznie dawał darmowe tokeny, ostatnio rzadziej. Do rozważenia: kontakt z local ambasadorami Anthropic, inne programy sponsorskie.
-
-## Dokumenty
-
-- `happy-path.md` — user story, model danych, architektura
-- `agents-vs-workflows.md` — katalog workflow'ów i decyzji
-- `stack.md` — gemy i narzędzia
-- `git-integration-ideas.md` — pomysły na integrację z git
-- `preview-isolation.md` — izolacja preview: Kamal + Docker + kamal-proxy
-- `roast-spike/` — spike walidujący Roast 1.1.0 (wyniki w `findings.md`)
-- `tor-2-plan.md` — plan PoC głównej apki generatora (RubyLLM + Solid Queue + Roast)
-
-## Status
-
-Faza: **Tor 2 rozpisany (2026-04-16), gotowy do implementacji**.
-
-Zwalidowane end-to-end (Tor 1):
-- Architektura W1 → W2 z remediation loop (`roast-spike/`)
-- Happy path: plan `todo-list` (3 rewizje × Sonnet, 496s)
-- Failure path: plan `force-remediation` (1 rewizja, 1 iteracja remediation, 131s)
-- Stack Roast 1.1 + Claude Code CLI + Ruby wrapper (odpowiednik przyszłego Solid Queue joba)
-
-Verdict Toru 1 w `roast-spike/findings.md`. Plan Toru 2 w `tor-2-plan.md` — siedem kroków (skeleton, model, chat baseline, tools, ExecuteInstructionJob, eventy, E2E). Oszacowanie: 5-6 dni fokusa.

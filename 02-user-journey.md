@@ -140,7 +140,7 @@ Po każdej rewizji: **krok "update docs"** aktualizuje manifest. Część proces
 
 ### Cykl per Instruction
 
-Instrukcje wykonywane przez zdefiniowane workflow'y (patrz `agents-vs-workflows.md`).
+Instrukcje wykonywane przez zdefiniowane workflow'y (patrz `03-workflows-and-decisions.md`).
 
 **Nowa apka → Workflow W1:**
 
