@@ -1,12 +1,12 @@
 # Faza 2 — PoC głównej apki generatora
 
-Rails skeleton + RubyLLM chat + Solid Queue job odpalający proven workflow z Fazy 1 (`roast-spike/revision_workflow.rb`).
+Rails skeleton + RubyLLM chat + Solid Queue job odpalający proven workflow z Fazy 1 (`../../spikes/roast/revision_workflow.rb`).
 
 ## Cel
 
 Udowodnić end-to-end, że pipeline ze spike'a odpala się z poziomu Rails appki zamiast `new_app_driver.rb`. Driver staje się `ExecuteInstructionJob`, hardcoded `plans.rb` — Instruction + Revision w DB wywołane przez tool call z chatu RubyLLM (poprzez service `CreatePlan`).
 
-Faza 1 pokazał, że Roast + Claude CLI działają. Faza 2 pokazuje, że potrafimy to opakować w apkę zgodną z `02-user-journey.md` i `03-workflows-and-decisions.md`.
+Faza 1 pokazała, że Roast + Claude CLI działają. Faza 2 pokazuje, że potrafimy to opakować w apkę zgodną z `../01-vision/02-user-journey.md` i `../02-architecture/01-workflows-and-decisions.md`.
 
 ## Decyzje architektoniczne (potwierdzone 2026-04-16)
 
@@ -19,7 +19,7 @@ Przejście przez alternatywy A1-A7. Większość potwierdziła default planu; dw
 | A3 | **Roast** jako orchestrator; `revision_workflow.rb` przenoszony 1:1 | = plan |
 | A4 | **Lokalny FS** (`storage/workspaces/<id>/`) w PoC; **produkcyjnie izolacja userów → Faza 3** (jawny wymóg, nie tylko consequence preview) | = plan + explicit Faza 3 TODO |
 | A5 | **Jeden `ExecuteInstructionJob`** z pętlą po rewizjach; chainowanie per Revision jako przyszłe rozszerzenie | = plan |
-| A6 | **`CreatePlan` service jako abstrakcja** z pierwszą implementacją `CreatePlan::AdHocLLM`; swap'owalne (archetype, hybrid, cheap-but-good model) w przyszłości. Jakość planów = klucz do jakości generatora, ale osobny workstream poza Faza 2 | **ZMIANA**: dodana warstwa abstrakcji, tool nie tworzy planu bezpośrednio |
+| A6 | **`CreatePlan` service jako abstrakcja** z pierwszą implementacją `CreatePlan::AdHocLLM`; swap'owalne (archetype, hybrid, cheap-but-good model) w przyszłości. Jakość planów = klucz do jakości generatora, ale osobny workstream poza Fazą 2 | **ZMIANA**: dodana warstwa abstrakcji, tool nie tworzy planu bezpośrednio |
 | A7 | **Lightweight tool `StartGeneration(intent, clarifications)`** — detailed prompts NIE wychodzą przez chat API. Secret sauce (prompt engineering plannera) żyje wewnątrz `CreatePlan`, nie w system prompcie chatu ani w tool call args | **ZMIANA**: tool przekazuje intent zamiast completed plan |
 
 **Konsekwencje dla reszty planu**:
@@ -41,15 +41,15 @@ Apka spełnia wszystkie poniższe:
 8. Demo przechodzi na planie z poziomu chatu analogicznym do `TODO_LIST` ze spike'a (3 rewizje × Sonnet, zielone `rails test`, ~8 minut wall)
 9. CLI mirror: `bin/generate full --prompt "..."` robi to samo bez UI — do debugowania i testów integracyjnych
 
-## Świadome cięcia (NIE wchodzi w Faza 2)
+## Świadome cięcia (NIE wchodzi w Fazę 2)
 
 | Odcięte | Gdzie to trafia |
 |---------|-----------------|
-| Preview (iframe z działającą apką) | Faza 3 — osobny plan oparty o `20-phase-3-preview-isolation.md` (Kamal+Docker) |
+| Preview (iframe z działającą apką) | Faza 3 — osobny plan oparty o `02-phase-3-preview-isolation.md` (Kamal+Docker) |
 | Cancel mid-workflow + SIGTERM na PID | Faza 2.5 lub Faza 3 — wymaga PID trackingu i process supervisora |
 | Undo / `UndoLastChange` / W5 | Późniejsza faza — git revert jako nowa rewizja, ale architektonicznie oddzielne |
 | Export ZIP / GitHub push (W7) | Późniejsza faza — UI action, nie krytyczne dla PoC |
-| Multi-user / Devise w generatorze | Dev-only na Faza 2. Auth dodamy gdy apka wyjdzie poza moją maszynę |
+| Multi-user / Devise w generatorze | Dev-only w Fazie 2. Auth dodamy gdy apka wyjdzie poza moją maszynę |
 | Archetype baza / rozbudowany research (D1) | Faza 2 używa uproszczonego promptu bez archetypów. Archetypy to osobny workstream contentowy |
 | Real koszt w USD | Subskrypcja Claude Code pokrywa. Jednorazowy pomiar przez OpenRouter dopiero gdy DoD tego wymaga |
 | UI polish (design system, mobile, dark mode) | Tailwind default wystarczy. Styling później |
@@ -59,7 +59,7 @@ Te wycięcia nie są na zawsze — to świadome zmniejszenie zakresu pierwszego 
 
 ## Architektura — skrót
 
-Diagram pełny: `02-user-journey.md` § Architektura. Integracja warstw: `04-layer-integration.md`. Tutaj tylko shape specyficzny dla Fazy 2.
+Diagram pełny: `../01-vision/02-user-journey.md` § Architektura. Integracja warstw: `../02-architecture/02-layer-integration.md`. Tutaj tylko shape specyficzny dla Fazy 2.
 
 ```
 HTTP request                           Solid Queue worker
@@ -89,7 +89,7 @@ Kluczowe granice:
 
 ## Model danych
 
-Cytat z `02-user-journey.md` (kanoniczny). Tu tylko to co implementujemy w Faza 2:
+Cytat z `../01-vision/02-user-journey.md` (kanoniczny). Tu tylko to co implementujemy w Fazie 2:
 
 ```ruby
 Project
@@ -130,11 +130,11 @@ Revision
   - metrics: jsonb               # wall_seconds, exit_code itd. — struktura z drivera
 ```
 
-Odłożone z `02-user-journey.md`: `research_output` (nie używamy researchu D1 w PoC), `cli_pid` (nie implementujemy cancela w Fazie 2).
+Odłożone z `../01-vision/02-user-journey.md`: `research_output` (nie używamy researchu D1 w PoC), `cli_pid` (nie implementujemy cancela w Fazie 2).
 
 ## Przeniesienie spike'a do apki
 
-`roast-spike/` zostaje jako reference implementation (żeby móc odpalać regresje bez Rails). Do apki kopiujemy w zmienionej formie:
+`../../spikes/roast/` zostaje jako reference implementation (żeby móc odpalać regresje bez Rails). Do apki kopiujemy w zmienionej formie:
 
 | Ze spike'a | Do apki | Zmiany |
 |------------|---------|--------|
@@ -155,13 +155,13 @@ Odłożone z `02-user-journey.md`: `research_output` (nie używamy researchu D1 
 
 ## Kroki
 
-Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięty.
+Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
 
 ### Krok 1 — Rails skeleton + spike import (półdzień)
 
 - `rails new generator --css tailwind --database sqlite3 --skip-jbuilder --skip-kamal --skip-ci`
 - `.ruby-version` = `4.0.2` (to samo co spike — Roast 1.1 wymaga 3.3+, lepiej pin na to co działa)
-- Gemfile — stack z `05-tech-stack.md` § "Stack naszej aplikacji (generator)", plus dev: `debug`, `web-console`
+- Gemfile — stack z `../02-architecture/03-tech-stack.md` § "Stack naszej aplikacji (generator)", plus dev: `debug`, `web-console`
 - Solid Queue + Solid Cable skonfigurowane (`bin/rails solid_queue:install`, mount w `routes.rb` opcjonalnie)
 - Skopiuj `revision_workflow.rb`, `verify_revision.rb`, `bin/roast`, `bin/roast-openrouter` do nowego Gemfile context
 - Dodaj plik `tmp/smoke_workflow.sh` — odpala `bin/roast lib/roast/revision_workflow.rb` na pustym workspace z dummy kwargiem
@@ -365,7 +365,7 @@ end
 Dodatkowo:
 
 - `app/jobs/application_job.rb`: `queue_as :generation` + `retry_on StandardError, wait: :polynomially_longer, attempts: 1` (generowanie nie retryujemy automatycznie — po failu user decyduje)
-- Solid Queue config: queue `generation` z concurrency 1 (jedno generowanie na raz, 02-user-journey.md § "Równoległe instrukcje" — jedna aktywna)
+- Solid Queue config: queue `generation` z concurrency 1 (jedno generowanie na raz, ../01-vision/02-user-journey.md § "Równoległe instrukcje" — jedna aktywna)
 - `storage/workspaces/` dodane do `.gitignore`
 - Timeout — na razie bez twardego timeout'u. Obserwujemy, czy rewizja nie utyka (spike mierzony: max 226s). Twardy timeout (np. 20 min) dopiszemy w Kroku 7 jeśli będzie potrzeba
 - **DoD**: ręcznie utworzona Instruction + 1 Revision → `ExecuteInstructionJob.perform_now(id)` → powstaje Rails app w workspace, git ma 2 commity (scaffolding baseline + rewizja), Revision w DB ma `status=completed` i `git_sha`
@@ -441,7 +441,7 @@ Dodatkowo:
 1. **`CreatePlan::AdHocLLM` implementacja**: czy LLM call w service używa RubyLLM z `response_format: json_schema` (deterministyczny output) czy drugi tool use? Decyzja w Kroku 4. Schema vs. tool to compromise między deterministycznym parsingiem a łatwością multi-step reasoning
 2. **Workspace per projekt vs shared?** Per projekt (`storage/workspaces/<id>`). Shared bundle cache (`~/.bundle`) żeby nie reinstalować gemów przy każdym `rails new` — do optymalizacji w Kroku 5 jeśli wall time Krok 7 przekroczy limit
 3. **Process supervisor dla subprocess Roast?** Start: plain `system()`. Jeśli okaże się że potrzebujemy timeoutu + kill + PID tracking — minimum `Process.spawn` + wątek watchdog. Pełny supervisor (np. Dragonfly) dopiero gdy Faza 2.5 (cancel) ruszy
-4. **Czy RubyLLM chat dostaje kontekst o `Project.revisions`?** Happy-path mówi tak. W Faza 2 PoC: tak, przez `chat.with_instructions(...)` ustawiane w `ChatRespondJob` każdorazowo (nie w `Chat.create!`) żeby odświeżać stan. Format: short markdown summary z listą revision summaries + statusów (summaries OK — to user-facing; detailed prompts dalej nie są pokazywane chatowi)
+4. **Czy RubyLLM chat dostaje kontekst o `Project.revisions`?** Happy-path mówi tak. W Fazie 2 PoC: tak, przez `chat.with_instructions(...)` ustawiane w `ChatRespondJob` każdorazowo (nie w `Chat.create!`) żeby odświeżać stan. Format: short markdown summary z listą revision summaries + statusów (summaries OK — to user-facing; detailed prompts dalej nie są pokazywane chatowi)
 5. **Jakiego modelu użyć w `CreatePlan::AdHocLLM`?** Sonnet/Haiku? Sonnet daje lepsze plany, Haiku tani/szybki. Eksperyment w Kroku 4. Architektura swap-owalna (A6) pozwala na łatwy test obu
 
 ## Oszacowanie
@@ -474,8 +474,8 @@ Każda decyzja z sekcji "Decyzje architektoniczne" na górze jest odwracalna. Ta
 
 Po domknięciu:
 
-- **Dalej po warstwę preview** (Faza 3) — `20-phase-3-preview-isolation.md` z Kamal+Docker, osobny plan
+- **Dalej po warstwę preview** (Faza 3) — `02-phase-3-preview-isolation.md` z Kamal+Docker, osobny plan
 - **Albo polish PoC dla demo** — lepszy UI, cancel, kilka archetypów, żeby pokazać na Tropical/Rails World jako demo
 - **Albo monetyzacja / sponsorship** — token costs liczone, teraz mamy dane do rozmowy z Anthropic local ambassadors
 
-Decyzję odłożyć do momentu gdy Faza 2 zamknie się. Na dziś: Faza 2 jest niezależny od każdego z tych kierunków.
+Decyzję odłożyć do momentu gdy Faza 2 zamknie się. Na dziś: Faza 2 jest niezależna od każdego z tych kierunków.

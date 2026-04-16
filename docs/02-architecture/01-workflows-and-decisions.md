@@ -213,7 +213,7 @@ Ale nawet agent jest ograniczony:
 
 Roast (Shopify) — Ruby DSL do orkiestracji workflow'ów z mieszanymi krokami (deterministyczne + LLM). Session replay, Claude Code integration, production-tested w Shopify.
 
-Przykład W2 w Roast — **zsynchronizowany z działającym `roast-spike/revision_workflow.rb`** (zwalidowany end-to-end planami `todo-list` i `force-remediation`, 2026-04-15/16).
+Przykład W2 w Roast — **zsynchronizowany z działającym `../../spikes/roast/revision_workflow.rb`** (zwalidowany end-to-end planami `todo-list` i `force-remediation`, 2026-04-15/16).
 
 ```ruby
 # workflows/revision_workflow.rb

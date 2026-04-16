@@ -344,9 +344,9 @@ end
 
 ## Wpływ na istniejące docs
 
-Przy aktywacji Faza 3 (start implementacji) zaktualizować:
+Przy aktywacji Fazy 3 (start implementacji) zaktualizować:
 
-- `02-user-journey.md` Krok 5 (Preview) — zaktualizować o kontenery zamiast raw `rails server`
-- `03-workflows-and-decisions.md` W3 — dodać Docker build step
-- `05-tech-stack.md` — dodać Docker/kamal-proxy do stack generatora
-- `CLAUDE.md` — zmienić status Fazy 3 z "analiza" na "aktywny" i dopisać ten plik do kolejności czytania
+- `../01-vision/02-user-journey.md` Krok 5 (Preview) — zaktualizować o kontenery zamiast raw `rails server`
+- `../02-architecture/01-workflows-and-decisions.md` W3 — dodać Docker build step
+- `../02-architecture/03-tech-stack.md` — dodać Docker/kamal-proxy do stack generatora
+- `../../CLAUDE.md` — zmienić status Fazy 3 z "analiza" na "aktywny" i dopisać ten plik do kolejności czytania

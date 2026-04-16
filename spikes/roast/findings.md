@@ -1,6 +1,6 @@
 # Roast Spike — Findings
 
-Walidacja Roast 1.1.0 (Shopify) pod architekturę z `03-workflows-and-decisions.md`.
+Walidacja Roast 1.1.0 (Shopify) pod architekturę z `../../docs/02-architecture/01-workflows-and-decisions.md`.
 
 ## Verdict: działa. Architektura trafiona, API surface wymaga korekt.
 
@@ -172,9 +172,9 @@ Wszystkie silent killers, każdy blokował cały run. Fixy w commit b94e9a7. Szc
 
 ## Lekcje dla docs
 
-1. **`03-workflows-and-decisions.md`:** Poprawić Roast example — pliki zamiast klas, `fail!`/`break!` zamiast `rescue_from`
+1. **`../../docs/02-architecture/01-workflows-and-decisions.md`:** Poprawić Roast example — pliki zamiast klas, `fail!`/`break!` zamiast `rescue_from`
 2. **`skip_permissions!` jako requirement** dla agent config
-3. **Ruby 3.3+ requirement** (Roast 1.x). Dodać do `05-tech-stack.md`.
+3. **Ruby 3.3+ requirement** (Roast 1.x). Dodać do `../../docs/02-architecture/03-tech-stack.md`.
 4. **Session replay:** darmowe z Roast, można wznowić workflow od kroku — dobre do debugowania i `--replay` po rate limit.
 5. **ENV hygiene w driverze/wrapperze:** trzy leaks (punkt wyżej) są na tyle systemowe, że warto je opisać w architekturze jako requirement, nie tylko workaround.
 
@@ -195,7 +195,7 @@ Pierwsza próba wysypała się z `NameError: undefined local variable or method 
 
 **Fix:** moduł-level hash `WORKFLOW_STATE = {}` zdefiniowany na górze pliku `revision_workflow.rb`, używany do przeniesienia errors z `ruby(:verify)` do `repeat(:remediate)` bloku. Commit `fc5f4cd`.
 
-**Implikacja dla docs:** przykład W2 w `03-workflows-and-decisions.md` używał `ruby(:verify).error` — to też nie zadziałało w praktyce (cog po `fail!` nie udostępnia `.error`). Zaktualizowany do `WORKFLOW_STATE` pattern.
+**Implikacja dla docs:** przykład W2 w `../../docs/02-architecture/01-workflows-and-decisions.md` używał `ruby(:verify).error` — to też nie zadziałało w praktyce (cog po `fail!` nie udostępnia `.error`). Zaktualizowany do `WORKFLOW_STATE` pattern.
 
 ---
 
@@ -214,7 +214,7 @@ Znane ograniczenia i gotchas udokumentowane:
 2. ✅ ~~Przetestować happy path na prawdziwej Rails app (plan todo-list, 3 rewizje)~~
 3. ✅ ~~Uruchomić plan `force-remediation` — remediation loop zweryfikowany~~
 4. ⬜ (Opcjonalnie, odłożone) realny koszt przez OpenRouter — subskrypcja nie pokazuje tokenów; do zmierzenia gdy DoD Fazy 2 tego wymaga
-5. ✅ ~~Update dokumentów (`findings.md`, `03-workflows-and-decisions.md` — commit ff73377; `index.md` został później zlikwidowany przy reorganizacji dokumentacji)~~
+5. ✅ ~~Update dokumentów (`findings.md`, `../../docs/02-architecture/01-workflows-and-decisions.md` — commit ff73377; `index.md` został później zlikwidowany przy reorganizacji dokumentacji)~~
 6. ✅ ~~Cleanup: `tor-1-plan.md` usunięty (commit ff73377), pamięci `project_tor_1_*` nigdy nie istniały na tym hoście~~
 
-**Faza 1 domknięty 2026-04-16. Dalej: Faza 2 — `10-phase-2-poc-generator-app.md` (PoC apki generatora — RubyLLM + Solid Queue + Roast).**
+**Faza 1 domknięta 2026-04-16. Dalej: Faza 2 — `../../docs/03-plans/01-phase-2-poc-generator-app.md` (PoC apki generatora — RubyLLM + Solid Queue + Roast).**

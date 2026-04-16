@@ -4,7 +4,7 @@
 #: self as Roast::Workflow
 
 # W2: Wykonanie pojedynczej rewizji — Implement → Verify → Commit
-# Zgodne z 03-workflows-and-decisions.md (W2.1–W2.8 + W2.R remediation + W2.F failure path).
+# Zgodne z ../../docs/02-architecture/01-workflows-and-decisions.md (W2.1–W2.8 + W2.R remediation + W2.F failure path).
 #
 # Uruchomienie:
 #   REVISION_WORKSPACE=/path/to/app bundle exec roast revision_workflow.rb -- \

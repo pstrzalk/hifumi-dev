@@ -46,7 +46,7 @@ Dwie ścieżki do wyboru przez użytkownika:
 - **HERB + ReActionView** — lintowanie i formatowanie plików ERB
 - Standardowe Rails'owe podejście (Action Mailer, Active Storage, etc.)
 
-Pełna lista gemów: `05-tech-stack.md`.
+Pełna lista gemów: `../02-architecture/03-tech-stack.md`.
 
 ### Interfejs generatora
 - **Od razu web UI** — to jest docelowa forma produktu
