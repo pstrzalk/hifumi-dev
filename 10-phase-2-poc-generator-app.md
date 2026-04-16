@@ -1,12 +1,12 @@
-# Tor 2 — PoC głównej apki generatora
+# Faza 2 — PoC głównej apki generatora
 
-Rails skeleton + RubyLLM chat + Solid Queue job odpalający proven workflow z Toru 1 (`roast-spike/revision_workflow.rb`).
+Rails skeleton + RubyLLM chat + Solid Queue job odpalający proven workflow z Fazy 1 (`roast-spike/revision_workflow.rb`).
 
 ## Cel
 
 Udowodnić end-to-end, że pipeline ze spike'a odpala się z poziomu Rails appki zamiast `new_app_driver.rb`. Driver staje się `ExecuteInstructionJob`, hardcoded `plans.rb` — Instruction + Revision w DB wywołane przez tool call z chatu RubyLLM (poprzez service `CreatePlan`).
 
-Tor 1 pokazał, że Roast + Claude CLI działają. Tor 2 pokazuje, że potrafimy to opakować w apkę zgodną z `02-user-journey.md` i `03-workflows-and-decisions.md`.
+Faza 1 pokazał, że Roast + Claude CLI działają. Faza 2 pokazuje, że potrafimy to opakować w apkę zgodną z `02-user-journey.md` i `03-workflows-and-decisions.md`.
 
 ## Decyzje architektoniczne (potwierdzone 2026-04-16)
 
@@ -17,9 +17,9 @@ Przejście przez alternatywy A1-A7. Większość potwierdziła default planu; dw
 | A1 | **Subprocess `bin/roast`** — wrapper neutralizuje 3 ENV gotchas | = plan |
 | A2 | **Claude CLI** jako agent w Roast; `bin/roast-openrouter` fallback | = plan |
 | A3 | **Roast** jako orchestrator; `revision_workflow.rb` przenoszony 1:1 | = plan |
-| A4 | **Lokalny FS** (`storage/workspaces/<id>/`) w PoC; **produkcyjnie izolacja userów → Tor 3** (jawny wymóg, nie tylko consequence preview) | = plan + explicit Tor 3 TODO |
+| A4 | **Lokalny FS** (`storage/workspaces/<id>/`) w PoC; **produkcyjnie izolacja userów → Faza 3** (jawny wymóg, nie tylko consequence preview) | = plan + explicit Faza 3 TODO |
 | A5 | **Jeden `ExecuteInstructionJob`** z pętlą po rewizjach; chainowanie per Revision jako przyszłe rozszerzenie | = plan |
-| A6 | **`CreatePlan` service jako abstrakcja** z pierwszą implementacją `CreatePlan::AdHocLLM`; swap'owalne (archetype, hybrid, cheap-but-good model) w przyszłości. Jakość planów = klucz do jakości generatora, ale osobny workstream poza Tor 2 | **ZMIANA**: dodana warstwa abstrakcji, tool nie tworzy planu bezpośrednio |
+| A6 | **`CreatePlan` service jako abstrakcja** z pierwszą implementacją `CreatePlan::AdHocLLM`; swap'owalne (archetype, hybrid, cheap-but-good model) w przyszłości. Jakość planów = klucz do jakości generatora, ale osobny workstream poza Faza 2 | **ZMIANA**: dodana warstwa abstrakcji, tool nie tworzy planu bezpośrednio |
 | A7 | **Lightweight tool `StartGeneration(intent, clarifications)`** — detailed prompts NIE wychodzą przez chat API. Secret sauce (prompt engineering plannera) żyje wewnątrz `CreatePlan`, nie w system prompcie chatu ani w tool call args | **ZMIANA**: tool przekazuje intent zamiast completed plan |
 
 **Konsekwencje dla reszty planu**:
@@ -41,16 +41,16 @@ Apka spełnia wszystkie poniższe:
 8. Demo przechodzi na planie z poziomu chatu analogicznym do `TODO_LIST` ze spike'a (3 rewizje × Sonnet, zielone `rails test`, ~8 minut wall)
 9. CLI mirror: `bin/generate full --prompt "..."` robi to samo bez UI — do debugowania i testów integracyjnych
 
-## Świadome cięcia (NIE wchodzi w Tor 2)
+## Świadome cięcia (NIE wchodzi w Faza 2)
 
 | Odcięte | Gdzie to trafia |
 |---------|-----------------|
-| Preview (iframe z działającą apką) | Tor 3 — osobny plan oparty o `20-tor-3-preview-isolation.md` (Kamal+Docker) |
-| Cancel mid-workflow + SIGTERM na PID | Tor 2.5 lub Tor 3 — wymaga PID trackingu i process supervisora |
-| Undo / `UndoLastChange` / W5 | Późniejszy tor — git revert jako nowa rewizja, ale architektonicznie oddzielne |
-| Export ZIP / GitHub push (W7) | Późniejszy tor — UI action, nie krytyczne dla PoC |
-| Multi-user / Devise w generatorze | Dev-only na Tor 2. Auth dodamy gdy apka wyjdzie poza moją maszynę |
-| Archetype baza / rozbudowany research (D1) | Tor 2 używa uproszczonego promptu bez archetypów. Archetypy to osobny workstream contentowy |
+| Preview (iframe z działającą apką) | Faza 3 — osobny plan oparty o `20-phase-3-preview-isolation.md` (Kamal+Docker) |
+| Cancel mid-workflow + SIGTERM na PID | Faza 2.5 lub Faza 3 — wymaga PID trackingu i process supervisora |
+| Undo / `UndoLastChange` / W5 | Późniejsza faza — git revert jako nowa rewizja, ale architektonicznie oddzielne |
+| Export ZIP / GitHub push (W7) | Późniejsza faza — UI action, nie krytyczne dla PoC |
+| Multi-user / Devise w generatorze | Dev-only na Faza 2. Auth dodamy gdy apka wyjdzie poza moją maszynę |
+| Archetype baza / rozbudowany research (D1) | Faza 2 używa uproszczonego promptu bez archetypów. Archetypy to osobny workstream contentowy |
 | Real koszt w USD | Subskrypcja Claude Code pokrywa. Jednorazowy pomiar przez OpenRouter dopiero gdy DoD tego wymaga |
 | UI polish (design system, mobile, dark mode) | Tailwind default wystarczy. Styling później |
 | Remediation UI | Workflow ma remediation loop (spike to potwierdził). UI pokazuje tylko finalny status. Szczegóły remediation widoczne w logach subprocess'a |
@@ -59,7 +59,7 @@ Te wycięcia nie są na zawsze — to świadome zmniejszenie zakresu pierwszego 
 
 ## Architektura — skrót
 
-Diagram pełny: `02-user-journey.md` § Architektura. Integracja warstw: `04-layer-integration.md`. Tutaj tylko shape specyficzny dla Toru 2.
+Diagram pełny: `02-user-journey.md` § Architektura. Integracja warstw: `04-layer-integration.md`. Tutaj tylko shape specyficzny dla Fazy 2.
 
 ```
 HTTP request                           Solid Queue worker
@@ -89,7 +89,7 @@ Kluczowe granice:
 
 ## Model danych
 
-Cytat z `02-user-journey.md` (kanoniczny). Tu tylko to co implementujemy w Tor 2:
+Cytat z `02-user-journey.md` (kanoniczny). Tu tylko to co implementujemy w Faza 2:
 
 ```ruby
 Project
@@ -130,7 +130,7 @@ Revision
   - metrics: jsonb               # wall_seconds, exit_code itd. — struktura z drivera
 ```
 
-Odłożone z `02-user-journey.md`: `research_output` (nie używamy researchu D1 w PoC), `cli_pid` (nie implementujemy cancela w Torze 2).
+Odłożone z `02-user-journey.md`: `research_output` (nie używamy researchu D1 w PoC), `cli_pid` (nie implementujemy cancela w Fazie 2).
 
 ## Przeniesienie spike'a do apki
 
@@ -155,7 +155,7 @@ Odłożone z `02-user-journey.md`: `research_output` (nie używamy researchu D1 
 
 ## Kroki
 
-Każdy krok ma własny DoD. Zielone wszystkie = Tor 2 domknięty.
+Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięty.
 
 ### Krok 1 — Rails skeleton + spike import (półdzień)
 
@@ -440,8 +440,8 @@ Dodatkowo:
 
 1. **`CreatePlan::AdHocLLM` implementacja**: czy LLM call w service używa RubyLLM z `response_format: json_schema` (deterministyczny output) czy drugi tool use? Decyzja w Kroku 4. Schema vs. tool to compromise między deterministycznym parsingiem a łatwością multi-step reasoning
 2. **Workspace per projekt vs shared?** Per projekt (`storage/workspaces/<id>`). Shared bundle cache (`~/.bundle`) żeby nie reinstalować gemów przy każdym `rails new` — do optymalizacji w Kroku 5 jeśli wall time Krok 7 przekroczy limit
-3. **Process supervisor dla subprocess Roast?** Start: plain `system()`. Jeśli okaże się że potrzebujemy timeoutu + kill + PID tracking — minimum `Process.spawn` + wątek watchdog. Pełny supervisor (np. Dragonfly) dopiero gdy Tor 2.5 (cancel) ruszy
-4. **Czy RubyLLM chat dostaje kontekst o `Project.revisions`?** Happy-path mówi tak. W Tor 2 PoC: tak, przez `chat.with_instructions(...)` ustawiane w `ChatRespondJob` każdorazowo (nie w `Chat.create!`) żeby odświeżać stan. Format: short markdown summary z listą revision summaries + statusów (summaries OK — to user-facing; detailed prompts dalej nie są pokazywane chatowi)
+3. **Process supervisor dla subprocess Roast?** Start: plain `system()`. Jeśli okaże się że potrzebujemy timeoutu + kill + PID tracking — minimum `Process.spawn` + wątek watchdog. Pełny supervisor (np. Dragonfly) dopiero gdy Faza 2.5 (cancel) ruszy
+4. **Czy RubyLLM chat dostaje kontekst o `Project.revisions`?** Happy-path mówi tak. W Faza 2 PoC: tak, przez `chat.with_instructions(...)` ustawiane w `ChatRespondJob` każdorazowo (nie w `Chat.create!`) żeby odświeżać stan. Format: short markdown summary z listą revision summaries + statusów (summaries OK — to user-facing; detailed prompts dalej nie są pokazywane chatowi)
 5. **Jakiego modelu użyć w `CreatePlan::AdHocLLM`?** Sonnet/Haiku? Sonnet daje lepsze plany, Haiku tani/szybki. Eksperyment w Kroku 4. Architektura swap-owalna (A6) pozwala na łatwy test obu
 
 ## Oszacowanie
@@ -470,12 +470,12 @@ Każda decyzja z sekcji "Decyzje architektoniczne" na górze jest odwracalna. Ta
 | A6 | `CreatePlan::AdHocLLM` za abstrakcją `CreatePlan` | `CreatePlan::Archetypes` (template'y + slot-filling), albo hybrid | Jakość planów ad-hoc okaże się zmienna (logi z 5-10 runów), content workstream archetypów ruszy, albo znajdziemy tani-ale-dobry model (Haiku? GPT-4.1 mini?) |
 | A7 | Lightweight tool `StartGeneration(intent, clarifications)` | `CreateInstruction(description, revisions: [...])` z detailed planem w tool args, albo `response_format: json_schema` | Tool reliability okaże się problemem — LLM nie woła `StartGeneration` w spodziewanym momencie. Fallback: UI button "Zacznij generować" wymusza tool call |
 
-## Wyjścia z Toru 2
+## Wyjścia z Fazy 2
 
 Po domknięciu:
 
-- **Dalej po warstwę preview** (Tor 3) — `20-tor-3-preview-isolation.md` z Kamal+Docker, osobny plan
+- **Dalej po warstwę preview** (Faza 3) — `20-phase-3-preview-isolation.md` z Kamal+Docker, osobny plan
 - **Albo polish PoC dla demo** — lepszy UI, cancel, kilka archetypów, żeby pokazać na Tropical/Rails World jako demo
 - **Albo monetyzacja / sponsorship** — token costs liczone, teraz mamy dane do rozmowy z Anthropic local ambassadors
 
-Decyzję odłożyć do momentu gdy Tor 2 zamknie się. Na dziś: Tor 2 jest niezależny od każdego z tych kierunków.
+Decyzję odłożyć do momentu gdy Faza 2 zamknie się. Na dziś: Faza 2 jest niezależny od każdego z tych kierunków.

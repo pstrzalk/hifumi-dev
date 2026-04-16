@@ -199,22 +199,22 @@ Pierwsza próba wysypała się z `NameError: undefined local variable or method 
 
 ---
 
-## Verdict: IDZIEMY do Toru 2 (PoC głównej apki generatora)
+## Verdict: IDZIEMY do Fazy 2 (PoC głównej apki generatora)
 
 Architektura W1 → W2 + remediation zweryfikowana end-to-end na realnej Rails app. Happy path i failure path oba domknięte. Stack Roast 1.1 + Claude Code CLI + Ruby wrapper (odpowiednik Solid Queue joba) działa.
 
 Znane ograniczenia i gotchas udokumentowane:
 - `metadata` niedostępne w DSL blocks — workaround: moduł-level hash
 - Trzy ENV leaks (`ANTHROPIC_API_KEY` / frum Ruby shim / `BUNDLE_GEMFILE`) — workaround: `bin/roast` wrapper + `VerifyRevision.with_clean_bundler_env`
-- `skip_permissions!` wymaga izolowanego workspace (→ Tor X: preview isolation z Kamal+Docker)
+- `skip_permissions!` wymaga izolowanego workspace (→ Faza X: preview isolation z Kamal+Docker)
 
 ## Next steps (co zostało z tor-1-plan.md)
 
 1. ✅ ~~Przepisać revision_workflow.rb na wzór test_agent.rb~~
 2. ✅ ~~Przetestować happy path na prawdziwej Rails app (plan todo-list, 3 rewizje)~~
 3. ✅ ~~Uruchomić plan `force-remediation` — remediation loop zweryfikowany~~
-4. ⬜ (Opcjonalnie, odłożone) realny koszt przez OpenRouter — subskrypcja nie pokazuje tokenów; do zmierzenia gdy DoD Toru 2 tego wymaga
+4. ⬜ (Opcjonalnie, odłożone) realny koszt przez OpenRouter — subskrypcja nie pokazuje tokenów; do zmierzenia gdy DoD Fazy 2 tego wymaga
 5. ✅ ~~Update dokumentów (`findings.md`, `03-workflows-and-decisions.md` — commit ff73377; `index.md` został później zlikwidowany przy reorganizacji dokumentacji)~~
 6. ✅ ~~Cleanup: `tor-1-plan.md` usunięty (commit ff73377), pamięci `project_tor_1_*` nigdy nie istniały na tym hoście~~
 
-**Tor 1 domknięty 2026-04-16. Dalej: Tor 2 — `10-tor-2-poc-generator-app.md` (PoC apki generatora — RubyLLM + Solid Queue + Roast).**
+**Faza 1 domknięty 2026-04-16. Dalej: Faza 2 — `10-phase-2-poc-generator-app.md` (PoC apki generatora — RubyLLM + Solid Queue + Roast).**
