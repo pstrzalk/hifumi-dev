@@ -39,5 +39,8 @@ Dodatkowe źródła po spike'u:
 ## Konwencje
 
 - Narracja: **polski**. Kod i nazwy techniczne: **angielski**.
+- **Rails framing: "Rails Way first"**. Nie pozycjonuj rozwiązań jako "event-driven architecture" ani "Rails na eventach" — community ceni prostotę i convention over configuration, architektoniczne buzzwordy odstraszają. Pokazuj że narzędzia Rails już to mają, wystarczy ich użyć.
+- **`.ruby-version` pinuj przez zapisanie pliku** (Write tool), nie przez CLI version managera (`frum local`, `rbenv local`, itp.). User chce sam zweryfikować stan plikiem.
+- **Roast runner**: `bin/roast` default (subskrypcja Claude Code — wrapper unsetuje `ANTHROPIC_*` ENV + pinuje PATH na `.ruby-version`). `bin/roast-openrouter` to fallback płatny per-token gdy subskrypcja niewystarczająca. Nie wołaj `bundle exec roast` bezpośrednio — pomija wrapper i rozbija pipeline (3 ENV leaks, szczegóły w `roast-spike/findings.md`).
 - Repo wyekstrahowane z hub'a `~/projects/pawel-claude/` (2026-04-16) przez `git subtree split` — historia folderu zachowana. W pawel-claude pozostaje backup aż do potwierdzenia że nowe repo jest OK.
 - Nie startować Kroku 1 bez potwierdzenia z userem że plan jest nadal aktualny. Alternatywy A1-A7 rozstrzygnięte 2026-04-16 — kolejna rekonsyderacja możliwa, ale musi być świadomą decyzją.
