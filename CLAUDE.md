@@ -5,11 +5,11 @@ Generator aplikacji Ruby on Rails — odpowiednik Lovable/bolt.new dla ekosystem
 ## Status (2026-04-16)
 
 - **Tor 1** (spike Roast 1.1 + Claude CLI): **domknięty**. Pipeline driver → Roast → Claude CLI → verify → remediation zwalidowany end-to-end. Kod w `roast-spike/`, wyniki w `roast-spike/findings.md`.
-- **Tor 2** (PoC głównej apki generatora: RubyLLM + Solid Queue + Roast per Instruction): **rozpisany** w `tor-2-plan.md`, ready do Kroku 1.
+- **Tor 2** (PoC głównej apki generatora: RubyLLM + Solid Queue + Roast per Instruction): **rozpisany** w `tor-2-plan.md`, **alternatywy A1-A7 rozstrzygnięte 2026-04-16** (dwie zmiany architektoniczne: `CreatePlan` service + lightweight `StartGeneration` tool). Ready do Kroku 1.
 
 ## Kolejność czytania przy wznawianiu
 
-1. `tor-2-plan.md` — plan Toru 2 + 7 alternatyw (A1-A7) do ewentualnej rekonsyderacji + otwarte pytania
+1. `tor-2-plan.md` — plan Toru 2 + sekcja "Decyzje architektoniczne" na górze (summary A1-A7) + pełne rozumowanie w "Alternatywne podejścia" + otwarte pytania
 2. `roast-spike/findings.md` — co zwalidowane, jakie gotchas ujawnione
 3. `happy-path.md` — user story, model danych, architektura (kanon)
 4. `agents-vs-workflows.md` — W1-W6 workflow definitions + Roast example
@@ -27,4 +27,4 @@ Dodatkowe źródła po spike'u:
 
 - Narracja: **polski**. Kod i nazwy techniczne: **angielski**.
 - Repo wyekstrahowane z hub'a `~/projects/pawel-claude/` (2026-04-16) przez `git subtree split` — historia folderu zachowana. W pawel-claude pozostaje backup aż do potwierdzenia że nowe repo jest OK.
-- Nie startować Kroku 1 bez potwierdzenia z userem że plan Toru 2 jest nadal aktualny — możliwa rekonsyderacja którejś z alternatyw A1-A7.
+- Nie startować Kroku 1 bez potwierdzenia z userem że plan jest nadal aktualny. Alternatywy A1-A7 rozstrzygnięte 2026-04-16 — kolejna rekonsyderacja możliwa, ale musi być świadomą decyzją.
