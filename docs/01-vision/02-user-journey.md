@@ -1,93 +1,94 @@
 # Happy Path — User Story (v4)
 
-Pełna ścieżka użytkownika od otwarcia strony do działającej aplikacji.
+Full user path from opening the page to a working application.
 
-## Zasady architektoniczne
+## Architectural principles
 
-- **Chat jest jedynym interfejsem** — nie ma osobnych pól, formularzy, statusów projektu. Wszystko dzieje się w konwersacji.
-- **Wszystko jest wersjonowane** — wersja A + instrukcja X = wersja B. Każda zmiana to git commit.
-- **RubyLLM jako fundament** — warstwa konwersacji zbudowana na RubyLLM, z narzędziami (tools) jako mechanizmem sterowania.
-- **Chat = concierge intencji** — LLM chatu zbiera intencje od usera i przekazuje je do warstwy generacji przez tool call. Nie generuje planu implementacji, nie zna pełnej struktury wygenerowanej aplikacji, nie widzi detailed prompts. Prompt engineering planu żyje w service `CreatePlan`; szczegóły implementacji w workspace (git repo). Chat widzi tylko user-facing summaries rewizji (git commit messages).
-- **Tool calls sterują procesem** — LLM decyduje o generowaniu, anulowaniu, sugerowaniu kolejnych kroków przez tool calls. Przyciski w UI to safety net, nie primary flow.
-- **Suggested prompts prowadzą użytkownika** — system proponuje kolejne kroki jako edytowalne prompty. User nie musi wiedzieć co powiedzieć.
-- **Dwa niezależne timeline'y** — chat biegnie ciągle, rewizje powstają w pewnych punktach. Synchronizowane przez anchor.
-- **Liniowa historia** — zawsze do przodu. Undo = git revert. Architektura wspiera przyszły rewind, ale nie implementujemy.
-- **Research → Plan → Implement → Verify** — każda Instruction przechodzi przez te fazy. Nie skaczemy do kodu bez zrozumienia kontekstu. Nie commitujemy kodu który nie przechodzi weryfikacji. Wzorowane na [Visuality AI coding workflow](https://www.visuality.pl/posts/from-vibes-to-process-ai-coding-in-production-codebases).
+- **Chat is the only interface** — no separate fields, forms, project statuses. Everything happens in conversation.
+- **Everything is versioned** — version A + instruction X = version B. Every change is a git commit.
+- **RubyLLM as the foundation** — conversation layer built on RubyLLM, with tools as the control mechanism.
+- **Chat = intent concierge** — the chat LLM gathers intents from the user and passes them to the generation layer via a tool call. It does not generate an implementation plan, does not know the full structure of the generated app, does not see detailed prompts. Plan prompt engineering lives in the `CreatePlan` service; implementation details live in the workspace (git repo). Chat sees only user-facing revision summaries (git commit messages).
+- **Tool calls drive the process** — the LLM decides about generating, cancelling, suggesting next steps via tool calls. UI buttons are a safety net, not the primary flow.
+- **Suggested prompts guide the user** — the system proposes next steps as editable prompts. The user doesn't have to know what to say.
+- **Two independent timelines** — chat runs continuously, revisions are created at specific points. Synchronized via anchor.
+- **Linear history** — always forward. Undo = git revert. Architecture supports future rewind, but we don't implement it.
+- **Research → Plan → Implement → Verify** — every Instruction goes through these phases. We don't jump to code without understanding context. We don't commit code that doesn't pass verification. Modeled on the [Visuality AI coding workflow](https://www.visuality.pl/posts/from-vibes-to-process-ai-coding-in-production-codebases).
 
 ---
 
-## RubyLLM Tools — mechanizm sterowania
+## RubyLLM Tools — the control mechanism
 
-LLM ma dostęp do narzędzi. To jest jedyny sposób na triggerowanie akcji w systemie. UI buttons to aliasy do tego samego.
+The LLM has access to tools. This is the only way to trigger actions in the system. UI buttons are aliases to the same thing.
 
-### Narzędzia
+### Tools
 
 ```ruby
-# Startuje generowanie. Przekazuje INTENCJĘ, nie plan.
+# Starts generation. Passes INTENT, not a plan.
 class StartGeneration < RubyLLM::Tool
-  param :intent, type: :string, desc: "Plain language: co user chce zbudować"
-  param :clarifications, type: :object, desc: "Odpowiedzi na doprecyzowujące pytania (key/value)"
-  # LLM wywołuje gdy user jest gotowy. NIE wymyśla planu — tool handler deleguje do CreatePlan service,
-  # który generuje rewizje (detailed prompts) wewnątrz własnego system promptu. Chat LLM nie zna
-  # wygenerowanego planu — dostaje tylko confirmation (instruction_id, revision_count).
+  param :intent, type: :string, desc: "Plain language: what the user wants to build"
+  param :clarifications, type: :object, desc: "Answers to clarifying questions (key/value)"
+  # LLM calls this when the user is ready. Does NOT invent a plan — the tool handler delegates
+  # to the CreatePlan service, which generates revisions (detailed prompts) inside its own system
+  # prompt. The chat LLM never sees the generated plan — it only gets a confirmation
+  # (instruction_id, revision_count).
 end
 
-# Anuluje bieżącą instrukcję.
+# Cancels the current instruction.
 class CancelInstruction < RubyLLM::Tool
-  # LLM wywołuje gdy user pisze "stop" / "zmień podejście"
+  # LLM calls this when the user writes "stop" / "change approach"
 end
 
-# Proponuje użytkownikowi co dalej. UI renderuje jako klikalne/edytowalne karty.
+# Proposes next steps to the user. UI renders as clickable/editable cards.
 class SuggestPrompts < RubyLLM::Tool
-  param :prompts, type: :array, desc: "Lista sugerowanych promptów z opcjonalnymi lukami do wypełnienia"
-  # LLM wywołuje po zakończeniu generowania, po odpowiedzi na pytanie, albo gdy user nie wie co dalej
+  param :prompts, type: :array, desc: "List of suggested prompts with optional blanks to fill in"
+  # LLM calls this after generation completes, after answering a question, or when the user is unsure
 end
 
-# Cofa ostatnią zmianę (git revert jako nowa rewizja).
+# Reverts the last change (git revert as a new revision).
 class UndoLastChange < RubyLLM::Tool
-  # LLM wywołuje gdy user pisze "cofnij"
+  # LLM calls this when the user writes "undo"
 end
 ```
 
-### Warstwa `CreatePlan` — osobny service, nie tool
+### The `CreatePlan` layer — a separate service, not a tool
 
-Tool `StartGeneration` jest lightweight — tylko przekazuje intent do service `CreatePlan`. Service żyje poza chatem, ma własny system prompt (reguły "Rails Way, 3-6 kroków, Tailwind, Hotwire, Devise..." — secret sauce projektu), i generuje listę rewizji z detailed prompts do Claude CLI.
+The `StartGeneration` tool is lightweight — it only passes intent to the `CreatePlan` service. The service lives outside the chat, has its own system prompt (rules like "Rails Way, 3-6 steps, Tailwind, Hotwire, Devise..." — the project's secret sauce), and generates a list of revisions with detailed prompts for Claude CLI.
 
 ```ruby
 module CreatePlan
-  # Interface: zwraca tablicę { summary:, prompt: } gotową do Revision.create!
+  # Interface: returns an array of { summary:, prompt: } ready for Revision.create!
   def self.call(intent:, clarifications: {}, context: {})
     implementation.call(intent: intent, clarifications: clarifications, context: context)
   end
 
   def self.implementation
-    @implementation ||= AdHocLLM  # W przyszłości: Archetypes, Hybrid, CheapButGood
+    @implementation ||= AdHocLLM  # Future: Archetypes, Hybrid, CheapButGood
   end
 
   class AdHocLLM
-    # LLM call z dedykowanym system promptem (secret sauce).
-    # NIE jest to widoczne dla chat LLM ani dla usera.
+    # LLM call with a dedicated system prompt (secret sauce).
+    # NOT visible to the chat LLM or to the user.
   end
 end
 ```
 
-Dlaczego osobno: jakość planów = klucz do jakości generatora. Swap'owalne implementacje (archetype, hybrid, tańszy-ale-dobry model) to osobny workstream. System prompt plannera jest w 100% pod naszą kontrolą, nie zmieszany z system promptem chatu. Decyzje D1/D3 z `../02-architecture/01-workflows-and-decisions.md` żyją tutaj.
+Why separate: plan quality = key to generator quality. Swappable implementations (archetype, hybrid, cheap-but-good model) are a separate workstream. The planner's system prompt is 100% under our control, not mixed with the chat system prompt. Decisions D1/D3 from `../02-architecture/01-workflows-and-decisions.md` live here.
 
-### Kontekst dla LLM
+### Context for the LLM
 
-Przy każdym `chat.ask(...)` LLM dostaje w kontekście:
-- Historię konwersacji (RubyLLM robi to automatycznie)
-- **Status bieżącej instrukcji** (jeśli jest aktywna): która rewizja się generuje, ile gotowych, ile zostało
-- **Listę rewizji** projektu — **tylko `summary` + `status`**, czyli user-facing wersja tego co się dzieje (summaries to git commit messages, zrozumiałe dla usera)
-- Dostępne narzędzia
+On every `chat.ask(...)` the LLM gets in context:
+- Conversation history (RubyLLM does this automatically)
+- **Status of the current instruction** (if one is active): which revision is being generated, how many are done, how many remain
+- **List of project revisions** — **only `summary` + `status`**, i.e. the user-facing view of what's happening (summaries are git commit messages, understandable to the user)
+- Available tools
 
-Co LLM **nie dostaje** (wprost wynika z zasady "chat = concierge intencji"):
-- Detailed prompts rewizji (`Revision.prompt`) — one idą tylko do Claude CLI przez workflow Roast
-- Tree plików wygenerowanej apki, schema modeli, zawartość kontrolerów
-- Outputów Claude CLI, logów weryfikacji, stack traces (failure payload jest sumaryzowany do user-facing opisu przed wejściem do kontekstu)
-- System promptu `CreatePlan` ani generated plan przed startem rewizji
+What the LLM **does not** get (a direct consequence of the "chat = intent concierge" principle):
+- Detailed revision prompts (`Revision.prompt`) — these go only to Claude CLI via the Roast workflow
+- File tree of the generated app, model schema, controller contents
+- Claude CLI outputs, verification logs, stack traces (failure payload is summarized into a user-facing description before entering context)
+- The `CreatePlan` system prompt or the generated plan before revisions start
 
-Dzięki temu LLM może reagować na to co user widzi: "widzę że krok 3 się nie powiódł, spróbuję innego podejścia" albo "generowanie zakończone, proponuję następne kroki." Ale nie zaczyna rozmowy o architekturze kontrolerów ani nie pisze "dodałem metodę X w klasie Y" — bo tego nie wie.
+Thanks to this, the LLM can react to what the user sees: "I see step 3 failed, I'll try a different approach" or "generation is done, here are some next steps." But it doesn't start a conversation about controller architecture and doesn't write "I added method X in class Y" — because it doesn't know that.
 
 ### Flow
 
@@ -96,131 +97,131 @@ User message
     ↓
 RubyLLM chat.ask(message, tools: [...], context: generation_status)
     ↓
-LLM odpowiada tekstem + opcjonalnie tool calls
+LLM responds with text + optionally tool calls
     ↓
-    ├── tekst → Message w chacie → Turbo Stream
-    ├── StartGeneration → CreatePlan service → Instruction + Revisions → orkiestracja
-    ├── CancelInstruction → anuluje bieżącą → git reset
-    ├── SuggestPrompts → renderuje karty w UI → user klika/edytuje
-    └── UndoLastChange → git revert jako nowa rewizja
+    ├── text → Message in chat → Turbo Stream
+    ├── StartGeneration → CreatePlan service → Instruction + Revisions → orchestration
+    ├── CancelInstruction → cancels current → git reset
+    ├── SuggestPrompts → renders cards in UI → user clicks/edits
+    └── UndoLastChange → git revert as a new revision
 ```
 
 ---
 
-## Suggested Prompts — prowadzenie użytkownika
+## Suggested Prompts — guiding the user
 
-Użytkownik nie musi wiedzieć co powiedzieć. System proponuje.
+The user doesn't have to know what to say. The system suggests.
 
-### Jak wyglądają
+### What they look like
 
-Po zakończeniu generowania:
-> *Aplikacja gotowa! Co dalej?*
-> - [Dodaj autentykację — klienci logują się przez email i hasło]
-> - [Dodaj panel admina do zarządzania ___]
-> - [Zmień kolorystykę na ___]
+After generation completes:
+> *App ready! What next?*
+> - [Add authentication — customers log in with email and password]
+> - [Add an admin panel for managing ___]
+> - [Change color scheme to ___]
 
-Każda sugestia to klikalna karta z tekstem. Tekst może mieć luki (`___`) które user wypełnia. Klik → tekst trafia do pola input → user może edytować → wysyła.
+Each suggestion is a clickable card with text. The text may have blanks (`___`) for the user to fill in. Click → text lands in the input → user can edit → sends.
 
-### Kiedy się pojawiają
+### When they appear
 
-LLM wywołuje `SuggestPrompts` w naturalnych momentach:
-- Po pierwszej wiadomości (guided): sugestie kierunku (np. *"system rezerwacji z kalendarzem"*, *"sklep z produktami cyfrowymi"*)
-- **Po zakończeniu generowania**: co dodać dalej
-- Po odpowiedzi na pytanie: "Czy chcesz też..."
-- Gdy user pisze coś niejasnego: sugestie uściślające
+The LLM calls `SuggestPrompts` at natural moments:
+- After the first message (guided): direction suggestions (e.g. *"booking system with calendar"*, *"digital product store"*)
+- **After generation completes**: what to add next
+- After answering a question: "Would you also like to..."
+- When the user writes something unclear: clarifying suggestions
 
-Sugestie **nie obejmują** zatwierdzenia planu przed startem — user nie widzi planu. Po zebraniu intencji LLM po prostu wywołuje `StartGeneration`, generowanie rusza, user widzi postęp.
+Suggestions **do not include** plan approval before start — the user doesn't see the plan. After collecting intent the LLM simply calls `StartGeneration`, generation starts, the user sees progress.
 
-### Nie są obowiązkowe
+### They are not mandatory
 
-User zawsze może zignorować sugestie i napisać cokolwiek. Sugestie to pomoc, nie ograniczenie.
+The user can always ignore suggestions and write anything. Suggestions are help, not a constraint.
 
 ---
 
 ## Research → Plan → Implement → Verify
 
-Każda Instruction przechodzi przez te fazy. Wzorowane na [Visuality AI coding workflow](https://www.visuality.pl/posts/from-vibes-to-process-ai-coding-in-production-codebases). Verify jest tym co odróżnia nas od vibe coding — nie commitujemy kodu który nie przechodzi weryfikacji.
+Every Instruction goes through these phases. Modeled on the [Visuality AI coding workflow](https://www.visuality.pl/posts/from-vibes-to-process-ai-coding-in-production-codebases). Verify is what sets us apart from vibe coding — we don't commit code that doesn't pass verification.
 
-Kluczowa zasada: **środek ciężkości researchu przesuwamy w stronę gotowej wiedzy**, ale nie eliminujemy eksploracji. Archetype i app manifest to punkt startowy — pozwalają szybko wejść w kontekst. Głębszy research dzieje się gdy jest potrzebny (nowa domena, nowe rozwiązania, nieoczywisty problem).
+Key principle: **the center of gravity of research shifts toward pre-existing knowledge**, but we don't eliminate exploration. The archetype and app manifest are the starting point — they let us enter context quickly. Deeper research happens when needed (new domain, new solutions, non-obvious problem).
 
-### Dwa źródła gotowej wiedzy
+### Two sources of pre-existing knowledge
 
-**1. Baza archetypów (nowe apki)**
+**1. Archetype database (new apps)**
 
-Wewnętrzna baza wiedzy o typach aplikacji. Nasz core IP.
+Internal knowledge base about application types. Our core IP.
 
-- "E-commerce z dostawą" → pattern: Product, Cart, Order, Delivery, Payment. Devise dla klientów, Avo admin, Stripe.
-- "System rezerwacji" → pattern: Resource, Slot, Booking, Calendar. Availability logic, reminders.
-- "SaaS z subskrypcjami" → pattern: Account, Plan, Subscription, Billing. Multi-user, Pay gem.
+- "E-commerce with delivery" → pattern: Product, Cart, Order, Delivery, Payment. Devise for customers, Avo admin, Stripe.
+- "Booking system" → pattern: Resource, Slot, Booking, Calendar. Availability logic, reminders.
+- "SaaS with subscriptions" → pattern: Account, Plan, Subscription, Billing. Multi-user, Pay gem.
 - "Blog/CMS" → pattern: Post, Category, Tag, Author. Action Text, SEO.
 
-Archetype to nie template — to zestaw wiedzy o domenie + rekomendacje techniczne. Punkt startowy, nie gotowa odpowiedź. Apka "sklep z kwiatami z dostawą tego samego dnia" może pasować do archetypu e-commerce, ale "tego samego dnia" wymaga dodatkowego researchu (logistyka, sloty czasowe, ograniczenia geograficzne).
+An archetype is not a template — it's a bundle of domain knowledge + technical recommendations. A starting point, not a ready-made answer. An app like "flower shop with same-day delivery" may fit the e-commerce archetype, but "same day" requires additional research (logistics, time slots, geographic constraints).
 
-Baza rośnie z czasem — każda nowa apka uczy nas nowych patternów.
+The database grows over time — every new app teaches us new patterns.
 
-**2. App manifest (istniejące apki)**
+**2. App manifest (existing apps)**
 
-Każda wygenerowana apka utrzymuje dokumentację o sobie. Aktualizowana po każdej rewizji.
+Every generated app maintains documentation about itself. Updated after every revision.
 
 ```
 docs/
-  architecture.md    — modele, relacje, kluczowe kontrolery, routing
-  conventions.md     — podjęte decyzje, użyte gemy, wzorce
-  domain.md          — słownik domeny, reguły biznesowe
+  architecture.md    — models, relations, key controllers, routing
+  conventions.md     — decisions made, gems used, patterns
+  domain.md          — domain glossary, business rules
 ```
 
-Manifest pozwala szybko wejść w kontekst bez skanowania codebase'u. Ale nie eliminuje potrzeby researchu — "dodaj system rabatowy" wymaga zbadania jak rabaty mają współgrać z istniejącym modelem zamówień, jakie gemy mogą pomóc, jakie edge case'y są do rozwiązania.
+The manifest lets us enter context quickly without scanning the codebase. But it doesn't eliminate the need for research — "add a discount system" requires investigating how discounts should interact with the existing order model, which gems may help, what edge cases need to be solved.
 
-Po każdej rewizji: **krok "update docs"** aktualizuje manifest. Część procesu implementacji.
+After every revision: the **"update docs" step** updates the manifest. Part of the implementation process.
 
-### Cykl per Instruction
+### Cycle per Instruction
 
-Instrukcje wykonywane przez zdefiniowane workflow'y (patrz `../02-architecture/01-workflows-and-decisions.md`).
+Instructions executed by defined workflows (see `../02-architecture/01-workflows-and-decisions.md`).
 
-**Nowa apka → Workflow W1:**
+**New app → Workflow W1:**
 
-| Krok | Typ | Co się dzieje |
-|------|-----|---------------|
-| W1.1 | deterministic | Załaduj archetype |
-| W1.2 | LLM (decyzja D1) | Research domeny — jeśli archetype nie pokrywa wymagań |
-| W1.3 | LLM | Wygeneruj plan |
-| W1.4 | deterministic | Utwórz rekordy Revision |
-| W1.5 | loop → W2 | Wykonaj rewizje |
-| W1.6-7 | deterministic | Zamknij instrukcję, uruchom preview |
+| Step | Type | What happens |
+|------|------|--------------|
+| W1.1 | deterministic | Load archetype |
+| W1.2 | LLM (decision D1) | Domain research — if the archetype doesn't cover the requirements |
+| W1.3 | LLM | Generate plan |
+| W1.4 | deterministic | Create Revision records |
+| W1.5 | loop → W2 | Execute revisions |
+| W1.6-7 | deterministic | Close instruction, start preview |
 
-**Iteracja → Workflow W4:**
+**Iteration → Workflow W4:**
 
-| Krok | Typ | Co się dzieje |
-|------|-----|---------------|
-| W4.1 | deterministic | Załaduj app manifest |
-| W4.2 | LLM (decyzja D3) | Research — manifest wystarczy / szukaj nowych rozwiązań / czytaj kod |
-| W4.3 | LLM | Wygeneruj plan |
-| W4.4 | loop → W2 | Wykonaj rewizje |
-| W4.5-6 | deterministic | Zamknij instrukcję, restart preview |
+| Step | Type | What happens |
+|------|------|--------------|
+| W4.1 | deterministic | Load app manifest |
+| W4.2 | LLM (decision D3) | Research — manifest is enough / look for new solutions / read code |
+| W4.3 | LLM | Generate plan |
+| W4.4 | loop → W2 | Execute revisions |
+| W4.5-6 | deterministic | Close instruction, restart preview |
 
-Decyzje non-deterministyczne (D1, D3) to jawnie opisane punkty w workflow'ach — nie "agent sam ocenia" ale "krok W4.2 z opcjami [a] manifest wystarczy [b] szukaj rozwiązań [c] czytaj kod."
+Non-deterministic decisions (D1, D3) are explicitly described points in workflows — not "the agent judges for itself" but "step W4.2 with options [a] manifest is enough [b] look for solutions [c] read code."
 
 ### Verification + remediation (safeguard)
 
-Po każdej rewizji (W2.4) uruchamiana jest weryfikacja: bundle check, migracje, herb lint, boot check, testy. Jeśli coś nie przechodzi:
+After every revision (W2.4) verification runs: bundle check, migrations, herb lint, boot check, tests. If something doesn't pass:
 
-1. **Remediation loop** (max 2 próby): błędy wracają do Claude CLI → agent naprawia → re-verify
-2. Jeśli po 2 próbach dalej fail → W2.F1: oznacz rewizję jako failed z pełnym logiem błędów
-3. W2.F2: git reset do parent revision
-4. W2.F3: raportuj do warstwy konwersacji → agent (decyzja D6) reaguje w chacie, ma kontekst co dokładnie failowało
+1. **Remediation loop** (max 2 attempts): errors go back to Claude CLI → agent fixes → re-verify
+2. If still failing after 2 attempts → W2.F1: mark the revision as failed with full error log
+3. W2.F2: git reset to parent revision
+4. W2.F3: report to the conversation layer → agent (decision D6) reacts in chat, has context about what exactly failed
 
-Kluczowe: **nie commitujemy kodu który nie bootuje.** Git historia zawiera tylko działające rewizje.
+Key: **we don't commit code that doesn't boot.** Git history contains only working revisions.
 
 ### Manual checkpoints (safeguard, guided mode)
 
-Między większymi rewizjami agent może zapauzować i poprosić o review:
-> *Modele gotowe. Zanim przejdę do widoków — chcesz sprawdzić strukturę?*
+Between larger revisions the agent can pause and ask for review:
+> *Models are ready. Before I move to views — do you want to review the structure?*
 
-W quick mode — bez checkpoint'ów, pełna automatyka.
+In quick mode — no checkpoints, full automation.
 
 ---
 
-## Model danych
+## Data model
 
 ```ruby
 Project
@@ -238,7 +239,7 @@ Message (RubyLLM)
   belongs_to :chat
   - role: enum (user, assistant, tool)
   - content: text
-  # tool call messages zawierają wywołania narzędzi i ich wyniki
+  # tool call messages contain tool invocations and their results
 
 Instruction
   belongs_to :project
@@ -246,7 +247,7 @@ Instruction
   has_many :revisions
   - phase: enum (researching, planning, implementing, completed, failed, cancelled)
   - description: text
-  - research_output: text   # wynik fazy research (kontekst dla planu i implementacji)
+  - research_output: text   # output of the research phase (context for plan and implementation)
 
 Revision
   belongs_to :project
@@ -258,17 +259,17 @@ Revision
   - status: enum (pending, generating, completed, failed)
 ```
 
-### Kluczowe decyzje
+### Key decisions
 
-**Instruction powstaje z tool call** — nie z logiki aplikacji. LLM wywołuje `StartGeneration(intent, clarifications)`, tool handler deleguje do `CreatePlan` service który generuje rewizje, potem tworzy rekord `Instruction` + N × `Revision`. Anchor = wiadomość z tool callem.
+**Instruction is created from a tool call** — not from application logic. The LLM calls `StartGeneration(intent, clarifications)`, the tool handler delegates to the `CreatePlan` service which generates revisions, then creates an `Instruction` record + N × `Revision`. Anchor = the message with the tool call.
 
-**Cancel z tool call** — LLM interpretuje "stop" i wywołuje `CancelInstruction`. Przycisk "Cancel" w UI robi to samo (tworzy system message + wywołuje ten sam handler).
+**Cancel from a tool call** — the LLM interprets "stop" and calls `CancelInstruction`. The "Cancel" button in the UI does the same (creates a system message + invokes the same handler).
 
-**SuggestPrompts to tool call, nie osobny model** — sugestie renderowane z tool result message. Nie potrzebują własnej tabeli.
+**SuggestPrompts is a tool call, not a separate model** — suggestions are rendered from the tool result message. They don't need their own table.
 
-**UI buttons = aliasy** — przycisk "Cancel" w UI tworzy message (role: user, content: "[cancel requested]") i odpala `CancelInstruction` handler. Efekt identyczny jak gdyby user napisał "stop" a LLM wywołał tool.
+**UI buttons = aliases** — the "Cancel" button in the UI creates a message (role: user, content: "[cancel requested]") and invokes the `CancelInstruction` handler. Effect is identical to the user writing "stop" and the LLM calling the tool.
 
-### Dwa timeline'y
+### Two timelines
 
 ```
 Chat:       msg1 → msg2 → msg3(tool:start) → msg4 → msg5 → msg6(tool:suggest) → msg7 → msg8(tool:start)
@@ -279,131 +280,131 @@ Instruction:               instr1                                               
                               |                                                              |
 Revisions:     rev1 → rev2 → rev3                                                         rev4
 
-- msg3 to tool call StartGeneration — anchor na tym punkcie. CreatePlan service tworzy rev1-rev3.
-- msg4-msg5 to rozmowa PODCZAS generowania
-- msg6 to tool call SuggestPrompts po zakończeniu — user widzi sugestie
-- msg7 to user klikający sugestię (lub piszący własne)
-- msg8 to tool call StartGeneration z nową instrukcją — CreatePlan tworzy rev4
+- msg3 is a StartGeneration tool call — anchor at this point. CreatePlan service creates rev1-rev3.
+- msg4-msg5 is conversation DURING generation
+- msg6 is a SuggestPrompts tool call after completion — user sees suggestions
+- msg7 is the user clicking a suggestion (or writing their own)
+- msg8 is a StartGeneration tool call with a new instruction — CreatePlan creates rev4
 ```
 
 ---
 
-## Krok 1: Nowy projekt
+## Step 1: New project
 
-### Co widzi użytkownik
-Pole tekstowe. Przykłady promptów jako inspiracja. Dwa przyciski: "Quick" / "Guided".
+### What the user sees
+Text field. Example prompts for inspiration. Two buttons: "Quick" / "Guided".
 
-### Co robi użytkownik
-Wpisuje: *"Aplikacja do sprzedaży i dostawy kwiatów..."*
+### What the user does
+Types: *"An app for selling and delivering flowers..."*
 
-### Serwer (synchronicznie)
+### Server (synchronously)
 1. `Project.create!`, `Chat.create!`, `Message.create!(role: :user)`
-2. `git init` w workspace
+2. `git init` in workspace
 3. Redirect → `/projects/{id}`
-4. `ChatRespondJob.perform_later` — LLM przetwarza pierwszą wiadomość
+4. `ChatRespondJob.perform_later` — LLM processes the first message
 
 ---
 
-## Krok 2: Konwersacja (guided path)
+## Step 2: Conversation (guided path)
 
-### Co widzi użytkownik
-Chat. System odpowiada pytaniami + sugestiami:
+### What the user sees
+Chat. The system responds with questions + suggestions:
 
-> *Kilka pytań:*
-> 1. *Panel admina osobno czy wspólny interfejs?*
-> 2. *Śledzenie dostaw czy prosty status?*
+> *A few questions:*
+> 1. *Separate admin panel or shared interface?*
+> 2. *Delivery tracking or simple status?*
 >
-> [Osobny panel admina, pełne śledzenie dostaw]
-> [Wspólny interfejs, prosty status zamówienia]
+> [Separate admin panel, full delivery tracking]
+> [Shared interface, simple order status]
 > [___]
 
-Sugestie to gotowe odpowiedzi — klik i wysyłka. Albo user pisze własne.
+Suggestions are ready answers — click and send. Or the user writes their own.
 
-### Serwer
+### Server
 1. `Message.create!(role: :user)`
 2. `ChatRespondJob`:
-   - `chat.ask(...)` z tools + generation context
-   - LLM odpowiada tekstem + `SuggestPrompts` tool call
-   - Tekst → Message → Turbo Stream
-   - Sugestie → renderowane jako karty pod wiadomością
+   - `chat.ask(...)` with tools + generation context
+   - LLM responds with text + `SuggestPrompts` tool call
+   - Text → Message → Turbo Stream
+   - Suggestions → rendered as cards under the message
 
 ### Quick path
-LLM od razu wywołuje `StartGeneration(intent, clarifications: {})` bez pytań doprecyzowujących.
+The LLM immediately calls `StartGeneration(intent, clarifications: {})` without clarifying questions.
 
 ---
 
-## Krok 3: Start generowania
+## Step 3: Start generation
 
-Nie ma "pokaż plan, user zatwierdza". Po zebraniu intencji LLM wywołuje `StartGeneration` i generowanie rusza. User widzi postęp, nie plan.
+There is no "show plan, user approves". After collecting intent the LLM calls `StartGeneration` and generation begins. The user sees progress, not the plan.
 
-### Co widzi użytkownik
-Krótka wiadomość od LLM + lista rewizji w toku pojawiająca się obok/pod chatem:
+### What the user sees
+A short message from the LLM + a list of ongoing revisions appearing next to/under the chat:
 
-> *OK, rozumiem. Zaczynam budować — zobaczysz postęp poniżej.*
+> *OK, got it. I'm starting to build — you'll see progress below.*
 >
 > ⏳ Revision 1: "Rails scaffolding + Tailwind" — *generating*
-> ⚪ Revision 2: "Modele domenowe (Product, Order, Delivery)" — *pending*
-> ⚪ Revision 3: "Panel klienta" — *pending*
-> ⚪ Revision 4: "Panel florystki" — *pending*
-> ⚪ Revision 5: "Devise auth + role" — *pending*
+> ⚪ Revision 2: "Domain models (Product, Order, Delivery)" — *pending*
+> ⚪ Revision 3: "Customer panel" — *pending*
+> ⚪ Revision 4: "Florist panel" — *pending*
+> ⚪ Revision 5: "Devise auth + roles" — *pending*
 
-User widzi **tylko summaries rewizji** (user-facing, git commit-like). Detailed prompts (`Revision.prompt`) żyją w DB i idą do Claude CLI, ale **nigdy nie trafiają do UI ani chatu**.
+The user sees **only revision summaries** (user-facing, git commit-like). Detailed prompts (`Revision.prompt`) live in DB and go to Claude CLI, but **never reach the UI or the chat**.
 
-### Serwer
-1. LLM wywołuje `StartGeneration(intent: "sklep z kwiatami z dostawą tego samego dnia", clarifications: {admin_panel: "osobny", delivery_tracking: "pełne"})`
+### Server
+1. LLM calls `StartGeneration(intent: "flower shop with same-day delivery", clarifications: {admin_panel: "separate", delivery_tracking: "full"})`
 2. Tool handler:
-   - `CreatePlan.call(intent, clarifications)` — service generuje rewizje z own system promptem (secret sauce)
+   - `CreatePlan.call(intent, clarifications)` — service generates revisions with its own system prompt (secret sauce)
    - `Instruction.create!(anchor_message: msg, phase: :processing)`
-   - `Revision.create!` per wygenerowana rewizja, status: `pending`
-3. Tool zwraca do LLM **tylko confirmation**: `{instruction_id, revision_count: 5, intent}`. LLM nie dostaje treści `Revision.prompt`.
-4. Event `instruction.requested` → Solid Queue triggeruje workflow W1 (od kroku W1.5 — pętla po rewizjach)
+   - `Revision.create!` per generated revision, status: `pending`
+3. The tool returns to the LLM **only a confirmation**: `{instruction_id, revision_count: 5, intent}`. The LLM does not receive `Revision.prompt` contents.
+4. Event `instruction.requested` → Solid Queue triggers workflow W1 (from step W1.5 — loop over revisions)
 
-### Gdzie żyje "plan"
-- **Intencja + clarifications** — w argumentach tool call, widoczne w chacie
-- **Summaries rewizji** — user-facing, w DB (`Revision.summary`), w UI, w kontekście chatu po fakcie ich utworzenia
-- **Detailed prompts** — w DB (`Revision.prompt`), czytane przez Roast workflow, nigdzie indziej
+### Where the "plan" lives
+- **Intent + clarifications** — in the tool call arguments, visible in chat
+- **Revision summaries** — user-facing, in DB (`Revision.summary`), in the UI, in chat context after they are created
+- **Detailed prompts** — in DB (`Revision.prompt`), read by the Roast workflow, nowhere else
 
 ---
 
-## Krok 4: Generowanie
+## Step 4: Generation
 
-### Co widzi użytkownik
-Chat otwarty. Postęp w chacie lub panelu obok:
+### What the user sees
+Chat open. Progress in chat or a side panel:
 
-> ⏳ *Generuję (krok 2/6: Modele domenowe)...*
+> ⏳ *Generating (step 2/6: Domain models)...*
 
-User może pisać, pytać, komentować. Może napisać *"stop"* → LLM wywołuje `CancelInstruction`.
+The user can write, ask, comment. They can write *"stop"* → the LLM calls `CancelInstruction`.
 
-### Serwer — orkiestracja
+### Server — orchestration
 
-**`GenerationOrchestrator`** — sekwencyjnie przetwarza `pending` rewizje.
+**`GenerationOrchestrator`** — sequentially processes `pending` revisions.
 
 **`ExecuteRevisionJob`**:
 1. `revision.update!(status: :generating)` → Turbo Stream
-2. Prompt + kontekst (plan + app manifest + revision notes z poprzedniej rewizji) → `claude -p "..." --cwd workspace/...`
+2. Prompt + context (plan + app manifest + revision notes from the previous revision) → `claude -p "..." --cwd workspace/...`
 3. Stream output → Turbo Stream (throttled)
 4. **Verify**: `bundle check` → `rails db:prepare` → `herb lint` → `rails runner "puts :ok"` → `rails test`
-5. Jeśli verify fail → **remediation loop** (błędy → Claude CLI → re-verify, max 2 próby)
+5. If verify fails → **remediation loop** (errors → Claude CLI → re-verify, max 2 attempts)
 6. `git commit` → update app manifest + revision notes → `revision.update!(status: :completed, git_sha: sha)`
-7. Następna rewizja
+7. Next revision
 
-**Po zakończeniu wszystkich rewizji:**
+**After all revisions complete:**
 - `instruction.update!(status: :completed)`
-- Status generowania idzie do kontekstu LLM
-- LLM automatycznie reaguje: `SuggestPrompts` z propozycjami co dalej
-- Preview startuje (krok 5)
+- Generation status goes into the LLM context
+- LLM reacts automatically: `SuggestPrompts` with proposals for what's next
+- Preview starts (step 5)
 
 **Failure:**
 - `revision.update!(status: :failed)`, stop
-- Status idzie do kontekstu LLM → LLM reaguje w chacie (proponuje retry / zmianę podejścia)
+- Status goes into LLM context → LLM reacts in chat (proposes retry / change of approach)
 
 **Cancel:**
 - `CancelInstruction` tool → `instruction.cancelled!`
-- `git reset --hard` do ostatniej completed rewizji
-- LLM reaguje: *"Zatrzymano. Co dalej?"* + `SuggestPrompts`
+- `git reset --hard` to the last completed revision
+- LLM reacts: *"Stopped. What next?"* + `SuggestPrompts`
 
-### Git jako checkpointing
-- `git commit` po każdej rewizji
+### Git as checkpointing
+- `git commit` after every revision
 - Rollback = `git reset --hard {parent.git_sha}`
 
 ### CLI
@@ -413,54 +414,54 @@ bin/generate execute --project-id=123 --revision-id=456
 
 ---
 
-## Krok 5: Preview
+## Step 5: Preview
 
-### Co widzi użytkownik
-Split view: chat + iframe z działającą aplikacją.
-Pod chatem: sugestie co dalej.
+### What the user sees
+Split view: chat + iframe with the working application.
+Below the chat: suggestions for what's next.
 
-### Serwer
-`StartPreviewJob` (auto po ostatniej rewizji):
+### Server
+`StartPreviewJob` (auto after the last revision):
 1. `bundle install` (shared cache) → `rails db:prepare` → `rails server -p {port}`
 2. `{project_id}.preview.domain.com` → reverse proxy → `localhost:{port}`
 
-### Potencjalne problemy
-- **Izolacja** — limit aktywnych preview na start, kontenery w przyszłości
-- **Bezpieczeństwo** — trusted users na start
-- **Seed data** — LLM generuje seeds. Pusty preview = zły UX
+### Potential problems
+- **Isolation** — active preview limit to start, containers in the future
+- **Security** — trusted users to start
+- **Seed data** — LLM generates seeds. Empty preview = bad UX
 
 ---
 
-## Krok 6: Iteracja
+## Step 6: Iteration
 
-### Co widzi użytkownik
-Chat obok preview. Pisze własne albo klika sugestię:
+### What the user sees
+Chat alongside preview. Writes their own or clicks a suggestion:
 
-> [Dodaj zdjęcia do bukietów]
-> [Dodaj system rabatowy / kodów promocyjnych]
-> [Skonfiguruj maile potwierdzające zamówienie]
+> [Add photos to bouquets]
+> [Add a discount / promo-code system]
+> [Configure order confirmation emails]
 
-### Serwer
+### Server
 1. User message → `ChatRespondJob`
-2. LLM analizuje request → wywołuje `StartGeneration(intent, clarifications)`. Czy to będzie 1 rewizja czy 5 — decyzja `CreatePlan` service, nie chat LLM
-3. Generowanie → git commit → preview restart
-4. LLM wywołuje `SuggestPrompts` po zakończeniu
+2. LLM analyzes the request → calls `StartGeneration(intent, clarifications)`. Whether this becomes 1 revision or 5 is a decision for the `CreatePlan` service, not the chat LLM
+3. Generation → git commit → preview restart
+4. LLM calls `SuggestPrompts` after completion
 
 ### Undo
-- User: *"Cofnij"* → LLM wywołuje `UndoLastChange` → `git revert` jako nowa rewizja
+- User: *"Undo"* → LLM calls `UndoLastChange` → `git revert` as a new revision
 
 ---
 
-## Krok 7: Export
+## Step 7: Export
 
-Akcje w UI (nie przez chat):
+Actions in the UI (not via chat):
 - **Download ZIP**
 - **Push to GitHub** — OAuth → repo → push
-- (Przyszłość) **Deploy** — Kamal
+- (Future) **Deploy** — Kamal
 
 ---
 
-## Architektura
+## Architecture
 
 ```
 ┌───────────────────────────────────────────────────────┐
@@ -517,35 +518,35 @@ Akcje w UI (nie przez chat):
 
 ---
 
-## Krytyczne ryzyka
+## Critical risks
 
-1. **Czas generowania** — minuty, remediation loop może wydłużyć. Mitigacja: live progress, async chat, suggested prompts (user planuje następny krok czekając).
-2. **Jakość kodu** — mitigacja: verify step po każdej rewizji (bundle, migracje, herb, boot, testy) + remediation loop (max 2 próby naprawy). Git historia zawiera tylko zweryfikowane rewizje.
-3. **Koszty** — tracking tokenów per Instruction. Remediation loop zwiększa koszt per rewizja (max 3x w worst case). Monitorujemy remediation rate jako sygnał jakości promptów.
-4. **Kontekst między rewizjami** — revision notes (decyzje implementacyjne, nie summary) karmione do kolejnych rewizji. App manifest daje high-level, revision notes dają szczegóły.
-5. **Tool call reliability** — LLM musi poprawnie wywoływać narzędzia. Mitigacja: dobrze opisane narzędzia, walidacja parametrów, fallback na UI buttons.
-6. **Suggested prompts quality** — złe sugestie to gorszy UX niż brak sugestii. Mitigacja: dobre system prompty, kontekst o stanie projektu.
-
----
-
-## Co zostawiamy na przyszłość
-
-- **Rewind / branching** — architektura wspiera, nie implementujemy
-- **Równoległe instrukcje** — jedna aktywna na raz
-- **Hot reload preview** — pełny restart na start
-- **Deployment** — Kamal / in-house, osobny workstream
-- **Dodatkowe tools** — np. `BrowsePreview` (LLM "widzi" wygenerowaną apkę), `ShowDiff`
+1. **Generation time** — minutes, remediation loop may extend it. Mitigation: live progress, async chat, suggested prompts (user plans the next step while waiting).
+2. **Code quality** — mitigation: verify step after every revision (bundle, migrations, herb, boot, tests) + remediation loop (max 2 fix attempts). Git history contains only verified revisions.
+3. **Costs** — token tracking per Instruction. Remediation loop increases per-revision cost (max 3x in the worst case). We monitor remediation rate as a signal of prompt quality.
+4. **Context between revisions** — revision notes (implementation decisions, not summary) are fed into the next revisions. App manifest gives high-level, revision notes give details.
+5. **Tool call reliability** — the LLM must correctly invoke the tools. Mitigation: well-described tools, parameter validation, fallback to UI buttons.
+6. **Suggested prompts quality** — bad suggestions are worse UX than no suggestions. Mitigation: good system prompts, context about project state.
 
 ---
 
-## CLI do testowania
+## Left for the future
+
+- **Rewind / branching** — architecture supports it, we don't implement it
+- **Parallel instructions** — one active at a time
+- **Hot reload preview** — full restart at start
+- **Deployment** — Kamal / in-house, separate workstream
+- **Additional tools** — e.g. `BrowsePreview` (LLM "sees" the generated app), `ShowDiff`
+
+---
+
+## CLI for testing
 
 ```bash
-bin/generate respond   --project-id=123                  # odpowiedź chatu z tools
-bin/generate plan      --project-id=123                  # generowanie planu
-bin/generate execute   --project-id=123 --revision-id=1  # jedna rewizja (implement + verify)
+bin/generate respond   --project-id=123                  # chat response with tools
+bin/generate plan      --project-id=123                  # generate plan
+bin/generate execute   --project-id=123 --revision-id=1  # one revision (implement + verify)
 bin/generate verify    --project-id=123                  # standalone verify (debug/dev)
 bin/generate cancel    --project-id=123                  # cancel
 bin/generate preview   --project-id=123                  # start preview
-bin/generate full      --prompt "Sklep z kwiatami..."    # full pipeline
+bin/generate full      --prompt "Flower shop..."         # full pipeline
 ```

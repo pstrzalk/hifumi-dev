@@ -3,16 +3,16 @@
 
 #: self as Roast::Workflow
 
-# W2: Wykonanie pojedynczej rewizji — Implement → Verify → Commit
-# Zgodne z ../../docs/02-architecture/01-workflows-and-decisions.md (W2.1–W2.8 + W2.R remediation + W2.F failure path).
+# W2: Execution of a single revision — Implement → Verify → Commit
+# Aligned with ../../docs/02-architecture/01-workflows-and-decisions.md (W2.1–W2.8 + W2.R remediation + W2.F failure path).
 #
-# Uruchomienie:
+# Run:
 #   REVISION_WORKSPACE=/path/to/app bundle exec roast revision_workflow.rb -- \
 #     revision_id=1 \
 #     revision_summary="Add Todo model" \
 #     revision_prompt="Create Todo model with title, body, done. Migration + tests."
 #
-# Model override przez ENV:
+# Model override via ENV:
 #   CLAUDE_MODEL=haiku REVISION_WORKSPACE=... bundle exec roast revision_workflow.rb -- ...
 
 require "shellwords"
@@ -23,9 +23,9 @@ WORKSPACE = ENV.fetch("REVISION_WORKSPACE") do
 end
 CLAUDE_MODEL = ENV.fetch("CLAUDE_MODEL", "sonnet")
 
-# Shared state między krokami workflow (Roast DSL-blocks nie dzielą `metadata`
-# ani instance variables). Używany do przeniesienia verify errors z W2.4 verify
-# do W2.R repeat(:remediate) block.
+# Shared state between workflow steps (Roast DSL blocks do not share `metadata`
+# or instance variables). Used to pass verify errors from W2.4 verify
+# to the W2.R repeat(:remediate) block.
 WORKFLOW_STATE = {}
 
 config do
@@ -39,18 +39,18 @@ config do
   cmd { display! }
 end
 
-# --- W2.R: Remediation scope (max 2 próby) ---
+# --- W2.R: Remediation scope (max 2 attempts) ---
 
 execute(:fix_and_reverify) do
   agent(:fix) do |_, errors, idx|
     <<~PROMPT
-      Weryfikacja nie przeszła (próba #{idx + 1}/2).
+      Verification didn't pass (attempt #{idx + 1}/2).
 
-      Błędy:
+      Errors:
 
       #{errors}
 
-      Napraw dokładnie to, co jest zepsute. Nie zmieniaj podejścia.
+      Fix exactly what's broken. Don't change the approach.
     PROMPT
   end
 
@@ -73,14 +73,14 @@ end
 # --- Main workflow ---
 
 execute do
-  # W2.1: Mark generating (w produkcji: update DB)
+  # W2.1: Mark generating (in production: update DB)
   ruby(:log_start) do
     puts "[W2.1] Revision ##{kwarg(:revision_id)}: #{kwarg(:revision_summary)}"
     puts "[W2.1] Workspace: #{WORKSPACE}"
     puts "[W2.1] Model: #{CLAUDE_MODEL}"
   end
 
-  # W2.2: Build prompt z app manifest + revision notes
+  # W2.2: Build prompt with app manifest + revision notes
   ruby(:build_prompt) do
     docs_dir = File.join(WORKSPACE, "docs")
     manifest = Dir.glob("#{docs_dir}/{architecture,conventions,domain}.md")
@@ -90,32 +90,32 @@ execute do
     revision_notes = File.exist?(notes_path) ? File.read(notes_path) : ""
 
     parts = []
-    parts << "## Zadanie\n\n#{kwarg(:revision_prompt)}"
-    parts << "## Podsumowanie (git commit message)\n\n#{kwarg(:revision_summary)}"
+    parts << "## Task\n\n#{kwarg(:revision_prompt)}"
+    parts << "## Summary (git commit message)\n\n#{kwarg(:revision_summary)}"
 
     unless manifest.empty?
-      parts << "## Aktualny stan aplikacji (manifest)\n\n#{manifest}"
+      parts << "## Current application state (manifest)\n\n#{manifest}"
     end
 
     unless revision_notes.empty?
-      parts << "## Kontekst z poprzednich rewizji\n\n#{revision_notes}"
+      parts << "## Context from previous revisions\n\n#{revision_notes}"
     end
 
     parts << <<~RULES
-      ## Zasady
-      - Rails Way: konwencje, generatory, wbudowane rozwiązania
-      - Tailwind CSS do stylowania
-      - Hotwire (Turbo + Stimulus), zero React/Vue
-      - Minitest, nie RSpec
-      - Pisz testy dla nowej funkcjonalności
-      - Nie twórz pustych katalogów ani plikow, które nie są potrzebne
-      - Pracujesz w #{WORKSPACE} — wszystkie ścieżki względne do tego katalogu
+      ## Rules
+      - Rails Way: conventions, generators, built-in solutions
+      - Tailwind CSS for styling
+      - Hotwire (Turbo + Stimulus), no React/Vue
+      - Minitest, not RSpec
+      - Write tests for new functionality
+      - Don't create empty directories or files that aren't needed
+      - You are working in #{WORKSPACE} — all paths are relative to this directory
     RULES
 
     parts.join("\n\n")
   end
 
-  # W2.3: Implement — Claude CLI generuje kod
+  # W2.3: Implement — Claude CLI generates the code
   agent(:generate_code) do
     ruby!(:build_prompt).value
   end
@@ -135,14 +135,14 @@ execute do
     "all checks passed"
   end
 
-  # W2.R: Remediation loop — skip jeśli verify od razu przeszedł
+  # W2.R: Remediation loop — skip if verify passed immediately
   repeat(:remediate, run: :fix_and_reverify) do
     skip! if ruby?(:verify)
     puts "[W2.R] Verify failed, entering remediation loop"
     WORKFLOW_STATE[:verify_errors] || "initial verification failed"
   end
 
-  # W2.F: Failure guard — jeśli verify i remediation failują, nie commitujemy
+  # W2.F: Failure guard — if verify and remediation fail, we don't commit
   ruby(:ensure_passing) do
     passed = ruby?(:verify) || (ruby?(:remediate) && repeat!(:remediate).value == :succeeded)
     unless passed
@@ -154,7 +154,7 @@ execute do
     "ready to commit"
   end
 
-  # W2.5: Git commit kod
+  # W2.5: Git commit code
   cmd(:git_commit) do |my|
     summary = kwarg(:revision_summary)
     my.command = "sh"
@@ -164,23 +164,23 @@ execute do
   # W2.6: Update app manifest + revision notes
   agent(:update_docs) do
     <<~PROMPT
-      Rewizja "#{kwarg(:revision_summary)}" została zacommitowana.
-      Zaktualizuj dokumentację w docs/:
+      Revision "#{kwarg(:revision_summary)}" has been committed.
+      Update the documentation in docs/:
 
-      1. `architecture.md` — modele, relacje, kluczowe kontrolery, routing
-      2. `conventions.md` — podjęte decyzje, użyte gemy, wzorce
-      3. `domain.md` — słownik domeny, reguły biznesowe
-      4. `revision_notes.md` — DOPISZ (append) sekcję dla tej rewizji:
-         - Jakie decyzje implementacyjne podjąłeś i DLACZEGO
-         - Nie summary ("dodano model") tylko kontekst ("użyto STI bo...")
-         - Te notatki będą karmione do następnej rewizji jako kontekst
+      1. `architecture.md` — models, relations, key controllers, routing
+      2. `conventions.md` — decisions made, gems used, patterns
+      3. `domain.md` — domain glossary, business rules
+      4. `revision_notes.md` — APPEND a section for this revision:
+         - What implementation decisions you made and WHY
+         - Not a summary ("added model") but context ("used STI because...")
+         - These notes will be fed as context to the next revision
 
-      Jeśli plik nie istnieje — utwórz. Jeśli istnieje — aktualizuj tylko co trzeba.
-      Nie nadpisuj całych plików od zera.
+      If a file doesn't exist — create it. If it exists — update only what's necessary.
+      Don't overwrite whole files from scratch.
     PROMPT
   end
 
-  # W2.7: Commit docs update (allow-empty na wypadek gdyby nic się nie zmieniło)
+  # W2.7: Commit docs update (allow-empty in case nothing changed)
   cmd(:git_commit_docs) do |my|
     my.command = "sh"
     my.args = [

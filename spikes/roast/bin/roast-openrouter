@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
-# Wrapper: roast przez OpenRouter (Anthropic Skin) — PŁATNE per-token.
-# Do użycia jak subskrypcja nie działa.
+# Wrapper: roast via OpenRouter (Anthropic Skin) — PAID per-token.
+# For use when the subscription doesn't work.
 
 set -e
 

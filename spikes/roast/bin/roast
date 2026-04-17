@@ -1,11 +1,11 @@
 #!/usr/bin/env sh
-# Wrapper: roast przez lokalny `claude -p` (Claude Code subscription).
-# Żadnego ANTHROPIC_API_KEY / OPENROUTER — Claude CLI używa OAuth z `claude login`.
-# Dla trybu OpenRouter (płatne): bin/roast-openrouter
+# Wrapper: roast via local `claude -p` (Claude Code subscription).
+# No ANTHROPIC_API_KEY / OPENROUTER — Claude CLI uses OAuth from `claude login`.
+# For OpenRouter mode (paid): bin/roast-openrouter
 
 set -e
 
-# Wyczyść ewentualne nadpisania z shell env, żeby claude CLI użył subskrypcji.
+# Clear any overrides from the shell env so the claude CLI uses the subscription.
 unset ANTHROPIC_API_KEY
 unset ANTHROPIC_AUTH_TOKEN
 unset ANTHROPIC_BASE_URL
@@ -15,9 +15,9 @@ unset ANTHROPIC_DEFAULT_HAIKU_MODEL
 
 cd "$(dirname "$0")/.."
 
-# Pin Ruby do 4.0.2 (patrz .ruby-version). Gdy wrapper jest wołany jako subprocess
-# z shella pod innym Ruby (np. 3.2.6 domyślnym), frum shim bundle rozwiązuje
-# złą wersję i szuka gemów w 3.2.0 zamiast 4.0.0.
+# Pin Ruby to 4.0.2 (see .ruby-version). When the wrapper is invoked as a subprocess
+# from a shell under a different Ruby (e.g. the default 3.2.6), the frum shim for bundle
+# resolves the wrong version and looks for gems in 3.2.0 instead of 4.0.0.
 RUBY_VERSION_PIN=$(cat .ruby-version)
 FRUM_RUBY_BIN="$HOME/.frum/versions/$RUBY_VERSION_PIN/bin"
 if [ -d "$FRUM_RUBY_BIN" ]; then

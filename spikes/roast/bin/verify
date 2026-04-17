@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Standalone verify — do debugowania i do testów unit helpera.
+# Standalone verify — for debugging and unit testing the helper.
 # Usage: bin/verify <workspace-path>
 
 require_relative "../verify_revision"

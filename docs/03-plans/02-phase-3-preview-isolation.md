@@ -1,47 +1,47 @@
-# Preview Isolation — analiza z Kamal
+# Preview Isolation — analysis with Kamal
 
-Jak bezpiecznie uruchamiać preview wygenerowanych aplikacji Rails.
+How to safely run previews of generated Rails applications.
 
 ## Problem
 
-Wygenerowany kod jest untrusted — LLM może wygenerować cokolwiek. `rails server` na wspólnej maszynie daje pełny dostęp do filesystem, sieci, env vars. Potrzebujemy izolacji.
+The generated code is untrusted — the LLM may generate anything. `rails server` on a shared machine gives full access to filesystem, network, env vars. We need isolation.
 
-## Kamal — co daje, czego nie daje
+## Kamal — what it gives, what it doesn't
 
-Kamal robi dwie rzeczy:
+Kamal does two things:
 1. **Deploy pipeline** — build image → push registry → pull → run → health check → switch traffic
-2. **kamal-proxy** — reverse proxy z hostname routing (standalone Go binary)
+2. **kamal-proxy** — reverse proxy with hostname routing (standalone Go binary)
 
-### Co Kamal daje
+### What Kamal gives
 
-| Potrzeba | Kamal | Komentarz |
+| Need | Kamal | Comment |
 |---|---|---|
-| Kontenery | Docker (przez Kamal) | Izolacja filesystem/process/network |
-| Routing subdomen | kamal-proxy | `project-123.preview.domain.com` → kontener:3000 |
+| Containers | Docker (via Kamal) | Filesystem/process/network isolation |
+| Subdomain routing | kamal-proxy | `project-123.preview.domain.com` → container:3000 |
 | TLS | kamal-proxy | Let's Encrypt, auto-renewal |
-| Health checks | kamal-proxy | Wbudowane |
-| Zero-downtime restart | kamal-proxy | Traffic switch po health check |
-| Deploy naszego generatora | Kamal (full) | Standardowy Rails deploy |
+| Health checks | kamal-proxy | Built in |
+| Zero-downtime restart | kamal-proxy | Traffic switch after health check |
+| Deploying our generator | Kamal (full) | Standard Rails deploy |
 
-### Czego Kamal NIE daje
+### What Kamal does NOT give
 
-| Potrzeba | Problem | Rozwiązanie |
+| Need | Problem | Solution |
 |---|---|---|
-| Szybki start preview | `kamal deploy` to pełny cykl (build → push → pull → run). Za wolne na preview po iteracji. | Docker bezpośrednio, kamal-proxy tylko do routingu |
-| Dynamiczne kontenery | Kamal wymaga statycznego `deploy.yml`. Nie obsługuje "stwórz kontener na żądanie". | Docker API + PreviewManager |
-| Auto-stop idle | Kamal nie ma timeoutów na kontenery. | Custom cleanup job |
-| Resource limits | Kamal przekazuje Docker options, ale nie ma opiniated defaults dla izolacji. | Explicit Docker flags |
-| Network isolation | Kamal nie ogranicza egress. | Docker `--network internal` + iptables |
+| Fast preview start | `kamal deploy` is a full cycle (build → push → pull → run). Too slow for preview after iteration. | Docker directly, kamal-proxy only for routing |
+| Dynamic containers | Kamal requires a static `deploy.yml`. Doesn't support "create container on demand". | Docker API + PreviewManager |
+| Auto-stop idle | Kamal has no timeouts on containers. | Custom cleanup job |
+| Resource limits | Kamal passes Docker options but has no opinionated defaults for isolation. | Explicit Docker flags |
+| Network isolation | Kamal does not restrict egress. | Docker `--network internal` + iptables |
 
 ### Verdict
 
-**Kamal do deployu naszej aplikacji (generatora). kamal-proxy do routingu preview. Docker API do zarządzania kontenerami preview.**
+**Kamal to deploy our application (the generator). kamal-proxy for preview routing. Docker API for managing preview containers.**
 
-Nie próbujemy wcisnąć dynamicznych preview w Kamal deploy pipeline.
+We don't try to fit dynamic previews into the Kamal deploy pipeline.
 
 ---
 
-## Architektura: kamal-proxy + Docker
+## Architecture: kamal-proxy + Docker
 
 ```
 Internet
@@ -75,37 +75,37 @@ Internet
 
 ---
 
-## kamal-proxy jako router (standalone)
+## kamal-proxy as router (standalone)
 
-kamal-proxy to osobny Go binary z HTTP API. Kamal wywołuje go przez SSH, ale możemy wywoływać go bezpośrednio.
+kamal-proxy is a separate Go binary with an HTTP API. Kamal invokes it via SSH, but we can invoke it directly.
 
-### Rejestracja route
+### Route registration
 
 ```bash
-# Dodaj preview
+# Add preview
 kamal-proxy deploy preview-123 \
   --target 172.18.0.5:3000 \
   --host 123.preview.domain.com
 
-# Usuń preview
+# Remove preview
 kamal-proxy remove preview-123
 
-# Lista aktywnych
+# List active
 kamal-proxy list
 ```
 
-### Dynamiczne — bez restartu
+### Dynamic — no restart
 
-Routes dodawane/usuwane w runtime. Idealne dla preview: start kontenera → register route → stop → deregister.
+Routes are added/removed at runtime. Ideal for preview: start container → register route → stop → deregister.
 
 ### Wildcard subdomains
 
-DNS: `*.preview.domain.com` → A record na serwer.
-kamal-proxy: każdy preview ma explicit `--host` mapowanie. Nie potrzeba wildcard w proxy — wystarczy wildcard w DNS.
+DNS: `*.preview.domain.com` → A record to the server.
+kamal-proxy: every preview has an explicit `--host` mapping. No need for a wildcard in the proxy — a DNS wildcard is enough.
 
 ---
 
-## Docker — izolacja untrusted code
+## Docker — isolation for untrusted code
 
 ### Security flags
 
@@ -127,38 +127,38 @@ docker run \
   preview-${PROJECT_ID}:${GIT_SHA}
 ```
 
-| Flag | Co robi |
+| Flag | What it does |
 |---|---|
-| `--memory=512m` | Hard limit RAM. OOM killer po przekroczeniu. |
-| `--cpus=0.5` | Max pół core. Zapobiega CPU hogging. |
-| `--pids-limit=100` | Zapobiega fork bombom. |
+| `--memory=512m` | Hard RAM limit. OOM killer after overrun. |
+| `--cpus=0.5` | Max half a core. Prevents CPU hogging. |
+| `--pids-limit=100` | Prevents fork bombs. |
 | `--cap-drop=ALL` | Zero Linux capabilities (no raw sockets, no mount, etc.) |
-| `--no-new-privileges` | Nie może eskalować uprawnień. |
-| `--network=preview-internal` | Sieć Docker `--internal` = brak outbound internet. |
+| `--no-new-privileges` | Cannot escalate privileges. |
+| `--network=preview-internal` | Docker `--internal` network = no outbound internet. |
 | `--read-only` | Root filesystem read-only. |
-| `--tmpfs /tmp` | Writable /tmp w RAM, ograniczone. |
+| `--tmpfs /tmp` | Writable /tmp in RAM, limited. |
 
 ### Network isolation
 
 ```bash
-# Sieć bez outbound internetu
+# Network without outbound internet
 docker network create --internal preview-internal
 ```
 
-Kontenery w `preview-internal` widzą siebie nawzajem ale nie mają routingu na zewnątrz. kamal-proxy na hoście forwarduje inbound HTTP do kontenerów.
+Containers in `preview-internal` see each other but have no outside routing. kamal-proxy on the host forwards inbound HTTP to containers.
 
-Problem: kontenery mogą atakować inne kontenery w tej samej sieci.
-Rozwiązanie: osobna sieć per kontener (overhead, ale max izolacja) lub `--network=none` + iptables rules.
+Problem: containers can attack other containers on the same network.
+Solution: separate network per container (overhead but max isolation) or `--network=none` + iptables rules.
 
-Pragmatyczne podejście na start: `--network=preview-internal` + limit concurrent previews. Osobne sieci per kontener w przyszłości jeśli to stanie się problemem.
+Pragmatic approach at start: `--network=preview-internal` + limit on concurrent previews. Separate networks per container in the future if it becomes a problem.
 
-### SQLite — naturalna izolacja
+### SQLite — natural isolation
 
-Generowane apki używają SQLite (plik w kontenerze). Nie ma shared database servera. Każdy preview ma swoją izolowaną bazę. To eliminuje całą klasę problemów z multi-tenant DB.
+Generated apps use SQLite (file in the container). There's no shared database server. Each preview has its own isolated database. This eliminates an entire class of multi-tenant DB problems.
 
 ---
 
-## PreviewManager — implementacja
+## PreviewManager — implementation
 
 ```ruby
 class PreviewManager
@@ -194,7 +194,7 @@ class PreviewManager
     tag = "preview-#{project.id}:#{project.latest_revision.git_sha}"
     system("docker", "build",
       "-t", tag,
-      "-f", standard_dockerfile_path,  # Dockerfile z naszego repo, nie z wygenerowanej apki
+      "-f", standard_dockerfile_path,  # Dockerfile from our repo, not from the generated app
       project.workspace_path)
     tag
   end
@@ -231,9 +231,9 @@ class PreviewManager
 end
 ```
 
-### Standardowy Dockerfile (nasz, nie wygenerowany)
+### Standard Dockerfile (ours, not generated)
 
-Krytyczne: **nigdy nie używamy Dockerfile z wygenerowanej apki.** Używamy naszego standardowego Dockerfile.
+Critical: **we never use a Dockerfile from the generated app.** We use our standard Dockerfile.
 
 ```dockerfile
 # lib/preview/Dockerfile
@@ -254,14 +254,14 @@ EXPOSE 3000
 CMD ["bin/rails", "server", "-b", "0.0.0.0", "-p", "3000"]
 ```
 
-### Optymalizacja czasu buildu
+### Build time optimization
 
-Pełny `docker build` z `bundle install` = 1-3 minuty. Za wolne na restart po iteracji.
+A full `docker build` with `bundle install` = 1-3 minutes. Too slow for restart after iteration.
 
-**Base image z pre-installed gems:**
+**Base image with pre-installed gems:**
 
 ```dockerfile
-# Budowany raz, aktualizowany rzadko
+# Built once, updated rarely
 FROM ruby:3.3-slim AS base
 RUN apt-get update && apt-get install -y build-essential libsqlite3-dev nodejs npm
 RUN gem install bundler
@@ -271,17 +271,17 @@ COPY common_gemfile /tmp/Gemfile
 RUN cd /tmp && bundle install --jobs 4
 
 # ---
-# Per-project image (szybki, bo większość gemów już jest)
+# Per-project image (fast, because most gems are already there)
 FROM preview-base:latest
 WORKDIR /app
 COPY . .
-RUN bundle install --jobs 4    # tylko nowe gemy
+RUN bundle install --jobs 4    # only new gems
 RUN bin/rails db:prepare
 EXPOSE 3000
 CMD ["bin/rails", "server", "-b", "0.0.0.0", "-p", "3000"]
 ```
 
-Z base image: build per-project = **10-30 sekund** (tylko nowe gemy + assets).
+With the base image: per-project build = **10-30 seconds** (only new gems + assets).
 
 ### Cleanup idle containers
 
@@ -298,55 +298,55 @@ end
 
 ---
 
-## Co rozwiązujemy, czego nie
+## What we solve, what we don't
 
-### Rozwiązane
+### Solved
 
-- **Filesystem isolation** — kontener nie widzi hosta
+- **Filesystem isolation** — container does not see the host
 - **Process isolation** — pids-limit, cap-drop
-- **Network isolation** — --internal network, brak egress
+- **Network isolation** — --internal network, no egress
 - **Resource limits** — memory, CPU, pids
-- **Routing** — kamal-proxy, subdomeny
-- **Database isolation** — SQLite per kontener
+- **Routing** — kamal-proxy, subdomains
+- **Database isolation** — SQLite per container
 - **Privilege escalation** — no-new-privileges, cap-drop=ALL
 
-### Nie rozwiązane (akceptowalne ryzyka na start)
+### Not solved (acceptable risks to start)
 
-- **Container-to-container** — kontenery w jednej sieci mogą siebie widzieć. Mitigacja: osobne sieci per kontener w przyszłości.
-- **Docker escape** — Docker nie jest VM. Kernel jest shared. Mitigacja: to ryzyko na poziomie Linuxa, nie naszej aplikacji. Firecracker/gVisor jeśli będzie potrzebna głębsza izolacja.
-- **Denial of service** — memory/CPU limited per kontener, ale wiele kontenerów = wiele zasobów. Mitigacja: limit aktywnych preview (np. 10 per serwer).
-- **Cold start** — pierwszy build 1-3 min. Mitigacja: base image z pre-installed gems, potem 10-30s.
+- **Container-to-container** — containers on the same network can see each other. Mitigation: separate networks per container in the future.
+- **Docker escape** — Docker isn't a VM. The kernel is shared. Mitigation: this risk is at the Linux level, not our application's. Firecracker/gVisor if deeper isolation is needed.
+- **Denial of service** — memory/CPU limited per container, but many containers = many resources. Mitigation: limit on active previews (e.g. 10 per server).
+- **Cold start** — first build 1-3 min. Mitigation: base image with pre-installed gems, then 10-30s.
 
 ---
 
-## Fazy wdrożenia
+## Rollout phases
 
-### PoC (teraz)
-- `docker run` z security flags, bez kamal-proxy
+### PoC (now)
+- `docker run` with security flags, without kamal-proxy
 - `localhost:{port}` per preview
-- Ręczne cleanup
+- Manual cleanup
 
-### MVP (pierwsi userzy)
-- kamal-proxy na serwerze
+### MVP (first users)
+- kamal-proxy on the server
 - Docker `--internal` network
-- PreviewManager z Solid Queue
+- PreviewManager with Solid Queue
 - Auto-cleanup idle
-- Base image z common gems
-- Limit: 10 aktywnych preview
+- Base image with common gems
+- Limit: 10 active previews
 
-### Produkcja (skala)
-- Osobna sieć per kontener
+### Production (scale)
+- Separate network per container
 - Monitoring (memory, CPU, container count)
-- Multiple serwery z load balancing
-- gVisor/Firecracker opcjonalnie
+- Multiple servers with load balancing
+- gVisor/Firecracker optional
 
 ---
 
-## Wpływ na istniejące docs
+## Impact on existing docs
 
-Przy aktywacji Fazy 3 (start implementacji) zaktualizować:
+When Phase 3 is activated (implementation starts) update:
 
-- `../01-vision/02-user-journey.md` Krok 5 (Preview) — zaktualizować o kontenery zamiast raw `rails server`
-- `../02-architecture/01-workflows-and-decisions.md` W3 — dodać Docker build step
-- `../02-architecture/03-tech-stack.md` — dodać Docker/kamal-proxy do stack generatora
-- `../../CLAUDE.md` — zmienić status Fazy 3 z "analiza" na "aktywny" i dopisać ten plik do kolejności czytania
+- `../01-vision/02-user-journey.md` Step 5 (Preview) — update to containers instead of raw `rails server`
+- `../02-architecture/01-workflows-and-decisions.md` W3 — add Docker build step
+- `../02-architecture/03-tech-stack.md` — add Docker/kamal-proxy to the generator stack
+- `../../CLAUDE.md` — change Phase 3 status from "analysis" to "active" and add this file to the reading order

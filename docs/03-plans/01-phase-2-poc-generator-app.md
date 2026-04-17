@@ -1,65 +1,65 @@
-# Faza 2 — PoC głównej apki generatora
+# Phase 2 — PoC of the main generator app
 
-Rails skeleton + RubyLLM chat + Solid Queue job odpalający proven workflow z Fazy 1 (`../../spikes/roast/revision_workflow.rb`).
+Rails skeleton + RubyLLM chat + a Solid Queue job running the proven workflow from Phase 1 (`../../spikes/roast/revision_workflow.rb`).
 
-## Cel
+## Goal
 
-Udowodnić end-to-end, że pipeline ze spike'a odpala się z poziomu Rails appki zamiast `new_app_driver.rb`. Driver staje się `ExecuteInstructionJob`, hardcoded `plans.rb` — Instruction + Revision w DB wywołane przez tool call z chatu RubyLLM (poprzez service `CreatePlan`).
+Prove end-to-end that the pipeline from the spike runs from a Rails app instead of `new_app_driver.rb`. The driver becomes `ExecuteInstructionJob`, hardcoded `plans.rb` — Instruction + Revision in the DB created by a tool call from the RubyLLM chat (via the `CreatePlan` service).
 
-Faza 1 pokazała, że Roast + Claude CLI działają. Faza 2 pokazuje, że potrafimy to opakować w apkę zgodną z `../01-vision/02-user-journey.md` i `../02-architecture/01-workflows-and-decisions.md`.
+Phase 1 showed that Roast + Claude CLI work. Phase 2 shows that we can wrap it in an app aligned with `../01-vision/02-user-journey.md` and `../02-architecture/01-workflows-and-decisions.md`.
 
-## Decyzje architektoniczne (potwierdzone 2026-04-16)
+## Architectural decisions (confirmed 2026-04-16)
 
-Przejście przez alternatywy A1-A7. Większość potwierdziła default planu; dwie zmiany architektoniczne + jedno uściślenie scope'u.
+We went through alternatives A1-A7. Most confirmed the plan's default; two architectural changes + one scope refinement.
 
-| # | Decyzja | Zmiana vs. default |
-|---|---------|--------------------|
-| A1 | **Subprocess `bin/roast`** — wrapper neutralizuje 3 ENV gotchas | = plan |
-| A2 | **Claude CLI** jako agent w Roast; `bin/roast-openrouter` fallback | = plan |
-| A3 | **Roast** jako orchestrator; `revision_workflow.rb` przenoszony 1:1 | = plan |
-| A4 | **Lokalny FS** (`storage/workspaces/<id>/`) w PoC; **produkcyjnie izolacja userów → Faza 3** (jawny wymóg, nie tylko consequence preview) | = plan + explicit Faza 3 TODO |
-| A5 | **Jeden `ExecuteInstructionJob`** z pętlą po rewizjach; chainowanie per Revision jako przyszłe rozszerzenie | = plan |
-| A6 | **`CreatePlan` service jako abstrakcja** z pierwszą implementacją `CreatePlan::AdHocLLM`; swap'owalne (archetype, hybrid, cheap-but-good model) w przyszłości. Jakość planów = klucz do jakości generatora, ale osobny workstream poza Fazą 2 | **ZMIANA**: dodana warstwa abstrakcji, tool nie tworzy planu bezpośrednio |
-| A7 | **Lightweight tool `StartGeneration(intent, clarifications)`** — detailed prompts NIE wychodzą przez chat API. Secret sauce (prompt engineering plannera) żyje wewnątrz `CreatePlan`, nie w system prompcie chatu ani w tool call args | **ZMIANA**: tool przekazuje intent zamiast completed plan |
+| # | Decision | Change vs. default |
+|---|----------|--------------------|
+| A1 | **Subprocess `bin/roast`** — wrapper neutralizes 3 ENV gotchas | = plan |
+| A2 | **Claude CLI** as agent in Roast; `bin/roast-openrouter` fallback | = plan |
+| A3 | **Roast** as orchestrator; `revision_workflow.rb` moved 1:1 | = plan |
+| A4 | **Local FS** (`storage/workspaces/<id>/`) in PoC; **in production user isolation → Phase 3** (explicit requirement, not just a preview consequence) | = plan + explicit Phase 3 TODO |
+| A5 | **One `ExecuteInstructionJob`** with a loop over revisions; chaining per Revision as a future extension | = plan |
+| A6 | **`CreatePlan` service as abstraction** with the first implementation `CreatePlan::AdHocLLM`; swappable (archetype, hybrid, cheap-but-good model) in the future. Plan quality = key to generator quality, but a separate workstream outside Phase 2 | **CHANGE**: abstraction layer added, tool does not create the plan directly |
+| A7 | **Lightweight tool `StartGeneration(intent, clarifications)`** — detailed prompts do NOT leave through the chat API. Secret sauce (planner prompt engineering) lives inside `CreatePlan`, not in the chat system prompt nor in tool call args | **CHANGE**: tool passes intent instead of a completed plan |
 
-**Konsekwencje dla reszty planu**:
-- Krok 4: tool nazywa się `StartGeneration`, deleguje do `CreatePlan.call(intent, clarifications)`, a ten zwraca Revisions
-- System prompt chatu nie zawiera reguł typu "Rails Way, 3-6 kroków, Tailwind" — te reguły żyją wewnątrz `CreatePlan::AdHocLLM`'s internal prompt
-- Model Instruction: `description` generowany przez `CreatePlan` (human-readable, git-commit-able); rozważyć osobne `user_intent: text` na raw input z chatu (do decyzji w Kroku 4)
+**Consequences for the rest of the plan**:
+- Step 4: the tool is called `StartGeneration`, delegates to `CreatePlan.call(intent, clarifications)`, which returns Revisions
+- The chat system prompt does not contain rules like "Rails Way, 3-6 steps, Tailwind" — those rules live inside `CreatePlan::AdHocLLM`'s internal prompt
+- Instruction model: `description` generated by `CreatePlan` (human-readable, git-commit-able); consider a separate `user_intent: text` for raw input from chat (to be decided in Step 4)
 
 ## Definition of Done
 
-Apka spełnia wszystkie poniższe:
+The app satisfies all of the below:
 
-1. Rails 8 + RubyLLM + Solid Queue + Solid Cable + Tailwind stoi na `bin/rails s`
-2. User wpisuje opis aplikacji → chat odpowiada (RubyLLM chat.ask bez tools, baseline)
-3. Po drugiej-trzeciej wymianie LLM wywołuje `StartGeneration(intent, clarifications)` tool → `CreatePlan` service generuje rewizje → w DB powstaje `Instruction` + `Revision` × N
-4. Solid Queue `ExecuteInstructionJob` odpala `bin/roast` z przeniesionym `revision_workflow.rb` w cwd workspace'u projektu
-5. W `storage/workspaces/<project_id>/` powstaje prawdziwa Rails app z git historią — jedna rewizja = jeden commit
-6. Status rewizji (generating/completed/failed) leci przez Turbo Stream do UI chatu
-7. Po `instruction.completed` subscriber wrzuca `ChatFollowUpJob` → LLM woła `SuggestPrompts` → user widzi karty z propozycjami (prompts mogą być hintami dla chatu, ale detailed plan kolejnej rewizji dalej generuje `CreatePlan`)
-8. Demo przechodzi na planie z poziomu chatu analogicznym do `TODO_LIST` ze spike'a (3 rewizje × Sonnet, zielone `rails test`, ~8 minut wall)
-9. CLI mirror: `bin/generate full --prompt "..."` robi to samo bez UI — do debugowania i testów integracyjnych
+1. Rails 8 + RubyLLM + Solid Queue + Solid Cable + Tailwind stands up on `bin/rails s`
+2. User types an app description → chat responds (RubyLLM chat.ask without tools, baseline)
+3. After the second-third exchange the LLM calls `StartGeneration(intent, clarifications)` tool → `CreatePlan` service generates revisions → `Instruction` + `Revision` × N appear in the DB
+4. Solid Queue `ExecuteInstructionJob` runs `bin/roast` with the moved `revision_workflow.rb` in the project workspace cwd
+5. In `storage/workspaces/<project_id>/` a real Rails app appears with git history — one revision = one commit
+6. Revision status (generating/completed/failed) flows through Turbo Stream to the chat UI
+7. After `instruction.completed`, a subscriber enqueues `ChatFollowUpJob` → LLM invokes `SuggestPrompts` → user sees cards with proposals (prompts may be hints for chat, but the detailed plan for the next revision is still generated by `CreatePlan`)
+8. Demo passes on a plan triggered from the chat, analogous to `TODO_LIST` from the spike (3 revisions × Sonnet, green `rails test`, ~8 minutes wall)
+9. CLI mirror: `bin/generate full --prompt "..."` does the same without UI — for debugging and integration tests
 
-## Świadome cięcia (NIE wchodzi w Fazę 2)
+## Explicit cuts (NOT in Phase 2)
 
-| Odcięte | Gdzie to trafia |
-|---------|-----------------|
-| Preview (iframe z działającą apką) | Faza 3 — osobny plan oparty o `02-phase-3-preview-isolation.md` (Kamal+Docker) |
-| Cancel mid-workflow + SIGTERM na PID | Faza 2.5 lub Faza 3 — wymaga PID trackingu i process supervisora |
-| Undo / `UndoLastChange` / W5 | Późniejsza faza — git revert jako nowa rewizja, ale architektonicznie oddzielne |
-| Export ZIP / GitHub push (W7) | Późniejsza faza — UI action, nie krytyczne dla PoC |
-| Multi-user / Devise w generatorze | Dev-only w Fazie 2. Auth dodamy gdy apka wyjdzie poza moją maszynę |
-| Archetype baza / rozbudowany research (D1) | Faza 2 używa uproszczonego promptu bez archetypów. Archetypy to osobny workstream contentowy |
-| Real koszt w USD | Subskrypcja Claude Code pokrywa. Jednorazowy pomiar przez OpenRouter dopiero gdy DoD tego wymaga |
-| UI polish (design system, mobile, dark mode) | Tailwind default wystarczy. Styling później |
-| Remediation UI | Workflow ma remediation loop (spike to potwierdził). UI pokazuje tylko finalny status. Szczegóły remediation widoczne w logach subprocess'a |
+| Cut | Where it goes |
+|-----|---------------|
+| Preview (iframe with a working app) | Phase 3 — separate plan based on `02-phase-3-preview-isolation.md` (Kamal+Docker) |
+| Cancel mid-workflow + SIGTERM on PID | Phase 2.5 or Phase 3 — requires PID tracking and a process supervisor |
+| Undo / `UndoLastChange` / W5 | A later phase — git revert as a new revision, but architecturally separate |
+| Export ZIP / GitHub push (W7) | A later phase — UI action, not critical for the PoC |
+| Multi-user / Devise in the generator | Dev-only in Phase 2. Auth added when the app leaves my machine |
+| Archetype database / expanded research (D1) | Phase 2 uses a simplified prompt without archetypes. Archetypes are a separate content workstream |
+| Real cost in USD | The Claude Code subscription covers it. A one-off measurement via OpenRouter only when DoD requires it |
+| UI polish (design system, mobile, dark mode) | Tailwind default is enough. Styling later |
+| Remediation UI | The workflow has a remediation loop (the spike confirmed it). The UI shows only the final status. Remediation details visible in subprocess logs |
 
-Te wycięcia nie są na zawsze — to świadome zmniejszenie zakresu pierwszego szpilu.
+These cuts aren't forever — they are conscious scope reduction of the first spike.
 
-## Architektura — skrót
+## Architecture — short form
 
-Diagram pełny: `../01-vision/02-user-journey.md` § Architektura. Integracja warstw: `../02-architecture/02-layer-integration.md`. Tutaj tylko shape specyficzny dla Fazy 2.
+Full diagram: `../01-vision/02-user-journey.md` § Architecture. Layer integration: `../02-architecture/02-layer-integration.md`. Here only the shape specific to Phase 2.
 
 ```
 HTTP request                           Solid Queue worker
@@ -69,7 +69,7 @@ HTTP request                           Solid Queue worker
 │ Chat view   │◄─────event bus─────────│ ExecuteRevisionJob│
 │ Turbo Stream│     revision.started   │ - shells bin/roast│
 │ + tools     │     revision.completed │ - revision_workflow│
-│             │     instruction.done   │   w lib/roast/    │
+│             │     instruction.done   │   in lib/roast/   │
 └──────┬──────┘                        └────────┬──────────┘
        │ tool call                              │
        │ StartGeneration                        │ Claude CLI
@@ -81,25 +81,25 @@ HTTP request                           Solid Queue worker
 └─────────────┘                        └───────────────────┘
 ```
 
-Kluczowe granice:
+Key boundaries:
 
-- **RubyLLM** żyje w `ChatRespondJob` i tool handlerach. Nie wie o Roast.
-- **Roast** żyje w `ExecuteRevisionJob` jako shellowany subprocess (`bin/roast revision_workflow.rb`). Nie wie o RubyLLM ani DB — ENV-bound: `REVISION_WORKSPACE`, `CLAUDE_MODEL`, `INSTRUCTION_ID`.
-- **Event bus** (`ActiveSupport::Notifications`) — jedyny most. Subscribers robią `perform_later` albo `broadcast_replace_to`, nic więcej.
+- **RubyLLM** lives in `ChatRespondJob` and tool handlers. Doesn't know about Roast.
+- **Roast** lives in `ExecuteRevisionJob` as a shelled subprocess (`bin/roast revision_workflow.rb`). Doesn't know about RubyLLM or DB — ENV-bound: `REVISION_WORKSPACE`, `CLAUDE_MODEL`, `INSTRUCTION_ID`.
+- **Event bus** (`ActiveSupport::Notifications`) — the only bridge. Subscribers do `perform_later` or `broadcast_replace_to`, nothing else.
 
-## Model danych
+## Data model
 
-Cytat z `../01-vision/02-user-journey.md` (kanoniczny). Tu tylko to co implementujemy w Fazie 2:
+Quote from `../01-vision/02-user-journey.md` (canonical). Here only what we implement in Phase 2:
 
 ```ruby
 Project
   - name: string
-  - workspace_path: string       # storage/workspaces/<id>/ (relatywne do Rails.root)
+  - workspace_path: string       # storage/workspaces/<id>/ (relative to Rails.root)
   has_one :chat
   has_many :instructions
   has_many :revisions
 
-# Z RubyLLM (acts_as_chat / acts_as_message)
+# From RubyLLM (acts_as_chat / acts_as_message)
 Chat
   belongs_to :project
   has_many :messages
@@ -108,15 +108,15 @@ Message
   belongs_to :chat
   - role: enum (user, assistant, tool)
   - content: text
-  - tool_calls: jsonb            # RubyLLM to daje
+  - tool_calls: jsonb            # RubyLLM provides this
 
 Instruction
   belongs_to :project
   belongs_to :anchor_message, class_name: "Message"
   has_many :revisions
   - phase: enum (processing, completed, failed, cancelled)
-  - user_intent: text            # raw intent z chatu (tool arg StartGeneration#intent) — do audytu + widoczny w UI
-  - description: text            # human-readable, do commit messages — generowany przez CreatePlan
+  - user_intent: text            # raw intent from chat (StartGeneration#intent tool arg) — for audit + UI
+  - description: text            # human-readable, for commit messages — generated by CreatePlan
 
 Revision
   belongs_to :project
@@ -124,127 +124,127 @@ Revision
   belongs_to :parent, class_name: "Revision", optional: true
   - git_sha: string
   - summary: text                # git commit message
-  - prompt: text                 # pełny prompt do Claude CLI
-  - position: integer            # 1-indexed w ramach Instruction
+  - prompt: text                 # full prompt for Claude CLI
+  - position: integer            # 1-indexed within the Instruction
   - status: enum (pending, generating, completed, failed)
   - started_at / finished_at: datetime
-  - metrics: jsonb               # wall_seconds, exit_code itd. — struktura z drivera
+  - metrics: jsonb               # wall_seconds, exit_code, etc. — structure from the driver
 ```
 
-Odłożone z `../01-vision/02-user-journey.md`: `research_output` (nie używamy researchu D1 w PoC), `cli_pid` (nie implementujemy cancela w Fazie 2).
+Deferred from `../01-vision/02-user-journey.md`: `research_output` (we don't use D1 research in the PoC), `cli_pid` (we don't implement cancel in Phase 2).
 
-## Przeniesienie spike'a do apki
+## Moving the spike into the app
 
-`../../spikes/roast/` zostaje jako reference implementation (żeby móc odpalać regresje bez Rails). Do apki kopiujemy w zmienionej formie:
+`../../spikes/roast/` stays as a reference implementation (so that regressions can be run without Rails). We copy into the app in modified form:
 
-| Ze spike'a | Do apki | Zmiany |
-|------------|---------|--------|
-| `revision_workflow.rb` | `lib/roast/revision_workflow.rb` | Zero — to już jest plik Roast DSL, odpalany przez CLI |
-| `verify_revision.rb` | `lib/verify_revision.rb` albo `app/lib/verify_revision.rb` | Zero — moduł Ruby, zostaje taki sam |
-| `new_app_driver.rb` | `app/jobs/execute_instruction_job.rb` | Logika orchestracji (`rails new` + pętla rewizji) staje się jobem |
-| `bin/roast` | `bin/roast` w root apki | Zero — ten sam wrapper (unset ANTHROPIC_*, pin frum PATH) |
-| `bin/roast-openrouter` | `bin/roast-openrouter` | Zero — fallback płatny, na razie nie używamy ale zostaje |
-| `plans.rb` | — | Nie kopiujemy. Plany generuje LLM (Krok 4), a hardcoded TODO_LIST idzie do `test/fixtures/plans/` dla testów |
+| From the spike | Into the app | Changes |
+|----------------|--------------|---------|
+| `revision_workflow.rb` | `lib/roast/revision_workflow.rb` | None — it's already a Roast DSL file, run via CLI |
+| `verify_revision.rb` | `lib/verify_revision.rb` or `app/lib/verify_revision.rb` | None — it's a Ruby module, stays the same |
+| `new_app_driver.rb` | `app/jobs/execute_instruction_job.rb` | Orchestration logic (`rails new` + revision loop) becomes a job |
+| `bin/roast` | `bin/roast` in app root | None — the same wrapper (unset ANTHROPIC_*, pin frum PATH) |
+| `bin/roast-openrouter` | `bin/roast-openrouter` | None — paid fallback, unused for now but stays |
+| `plans.rb` | — | Don't copy. Plans are generated by the LLM (Step 4), and the hardcoded TODO_LIST goes to `test/fixtures/plans/` for tests |
 
-`Gemfile` apki: `ruby_llm`, `roast-ai (~> 1.1)`, `solid_queue`, `solid_cable`, `tailwindcss-rails`, `turbo-rails`, `stimulus-rails`. Ruby 4.0.2 (wymóg Roast 1.1).
+App `Gemfile`: `ruby_llm`, `roast-ai (~> 1.1)`, `solid_queue`, `solid_cable`, `tailwindcss-rails`, `turbo-rails`, `stimulus-rails`. Ruby 4.0.2 (Roast 1.1 requirement).
 
-**Uwaga na ENV hygiene** — trzy gotchas z `feedback_roast_rails_env_gotchas` są dalej aktualne:
+**Watch ENV hygiene** — three gotchas from `feedback_roast_rails_env_gotchas` are still current:
 
-1. `ANTHROPIC_API_KEY` leak → `bin/roast` wrapper dalej unsetuje. Rails app nie ma powodu eksportować klucza, ale ktoś może mieć w `.envrc` — wrapper to neutralizuje.
-2. frum Ruby shim → wrapper pinuje `PATH`. Job musi wołać **`bin/roast`**, nie `bundle exec roast` bezpośrednio.
-3. `BUNDLE_GEMFILE` leak w shellu do workspace → `VerifyRevision.with_clean_bundler_env` dalej rozwiązuje. W `ExecuteRevisionJob` dodatkowo: subprocess Roast dostaje czyste ENV (bez `BUNDLE_*`), wtedy Roast inicjalizuje się pod swoim Gemfilem (apki generatora), a verify w środku workflow'u shelluje do workspace z czystym env.
+1. `ANTHROPIC_API_KEY` leak → `bin/roast` wrapper still unsets it. The Rails app has no reason to export the key, but someone might have it in `.envrc` — the wrapper neutralizes it.
+2. frum Ruby shim → wrapper pins `PATH`. The job must call **`bin/roast`**, not `bundle exec roast` directly.
+3. `BUNDLE_GEMFILE` leak in the shell to workspace → `VerifyRevision.with_clean_bundler_env` still solves it. In `ExecuteRevisionJob` additionally: the Roast subprocess gets clean ENV (without `BUNDLE_*`), then Roast initializes under its own Gemfile (the generator's), and verify inside the workflow shells to the workspace with clean env.
 
-## Kroki
+## Steps
 
-Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
+Every step has its own DoD. All green = Phase 2 closed.
 
-### Krok 1 — Rails skeleton + spike import (półdzień)
+### Step 1 — Rails skeleton + spike import (half-day)
 
 - `rails new generator --css tailwind --database sqlite3 --skip-jbuilder --skip-kamal --skip-ci`
-- `.ruby-version` = `4.0.2` (to samo co spike — Roast 1.1 wymaga 3.3+, lepiej pin na to co działa)
-- Gemfile — stack z `../02-architecture/03-tech-stack.md` § "Stack naszej aplikacji (generator)", plus dev: `debug`, `web-console`
-- Solid Queue + Solid Cable skonfigurowane (`bin/rails solid_queue:install`, mount w `routes.rb` opcjonalnie)
-- `Procfile.dev` (generowany przez Rails 8) rozszerzony o `worker: bin/rails solid_queue:start` — `bin/dev` odpala wtedy web + Tailwind watcher + Solid Queue worker jednym poleceniem. Alternatywa: `bin/rails solid_queue:start` w osobnym terminalu
-- Skopiuj `revision_workflow.rb`, `verify_revision.rb`, `bin/roast`, `bin/roast-openrouter` do nowego Gemfile context
-- Dodaj plik `tmp/smoke_workflow.sh` — odpala `bin/roast lib/roast/revision_workflow.rb` na pustym workspace z dummy kwargiem
-- **DoD**: `bin/dev` odpala (web + worker, pusty root), smoke script przechodzi (workflow startuje, wysypuje się dopiero na braku workspace'u — dowodzi że wrapper + frum + Gemfile są ok)
+- `.ruby-version` = `4.0.2` (same as the spike — Roast 1.1 requires 3.3+, better pin to what works)
+- Gemfile — stack from `../02-architecture/03-tech-stack.md` § "Our application's stack (generator)", plus dev: `debug`, `web-console`
+- Solid Queue + Solid Cable configured (`bin/rails solid_queue:install`, mount in `routes.rb` optionally)
+- `Procfile.dev` (generated by Rails 8) extended with `worker: bin/rails solid_queue:start` — `bin/dev` then runs web + Tailwind watcher + Solid Queue worker with one command. Alternative: `bin/rails solid_queue:start` in a separate terminal
+- Copy `revision_workflow.rb`, `verify_revision.rb`, `bin/roast`, `bin/roast-openrouter` into the new Gemfile context
+- Add `tmp/smoke_workflow.sh` — runs `bin/roast lib/roast/revision_workflow.rb` on an empty workspace with a dummy kwarg
+- **DoD**: `bin/dev` starts (web + worker, empty root), smoke script passes (workflow starts, fails only due to missing workspace — proving the wrapper + frum + Gemfile are ok)
 
-### Krok 2 — Model danych + migracje (półdzień)
+### Step 2 — Data model + migrations (half-day)
 
-- Migration: `projects`, `chats`, `messages`, `instructions`, `revisions` wg schema wyżej
-- RubyLLM scaffolding: `rails generate ruby_llm:install` → daje `Chat`/`Message` modele (mają `acts_as_chat`, persistencję messages i tool calls)
-- Rozszerz `Chat`: `belongs_to :project`. Rozszerz `Message`: nic dodatkowego (RubyLLM wystarczy)
-- Fixtures w `test/fixtures/` — 1 projekt, 1 chat, kilka wiadomości, 1 instruction z 2 rewizjami
-- Model testy (minimalne): walidacje, associations, enum transitions
-- **RubyLLM smoke w IRB** (~30 min, przed Krokiem 3 żeby złapać ewentualny friction wcześnie):
-  - `Message#broadcast_append_to("chat_#{id}")` działa (wymaga `turbo-rails` w Gemfile i ewentualnie `broadcasts_to` w modelu — sprawdzić co RubyLLM daje out of the box vs co trzeba dopisać)
-  - `acts_as_message` persistuje pole `tool_calls` jsonb po `chat.ask(msg, tools: [FakeTool])` — czy jest dedykowana kolumna czy tool_call leci w `content` jako markdown?
-  - `chat.ask(msg, tools: [T1, T2])` — sprawdzić jak RubyLLM zwraca tool call (parallel vs sekwencyjnie; API dostępu do args)
-  - Wynik smoke'a — notatka w `thoughts/` albo komentarz w Kroku 4 jeśli któraś z tych rzeczy wymaga workaroundu
-- **DoD**: `bin/rails test test/models` zielone + smoke w IRB udokumentowany (wynik pozytywny lub notatka o fallbacku)
+- Migration: `projects`, `chats`, `messages`, `instructions`, `revisions` per the schema above
+- RubyLLM scaffolding: `rails generate ruby_llm:install` → gives `Chat`/`Message` models (with `acts_as_chat`, message and tool-call persistence)
+- Extend `Chat`: `belongs_to :project`. Extend `Message`: nothing extra (RubyLLM is enough)
+- Fixtures in `test/fixtures/` — 1 project, 1 chat, a few messages, 1 instruction with 2 revisions
+- Model tests (minimal): validations, associations, enum transitions
+- **RubyLLM smoke in IRB** (~30 min, before Step 3 to catch any friction early):
+  - `Message#broadcast_append_to("chat_#{id}")` works (requires `turbo-rails` in Gemfile and possibly `broadcasts_to` in the model — check what RubyLLM provides out of the box vs. what we need to add)
+  - `acts_as_message` persists the `tool_calls` jsonb field after `chat.ask(msg, tools: [FakeTool])` — is there a dedicated column or does the tool call land in `content` as markdown?
+  - `chat.ask(msg, tools: [T1, T2])` — check how RubyLLM returns tool calls (parallel vs. sequential; args access API)
+  - Smoke result — note in `thoughts/` or a comment in Step 4 if any of these need a workaround
+- **DoD**: `bin/rails test test/models` green + smoke in IRB documented (positive result or fallback note)
 
-### Krok 3 — Chat baseline bez tools (pół-dzień)
+### Step 3 — Chat baseline without tools (half-day)
 
-- `ProjectsController#new, create, show` — formularz "opisz apkę" → `Project.create!` + `Chat.create!` + `Message.create!(role: :user)` → redirect do `/projects/:id`
-- View `projects/show.html.erb` — Turbo Frame `chat`, partial `_message.html.erb`, pole input
+- `ProjectsController#new, create, show` — "describe the app" form → `Project.create!` + `Chat.create!` + `Message.create!(role: :user)` → redirect to `/projects/:id`
+- View `projects/show.html.erb` — Turbo Frame `chat`, partial `_message.html.erb`, input field
 - `app/models/current.rb`:
   ```ruby
   class Current < ActiveSupport::CurrentAttributes
     attribute :project
   end
   ```
-  Niewykorzystane w Kroku 3 (baseline bez tools), przygotowane pod `StartGeneration#execute` w Kroku 4 — tool handler odczytuje `Current.project` zamiast przyjmować project_id jako arg.
+  Unused in Step 3 (baseline without tools), prepared for `StartGeneration#execute` in Step 4 — tool handler reads `Current.project` instead of taking project_id as an arg.
 - `ChatRespondJob`:
   ```ruby
   def perform(message_id)
     message = Message.find(message_id)
     chat = message.chat
-    Current.project = chat.project     # setup dla tools w Kroku 4; w Kroku 3 no-op
-    chat.ask(message.content)          # RubyLLM sam persistuje assistant message
+    Current.project = chat.project     # setup for tools in Step 4; no-op in Step 3
+    chat.ask(message.content)          # RubyLLM persists the assistant message itself
     chat.messages.last.broadcast_append_to("chat_#{chat.id}")
   end
   ```
-- Po `Message.create!(role: :user)` z kontrolera — `ChatRespondJob.perform_later`
-- **DoD**: user tworzy projekt, pisze "zrób listę todo", widzi odpowiedź LLM, może kontynuować wymianę. Bez tools, bez generowania — sam chat.
+- After `Message.create!(role: :user)` from the controller — `ChatRespondJob.perform_later`
+- **DoD**: user creates a project, writes "make a todo list", sees LLM reply, can continue the exchange. No tools, no generation — just chat.
 
-### Krok 4 — Tools: `StartGeneration` + `SuggestPrompts` + service `CreatePlan` (dzień)
+### Step 4 — Tools: `StartGeneration` + `SuggestPrompts` + `CreatePlan` service (one day)
 
-**Kluczowa zasada** (z decyzji A7): detailed prompts do Claude CLI **nigdy nie opuszczają backendu**. Chat LLM dostaje tylko informację że user jest gotowy + jego intencje; całe prompt engineering plannera (secret sauce) żyje w `CreatePlan` service.
+**Key principle** (from decision A7): detailed prompts for Claude CLI **never leave the backend**. The chat LLM only gets information that the user is ready + their intents; the full planner prompt engineering (secret sauce) lives in the `CreatePlan` service.
 
-- Service `app/services/create_plan.rb` (abstrakcja z A6):
+- Service `app/services/create_plan.rb` (abstraction from A6):
   ```ruby
   module CreatePlan
-    # Interface: wszystkie implementacje muszą zwracać tablicę hashy gotowych
-    # do Revision.create!. Adapter-pattern — swappable przez config lub A/B.
+    # Interface: every implementation must return an array of hashes ready for
+    # Revision.create!. Adapter pattern — swappable via config or A/B.
     def self.call(intent:, clarifications: {}, context: {})
       implementation.call(intent: intent, clarifications: clarifications, context: context)
     end
 
     def self.implementation
-      # Na start: AdHocLLM. Później: Archetypes, Hybrid, CheapButGood
+      # To start: AdHocLLM. Later: Archetypes, Hybrid, CheapButGood
       @implementation ||= AdHocLLM
     end
 
     class AdHocLLM
-      # Wewnętrzne LLM call z własnym system promptem (SECRET SAUCE)
-      # System prompt zawiera reguły: "Rails Way, 3-6 kroków, Tailwind, Hotwire, Devise..."
-      # NIE jest to widoczne dla chat LLM ani dla usera
+      # Internal LLM call with its own system prompt (SECRET SAUCE)
+      # System prompt contains rules: "Rails Way, 3-6 steps, Tailwind, Hotwire, Devise..."
+      # NOT visible to the chat LLM or the user
       def self.call(intent:, clarifications:, context:)
-        # RubyLLM.chat z response_format: json_schema lub osobny tool call
-        # zwraca: [{ summary: "...", prompt: "..." }, ...]
+        # RubyLLM.chat with response_format: json_schema, or a separate tool call
+        # returns: [{ summary: "...", prompt: "..." }, ...]
       end
     end
 
-    # Przyszłe implementacje: Archetypes, Hybrid... — osobny workstream
+    # Future implementations: Archetypes, Hybrid... — separate workstream
   end
   ```
 
 - Tool `app/tools/start_generation.rb`:
   ```ruby
   class StartGeneration < RubyLLM::Tool
-    description "Startuje generowanie aplikacji. Wywołaj gdy user opisał co chce i jesteś gotowy."
-    param :intent, type: :string, desc: "Plain language: co user chce zbudować, np. 'sklep z kwiatami z magazynem i Stripe'"
-    param :clarifications, type: :object, desc: "Odpowiedzi na doprecyzowujące pytania: { key: value }"
+    description "Starts application generation. Call when the user has described what they want and you are ready."
+    param :intent, type: :string, desc: "Plain language: what the user wants to build, e.g. 'flower shop with inventory and Stripe'"
+    param :clarifications, type: :object, desc: "Answers to clarifying questions: { key: value }"
 
     def execute(intent:, clarifications: {})
       project = Current.project
@@ -255,7 +255,7 @@ Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
       )
 
       instruction = project.instructions.create!(
-        user_intent: intent,            # raw z chatu, do audytu
+        user_intent: intent,            # raw from chat, for audit
         description: revisions_data.first[:instruction_description] || intent.truncate(200),
         phase: :processing,
         anchor_message: project.chat.messages.last
@@ -264,7 +264,7 @@ Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
         instruction.revisions.create!(
           project: project,
           summary: r[:summary],
-          prompt: r[:prompt],           # detailed prompt — żyje tylko w DB i ExecuteInstructionJob
+          prompt: r[:prompt],           # detailed prompt — lives only in DB and ExecuteInstructionJob
           position: i + 1,
           status: :pending,
           parent: i == 0 ? nil : instruction.revisions[i - 1]
@@ -272,7 +272,7 @@ Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
       end
       ActiveSupport::Notifications.instrument("instruction.requested", instruction_id: instruction.id)
 
-      # WAŻNE: do chatu wraca TYLKO high-level confirmation, nie prompts
+      # IMPORTANT: only a high-level confirmation goes back to chat, not prompts
       { instruction_id: instruction.id, revision_count: revisions_data.size, intent: intent }
     end
   end
@@ -281,8 +281,8 @@ Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
 - Tool `app/tools/suggest_prompts.rb`:
   ```ruby
   class SuggestPrompts < RubyLLM::Tool
-    description "Proponuje userowi co dalej. UI rendruje jako klikalne karty."
-    param :prompts, type: :array, desc: "Lista sugerowanych promptów — user-facing, krótkie, plain language"
+    description "Proposes next steps to the user. UI renders as clickable cards."
+    param :prompts, type: :array, desc: "List of suggested prompts — user-facing, short, plain language"
 
     def execute(prompts:)
       { prompts: prompts }
@@ -290,24 +290,24 @@ Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
   end
   ```
 
-- `ChatRespondJob` dostaje tools:
+- `ChatRespondJob` gets tools:
   ```ruby
   chat.ask(message.content, tools: [StartGeneration, SuggestPrompts])
   ```
 
-- **System prompt chatu (NIE zawiera reguł generowania planu)**:
-  - "Jesteś asystentem pomagającym userom opisać jaką apkę Rails chcą zbudować. Zadaj max 2 pytania doprecyzowujące. Gdy user jest gotowy — wywołaj `StartGeneration(intent, clarifications)` przekazując PLAIN LANGUAGE opis tego co chcą. NIE generuj planu implementacji, nie wymieniaj modeli ani kontrolerów — to nie twoje zadanie."
-  - Reguły "Rails Way, 3-6 kroków, Tailwind, Hotwire, Devise" **NIE są tu** — żyją w `CreatePlan::AdHocLLM`'s internal prompt
+- **Chat system prompt (does NOT contain plan-generation rules)**:
+  - "You are an assistant helping users describe what Rails app they want to build. Ask at most 2 clarifying questions. When the user is ready — call `StartGeneration(intent, clarifications)` passing a PLAIN LANGUAGE description of what they want. DO NOT generate an implementation plan, don't list models or controllers — that's not your job."
+  - Rules "Rails Way, 3-6 steps, Tailwind, Hotwire, Devise" are **NOT here** — they live in `CreatePlan::AdHocLLM`'s internal prompt
 
-- Subscriber: `ActiveSupport::Notifications.subscribe("instruction.requested")` → `ExecuteInstructionJob.perform_later(id)` (na razie zaślepka)
+- Subscriber: `ActiveSupport::Notifications.subscribe("instruction.requested")` → `ExecuteInstructionJob.perform_later(id)` (stub for now)
 
-- UI: partial `_suggested_prompts.html.erb` renderuje `tool_calls[:SuggestPrompts][:prompts]` jako klikalne karty
+- UI: partial `_suggested_prompts.html.erb` renders `tool_calls[:SuggestPrompts][:prompts]` as clickable cards
 
-- **DoD**: user pisze "todo list", LLM zadaje 0-2 pytania i wywołuje `StartGeneration(intent: "prosta lista todo z Tailwind", clarifications: {...})`. `CreatePlan::AdHocLLM` generuje wewnętrznie 3 rewizje z detailed prompts. W DB powstaje Instruction (z `user_intent` = raw arg z toola) + 3 Revisions. Chat kontynuuje "Zacząłem budować, oto co się dzieje..." bez odsłaniania prompts.
+- **DoD**: user writes "todo list", LLM asks 0-2 questions and calls `StartGeneration(intent: "simple todo list with Tailwind", clarifications: {...})`. `CreatePlan::AdHocLLM` internally generates 3 revisions with detailed prompts. DB has Instruction (with `user_intent` = raw arg from the tool) + 3 Revisions. Chat continues "I started building, here's what's happening..." without revealing prompts.
 
-### Krok 5 — `ExecuteInstructionJob` + integracja Roast (1-2 dni)
+### Step 5 — `ExecuteInstructionJob` + Roast integration (1-2 days)
 
-To jest najmiesnistsza część. Przenosi całą logikę z `new_app_driver.rb` do Rails joba z persystencją statusu.
+This is the meatiest part. Moves all the logic from `new_app_driver.rb` into a Rails job with status persistence.
 
 ```ruby
 class ExecuteInstructionJob < ApplicationJob
@@ -371,19 +371,19 @@ class ExecuteInstructionJob < ApplicationJob
     end
   end
 
-  # rails_new, init_docs_baseline, git_head — cut/paste z new_app_driver.rb
+  # rails_new, init_docs_baseline, git_head — cut/paste from new_app_driver.rb
 end
 ```
 
-Dodatkowo:
+Additionally:
 
-- `app/jobs/application_job.rb`: `queue_as :generation` + `retry_on StandardError, wait: :polynomially_longer, attempts: 1` (generowanie nie retryujemy automatycznie — po failu user decyduje)
-- Solid Queue config: queue `generation` z concurrency 1 (jedno generowanie na raz, ../01-vision/02-user-journey.md § "Równoległe instrukcje" — jedna aktywna)
-- `storage/workspaces/` dodane do `.gitignore`
-- Timeout — na razie bez twardego timeout'u. Obserwujemy, czy rewizja nie utyka (spike mierzony: max 226s). Twardy timeout (np. 20 min) dopiszemy w Kroku 7 jeśli będzie potrzeba
-- **DoD**: ręcznie utworzona Instruction + 1 Revision → `ExecuteInstructionJob.perform_now(id)` → powstaje Rails app w workspace, git ma 2 commity (scaffolding baseline + rewizja), Revision w DB ma `status=completed` i `git_sha`
+- `app/jobs/application_job.rb`: `queue_as :generation` + `retry_on StandardError, wait: :polynomially_longer, attempts: 1` (we don't auto-retry generation — after a fail the user decides)
+- Solid Queue config: `generation` queue with concurrency 1 (one generation at a time, per ../01-vision/02-user-journey.md § "Parallel instructions" — one active)
+- `storage/workspaces/` added to `.gitignore`
+- Timeout — no hard timeout for now. We watch whether a revision gets stuck (spike measured: max 226s). Hard timeout (e.g. 20 min) will be added in Step 7 if needed
+- **DoD**: manually created Instruction + 1 Revision → `ExecuteInstructionJob.perform_now(id)` → a Rails app appears in the workspace, git has 2 commits (scaffolding baseline + revision), the Revision in DB has `status=completed` and `git_sha`
 
-### Krok 6 — Eventy + Turbo Streams + follow-up (półdzień)
+### Step 6 — Events + Turbo Streams + follow-up (half-day)
 
 - `config/initializers/event_subscribers.rb`:
   ```ruby
@@ -413,82 +413,82 @@ Dodatkowo:
     instruction = Instruction.find(instruction_id)
     chat = instruction.project.chat
     prompt = event == :completed ?
-      "Generowanie zakończone. Zaproponuj 3-5 naturalnych kolejnych kroków (SuggestPrompts tool)." :
-      "Rewizja #{instruction.revisions.failed.first&.summary} nie przeszła weryfikacji. Wyjaśnij userowi co się stało i zaproponuj podejście."
+      "Generation completed. Suggest 3-5 natural next steps (SuggestPrompts tool)." :
+      "Revision #{instruction.revisions.failed.first&.summary} didn't pass verification. Explain to the user what happened and propose an approach."
     chat.ask(prompt, tools: [StartGeneration, SuggestPrompts])
   end
   ```
-- View: `app/views/revisions/_revision.html.erb` z `turbo-frame id="revision_<%= revision.id %>"` renderuje status badge (pending/generating/completed/failed) + git SHA dla completed
-- W `projects/show.html.erb` nad chatem: lista aktywnych rewizji (Instruction.processing → Revisions)
-- **DoD**: odpalenie pełnej Instruction z UI → user widzi live progress (pending → generating → completed per rewizja), po zakończeniu chatbox dostaje nową wiadomość z sugestiami
+- View: `app/views/revisions/_revision.html.erb` with `turbo-frame id="revision_<%= revision.id %>"` renders a status badge (pending/generating/completed/failed) + git SHA for completed
+- In `projects/show.html.erb` above the chat: list of active revisions (Instruction.processing → Revisions)
+- **DoD**: running a full Instruction from the UI → user sees live progress (pending → generating → completed per revision), after completion the chatbox receives a new message with suggestions
 
-### Krok 7 — E2E demo: "todo list" plan + CLI (półdzień)
+### Step 7 — E2E demo: "todo list" plan + CLI (half-day)
 
 - Integration test `test/integration/generate_todo_list_test.rb`:
-  - Tworzy projekt, wysyła wiadomość "Prosta lista todo, Tailwind"
-  - Stub dwóch warstw: `chat.ask` (LLM chatu) → deterministycznie woła `StartGeneration(intent: "prosta lista todo, Tailwind", clarifications: {})`; `CreatePlan.call` → zwraca fixture TODO_LIST ze spike'a (`test/fixtures/plans/todo_list.rb`). Dzięki temu test jest deterministyczny i nie zużywa tokenów na chat + plan
-  - `ExecuteInstructionJob.perform_now` — real subprocess (nie stub, to jest E2E)
-  - Assert: `instruction.reload.completed?`, `project.revisions.count == 3`, `git log` w workspace ma 3+1 (scaffolding) commitów, `rails test` w workspace zielony
-  - Pomiar: `wall_time < 900s` (15 min z zapasem nad 496s ze spike'a)
-- CLI mirror w `bin/generate`:
-  - `bin/generate full --prompt "..."` — tworzy projekt + wymusza `StartGeneration` (stub `chat.ask` + `CreatePlan.call` jak w teście) + odpala job synchronicznie
-  - `bin/generate respond --project-id=N` — ręczne triggerowanie ChatRespondJob
-  - `bin/generate execute --instruction-id=N` — synchroniczne ExecuteInstructionJob (debugging bez Solid Queue workera)
-- **DoD**: `bin/rails test` green (unit + integration), `bin/generate full --prompt "..."` przechodzi end-to-end, manual demo przez UI działa
+  - Creates a project, sends the message "Simple todo list, Tailwind"
+  - Stubs two layers: `chat.ask` (chat LLM) → deterministically calls `StartGeneration(intent: "simple todo list, Tailwind", clarifications: {})`; `CreatePlan.call` → returns the TODO_LIST fixture from the spike (`test/fixtures/plans/todo_list.rb`). This makes the test deterministic and doesn't burn tokens on chat + plan
+  - `ExecuteInstructionJob.perform_now` — real subprocess (not stubbed, this is E2E)
+  - Assert: `instruction.reload.completed?`, `project.revisions.count == 3`, `git log` in workspace has 3+1 (scaffolding) commits, `rails test` in workspace green
+  - Measurement: `wall_time < 900s` (15 min with buffer over 496s from the spike)
+- CLI mirror in `bin/generate`:
+  - `bin/generate full --prompt "..."` — creates a project + forces `StartGeneration` (stubs `chat.ask` + `CreatePlan.call` as in the test) + runs the job synchronously
+  - `bin/generate respond --project-id=N` — manually triggers ChatRespondJob
+  - `bin/generate execute --instruction-id=N` — synchronous ExecuteInstructionJob (debugging without a Solid Queue worker)
+- **DoD**: `bin/rails test` green (unit + integration), `bin/generate full --prompt "..."` passes end-to-end, manual demo via UI works
 
-## Ryzyka i co z nimi zrobić
+## Risks and what to do about them
 
-| Ryzyko | Mitigacja |
-|--------|-----------|
-| RubyLLM niekonsekwentnie woła StartGeneration | System prompt z jawnym `Musisz wywołać StartGeneration` + few-shot. Fallback: UI button "Zacznij generować" który wymusza tool call z treścią chatu jako intent |
-| `CreatePlan::AdHocLLM` generuje plany o nierównej jakości | Logujemy każdą generację (intent → revisions) do DB. Po 5-10 runach analiza — jeśli jakość zmienne, decyzja czy implementować `CreatePlan::Archetypes` lub hybrid. Fallback nie jest blokerem PoC |
-| Subprocess `bin/roast` zawiesza się | Krok 7 obserwuje, twardy timeout 20min dodamy jeśli zdarzy się częściej niż 1/10. Wcześniej: Solid Queue ma job timeout konfigurowalny, bardziej diagnoza niż blocker |
-| RubyLLM Chat/Message schema konflikt z własnymi kolumnami | Najpierw run `rails generate ruby_llm:install`, potem pisanie migracji Instruction/Revision. Jeśli potrzeba custom field na Message — extension model zamiast kolumny |
-| Solid Queue + długi subprocess blokuje workera | Concurrency=1 na kolejce `generation` jest OK (jedna instrukcja na raz z definicji). Jeśli zablokuje też inne kolejki → osobny worker process dla `generation` |
-| Claude CLI rate limit na subskrypcji | Spike pokazał że 3 rewizje × Sonnet są OK. Przy demo dla dwóch użytkowników naraz może dojść limit → reject drugiej instrukcji z retry-after, nie równoległość |
-| Workspace path w DB absolutne → migrowalność | W DB trzymamy **relatywne** (np. `storage/workspaces/123`), absolutizujemy w jobie przez `Rails.root.join`. Przy restoragu/zmianie hosta reset workspace_path, workspace recreate jest dopuszczalny (wszystko w git) |
-| `rails new` w subprocess nadpisuje `.ruby-version` generatora | `rails_new` wywoływany z `chdir: workspace_root`, a sama komenda tworzy podkatalog. Generator ma `.ruby-version` w roocie, workspace też dostaje swoje. Ale **UWAGA**: sprawdzić czy `bundle` w workspace nie używa frum shima generatora — `VerifyRevision.with_clean_bundler_env` powinno to załatwić (zweryfikowane w spike) |
+| Risk | Mitigation |
+|------|------------|
+| RubyLLM calls StartGeneration inconsistently | System prompt with explicit `You must call StartGeneration` + few-shot. Fallback: UI button "Start generating" that forces a tool call with chat content as intent |
+| `CreatePlan::AdHocLLM` generates plans of uneven quality | We log every generation (intent → revisions) to DB. After 5-10 runs analyze — if quality varies, decide whether to implement `CreatePlan::Archetypes` or a hybrid. Fallback is not a blocker for the PoC |
+| `bin/roast` subprocess hangs | Step 7 watches; we add a hard 20min timeout if it happens more than 1/10. Earlier: Solid Queue has a configurable job timeout, more diagnostics than blocker |
+| RubyLLM Chat/Message schema conflicts with our own columns | First run `rails generate ruby_llm:install`, then write Instruction/Revision migrations. If we need a custom field on Message — extension model instead of a column |
+| Solid Queue + long subprocess blocks a worker | Concurrency=1 on the `generation` queue is OK (one instruction at a time by definition). If it blocks other queues too → a separate worker process for `generation` |
+| Claude CLI rate limit on subscription | Spike showed 3 revisions × Sonnet are OK. With a demo for two users at once the limit may be hit → reject the second instruction with retry-after, not parallelism |
+| Absolute workspace path in DB → migratability | In the DB we keep **relative** (e.g. `storage/workspaces/123`), absolutize in the job via `Rails.root.join`. On restore/host change reset workspace_path, workspace recreate is acceptable (everything is in git) |
+| `rails new` in subprocess overwrites generator's `.ruby-version` | `rails_new` is called with `chdir: workspace_root`, and the command itself creates a subdirectory. The generator has `.ruby-version` in the root, the workspace gets its own. But **NOTE**: check that `bundle` in the workspace doesn't use the generator's frum shim — `VerifyRevision.with_clean_bundler_env` should handle it (verified in the spike) |
 
-## Otwarte pytania (do decyzji w trakcie)
+## Open questions (to decide along the way)
 
-1. **`CreatePlan::AdHocLLM` implementacja**: czy LLM call w service używa RubyLLM z `response_format: json_schema` (deterministyczny output) czy drugi tool use? Decyzja w Kroku 4. Schema vs. tool to compromise między deterministycznym parsingiem a łatwością multi-step reasoning
-2. **Workspace per projekt vs shared?** Per projekt (`storage/workspaces/<id>`). Shared bundle cache (`~/.bundle`) żeby nie reinstalować gemów przy każdym `rails new` — do optymalizacji w Kroku 5 jeśli wall time Krok 7 przekroczy limit
-3. **Process supervisor dla subprocess Roast?** Start: plain `system()`. Jeśli okaże się że potrzebujemy timeoutu + kill + PID tracking — minimum `Process.spawn` + wątek watchdog. Pełny supervisor (np. Dragonfly) dopiero gdy Faza 2.5 (cancel) ruszy
-4. **Czy RubyLLM chat dostaje kontekst o `Project.revisions`?** Happy-path mówi tak. W Fazie 2 PoC: tak, przez `chat.with_instructions(...)` ustawiane w `ChatRespondJob` każdorazowo (nie w `Chat.create!`) żeby odświeżać stan. Format: short markdown summary z listą revision summaries + statusów (summaries OK — to user-facing; detailed prompts dalej nie są pokazywane chatowi)
-5. **Jakiego modelu użyć w `CreatePlan::AdHocLLM`?** Sonnet/Haiku? Sonnet daje lepsze plany, Haiku tani/szybki. Eksperyment w Kroku 4. Architektura swap-owalna (A6) pozwala na łatwy test obu
+1. **`CreatePlan::AdHocLLM` implementation**: does the LLM call in the service use RubyLLM with `response_format: json_schema` (deterministic output) or a second tool use? Decided in Step 4. Schema vs. tool is a tradeoff between deterministic parsing and ease of multi-step reasoning
+2. **Workspace per project vs. shared?** Per project (`storage/workspaces/<id>`). Shared bundle cache (`~/.bundle`) so we don't reinstall gems on every `rails new` — to be optimized in Step 5 if Step 7 wall time exceeds the limit
+3. **Process supervisor for the Roast subprocess?** Start: plain `system()`. If it turns out we need timeout + kill + PID tracking — minimum `Process.spawn` + watchdog thread. Full supervisor (e.g. Dragonfly) only when Phase 2.5 (cancel) starts
+4. **Does the RubyLLM chat receive context about `Project.revisions`?** Happy-path says yes. In Phase 2 PoC: yes, via `chat.with_instructions(...)` set in `ChatRespondJob` each time (not in `Chat.create!`) to refresh state. Format: short markdown summary with a list of revision summaries + statuses (summaries OK — they're user-facing; detailed prompts are still hidden from chat)
+5. **Which model for `CreatePlan::AdHocLLM`?** Sonnet/Haiku? Sonnet gives better plans, Haiku cheap/fast. Experiment in Step 4. Swappable architecture (A6) allows easy testing of both
 
-## Oszacowanie
+## Estimate
 
-- Krok 1 — 0.5 dnia
-- Krok 2 — 0.5 dnia
-- Krok 3 — 0.5 dnia
-- Krok 4 — 1 dzień
-- Krok 5 — 1.5-2 dni
-- Krok 6 — 0.5 dnia
-- Krok 7 — 0.5 dnia
+- Step 1 — 0.5 day
+- Step 2 — 0.5 day
+- Step 3 — 0.5 day
+- Step 4 — 1 day
+- Step 5 — 1.5-2 days
+- Step 6 — 0.5 day
+- Step 7 — 0.5 day
 
-Razem: **5-6 dni fokusa**. Realny kalendarz pewnie 1.5-2 tygodnie przy przerywaniu.
+Total: **5-6 focused days**. Realistic calendar probably 1.5-2 weeks with interruptions.
 
-## Alternatywy (do potencjalnego powrotu)
+## Alternatives (for possible return)
 
-Każda decyzja z sekcji "Decyzje architektoniczne" na górze jest odwracalna. Tabela sygnalizuje kiedy warto wrócić do alternatywy. Pełne rozumowanie za tymi wyborami — w historii git (commit rozpisania planu, 2026-04-16).
+Every decision from the "Architectural decisions" section above is reversible. The table signals when it's worth returning to the alternative. Full reasoning behind these choices — in git history (commit of the plan rollout, 2026-04-16).
 
-| # | Wybrane | Alternatywa | Wrócić gdy |
-|---|---------|-------------|------------|
-| A1 | Subprocess `bin/roast` | Native Ruby embedding (`require "roast"` in-process) | Startup subprocessa staje się znaczącym % czasu rewizji, albo chcemy live Turbo Stream z workflow bez subprocess pipe |
-| A2 | Claude CLI (subskrypcja) | RubyLLM + własne toole (WriteFile/RunBash/ReadFile) w jednym procesie | Subskrypcja przestaje pokrywać koszt, albo chcemy dać userom własne klucze Anthropic/OpenRouter |
-| A3 | Roast jako orchestrator | Plain Ruby job (`build_prompt → cli → verify → remediation → commit`) | Roast DSL przeszkadza bardziej niż pomaga (3 gotchas ze spike'a to już sygnał), albo pojawiają się wymagania poza jego zasięgiem (real-time streaming, branching) |
-| A4 | Lokalny FS `storage/workspaces/<id>/` | `Dir.mktmpdir` per instruction, albo Docker container per projekt | Wychodzimy poza dev-only (multi-user → izolacja konieczna), albo testujemy generator w CI (tmpdir) |
-| A5 | Jeden `ExecuteInstructionJob` z pętlą rewizji | `ExecuteRevisionJob` chainowany per rewizja (lepsza observability, retry granularny) | Chcemy retry pojedynczej failed rewizji bez odpalania całej Instruction |
-| A6 | `CreatePlan::AdHocLLM` za abstrakcją `CreatePlan` | `CreatePlan::Archetypes` (template'y + slot-filling), albo hybrid | Jakość planów ad-hoc okaże się zmienna (logi z 5-10 runów), content workstream archetypów ruszy, albo znajdziemy tani-ale-dobry model (Haiku? GPT-4.1 mini?) |
-| A7 | Lightweight tool `StartGeneration(intent, clarifications)` | `CreateInstruction(description, revisions: [...])` z detailed planem w tool args, albo `response_format: json_schema` | Tool reliability okaże się problemem — LLM nie woła `StartGeneration` w spodziewanym momencie. Fallback: UI button "Zacznij generować" wymusza tool call |
+| # | Chosen | Alternative | Return when |
+|---|--------|-------------|-------------|
+| A1 | Subprocess `bin/roast` | Native Ruby embedding (`require "roast"` in-process) | Subprocess startup becomes a significant % of revision time, or we want live Turbo Stream from the workflow without subprocess pipe |
+| A2 | Claude CLI (subscription) | RubyLLM + our own tools (WriteFile/RunBash/ReadFile) in a single process | Subscription no longer covers cost, or we want to let users bring their own Anthropic/OpenRouter keys |
+| A3 | Roast as orchestrator | Plain Ruby job (`build_prompt → cli → verify → remediation → commit`) | Roast DSL hinders more than it helps (3 gotchas from the spike are already a signal), or requirements appear beyond its reach (real-time streaming, branching) |
+| A4 | Local FS `storage/workspaces/<id>/` | `Dir.mktmpdir` per instruction, or a Docker container per project | We move beyond dev-only (multi-user → isolation becomes necessary), or we test the generator in CI (tmpdir) |
+| A5 | One `ExecuteInstructionJob` with revision loop | `ExecuteRevisionJob` chained per revision (better observability, granular retry) | We want to retry a single failed revision without rerunning the whole Instruction |
+| A6 | `CreatePlan::AdHocLLM` behind the `CreatePlan` abstraction | `CreatePlan::Archetypes` (templates + slot-filling), or hybrid | Ad-hoc plan quality turns out to vary (logs from 5-10 runs), the archetype content workstream kicks off, or we find a cheap-but-good model (Haiku? GPT-4.1 mini?) |
+| A7 | Lightweight tool `StartGeneration(intent, clarifications)` | `CreateInstruction(description, revisions: [...])` with a detailed plan in tool args, or `response_format: json_schema` | Tool reliability becomes a problem — LLM doesn't call `StartGeneration` when expected. Fallback: UI button "Start generating" forces the tool call |
 
-## Wyjścia z Fazy 2
+## Exits from Phase 2
 
-Po domknięciu:
+After closing:
 
-- **Dalej po warstwę preview** (Faza 3) — `02-phase-3-preview-isolation.md` z Kamal+Docker, osobny plan
-- **Albo polish PoC dla demo** — lepszy UI, cancel, kilka archetypów, żeby pokazać na Tropical/Rails World jako demo
-- **Albo monetyzacja / sponsorship** — token costs liczone, teraz mamy dane do rozmowy z Anthropic local ambassadors
+- **Move on to the preview layer** (Phase 3) — `02-phase-3-preview-isolation.md` with Kamal+Docker, separate plan
+- **Or polish the PoC for a demo** — better UI, cancel, a few archetypes, to show at Tropical/Rails World as a demo
+- **Or monetization / sponsorship** — token costs measured, we now have data to talk to Anthropic local ambassadors
 
-Decyzję odłożyć do momentu gdy Faza 2 zamknie się. Na dziś: Faza 2 jest niezależna od każdego z tych kierunków.
+Defer the decision to when Phase 2 closes. For today: Phase 2 is independent of each of these directions.

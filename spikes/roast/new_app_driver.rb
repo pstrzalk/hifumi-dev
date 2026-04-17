@@ -1,16 +1,16 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# W1 driver: rails new + pętla shellująca revision_workflow.rb per rewizja.
-# Odpowiednik przyszłego Solid Queue joba z głównej apki generatora.
+# W1 driver: rails new + loop shelling out to revision_workflow.rb per revision.
+# Equivalent of the future Solid Queue job in the main generator app.
 #
 # Usage:
 #   bin/new_app --plan todo-list --app-name todo-spike --workspace /tmp/spike [--model sonnet]
 #
-# Efekt:
-#   - Tworzy Rails app w <workspace>/<app-name>
-#   - Wykonuje każdą rewizję z planu przez `bundle exec roast revision_workflow.rb`
-#   - Loguje czas i status per rewizja, zapisuje metrics.json
+# Effect:
+#   - Creates a Rails app in <workspace>/<app-name>
+#   - Executes every revision from the plan via `bundle exec roast revision_workflow.rb`
+#   - Logs time and status per revision, writes metrics.json
 
 require "json"
 require "optparse"
@@ -85,9 +85,9 @@ class NewAppDriver
 
     docs_dir = File.join(@workspace, "docs")
     FileUtils.mkdir_p(docs_dir)
-    File.write(File.join(docs_dir, "architecture.md"), "# Architecture\n\n(pusta — zostanie wypełniona przez pierwszą rewizję)\n")
-    File.write(File.join(docs_dir, "conventions.md"), "# Conventions\n\n(pusta — zostanie wypełniona przez pierwszą rewizję)\n")
-    File.write(File.join(docs_dir, "domain.md"), "# Domain\n\n(pusta — zostanie wypełniona przez pierwszą rewizję)\n")
+    File.write(File.join(docs_dir, "architecture.md"), "# Architecture\n\n(empty — will be filled in by the first revision)\n")
+    File.write(File.join(docs_dir, "conventions.md"), "# Conventions\n\n(empty — will be filled in by the first revision)\n")
+    File.write(File.join(docs_dir, "domain.md"), "# Domain\n\n(empty — will be filled in by the first revision)\n")
     File.write(File.join(docs_dir, "revision_notes.md"), "# Revision notes\n\n")
 
     system("cd #{Shellwords.escape(@workspace)} && git add -A && git commit -m 'docs: scaffolding baseline' --allow-empty")

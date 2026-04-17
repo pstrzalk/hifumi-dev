@@ -1,72 +1,72 @@
-# Wizja i zasady
+# Vision and principles
 
 > **From PROMPT to IPO.**
 > Convention over configuration means agents write token-efficient code that's easy to generate and beautiful for humans to review.
 > — inspired by rubyonrails.org (2026)
 
-Generator aplikacji Ruby on Rails — odpowiednik Lovable/bolt.new dla ekosystemu Rails.
+Ruby on Rails application generator — equivalent of Lovable/bolt.new for the Rails ecosystem.
 
-## Wizja
+## Vision
 
-Rails sam się pozycjonuje jako framework optymalny dla agentów AI — convention over configuration oznacza mniej tokenów, mniej decyzji, lepszy output. My bierzemy to dosłownie: narzędzie, które na podstawie opisu w języku naturalnym generuje kompletną aplikację Rails. Użytkownik mówi np. "Stwórz aplikację do sprzedaży i dostawy kwiatów", a system prowadzi go przez proces tworzenia gotowej aplikacji.
+Rails positions itself as the optimal framework for AI agents — convention over configuration means fewer tokens, fewer decisions, better output. We take this literally: a tool that, given a natural-language description, generates a complete Rails application. The user says e.g. "Build an app for selling and delivering flowers", and the system guides them through the process of building a ready app.
 
-**To jest narzędzie popularyzujące Ruby on Rails.** Wynik to czyste repo Rails — zero vendor lock-in, zero proprietary gemów. `git clone`, `bundle install`, `rails server`. User kontynuuje pracę standardowymi narzędziami: dowolny edytor, dowolne CI, dowolny hosting. Nasz generator to ramp-up, nie klatka.
+**This is a tool that popularizes Ruby on Rails.** The output is a clean Rails repo — zero vendor lock-in, zero proprietary gems. `git clone`, `bundle install`, `rails server`. The user continues with standard tools: any editor, any CI, any hosting. Our generator is a ramp-up, not a cage.
 
-## Stałe założenia (non-negotiable)
+## Fixed assumptions (non-negotiable)
 
-- **Główna aplikacja** (sam generator) — Ruby on Rails
-- **Generowane aplikacje** — Ruby on Rails
+- **Main application** (the generator itself) — Ruby on Rails
+- **Generated applications** — Ruby on Rails
 
-## Koncept procesu generowania
+## Generation process concept
 
-Dwie ścieżki do wyboru przez użytkownika:
+Two paths, chosen by the user:
 
-### Ścieżka A: Quick generate
-1. **Input** — użytkownik opisuje aplikację
-2. **Generowanie** — system podejmuje decyzje sam, opinionated defaults, szybki wynik
-3. **Iteracja** — użytkownik modyfikuje to co dostał
+### Path A: Quick generate
+1. **Input** — user describes the app
+2. **Generation** — system makes decisions on its own, opinionated defaults, fast result
+3. **Iteration** — user modifies what they got
 
-### Ścieżka B: Guided generate
-1. **Input** — użytkownik opisuje aplikację
-2. **Clarifying questions** — 2-3 pytania doprecyzowujące
-3. **Scaffolding** — rails generators, Tailwind, SQLite, standardowe rozwiązania Rails
-4. **Domain modeling** — modele, relacje, walidacje
-5. **Capabilities** — kolejne fazy dostarczają funkcjonalności
-6. **Layout/design** — kolory, fonty, layout (późniejszy krok)
+### Path B: Guided generate
+1. **Input** — user describes the app
+2. **Clarifying questions** — 2-3 clarifying questions
+3. **Scaffolding** — rails generators, Tailwind, SQLite, standard Rails solutions
+4. **Domain modeling** — models, relations, validations
+5. **Capabilities** — subsequent phases deliver functionality
+6. **Layout/design** — colors, fonts, layout (later step)
 
-## Decyzje techniczne
+## Technical decisions
 
-### Stack generowanych aplikacji
-- Maksymalnie "Rails Way" — konwencje, generatory, wbudowane rozwiązania
+### Stack of generated applications
+- Maximally "Rails Way" — conventions, generators, built-in solutions
 - Tailwind CSS
-- SQLite (domyślnie)
-- Solid Cable/Queue/Cache zamiast Redis tam gdzie to możliwe
-- **Devise** do autentykacji — ogarnia maile, zmianę hasła, a pochodne gemy (devise_invitable etc.) dają pełny ekosystem
-- **Hotwire only** — Turbo + Stimulus, zero React/Vue
-- **HERB + ReActionView** — lintowanie i formatowanie plików ERB
-- Standardowe Rails'owe podejście (Action Mailer, Active Storage, etc.)
+- SQLite (default)
+- Solid Cable/Queue/Cache instead of Redis wherever possible
+- **Devise** for authentication — handles emails, password reset, and derivative gems (devise_invitable etc.) provide a full ecosystem
+- **Hotwire only** — Turbo + Stimulus, no React/Vue
+- **HERB + ReActionView** — linting and formatting of ERB files
+- Standard Rails approach (Action Mailer, Active Storage, etc.)
 
-Pełna lista gemów: `../02-architecture/03-tech-stack.md`.
+Full gem list: `../02-architecture/03-tech-stack.md`.
 
-### Interfejs generatora
-- **Od razu web UI** — to jest docelowa forma produktu
-- **Skrypty CLI obok** — każdy element procesu generowania powinien być wykonywalny z CLI, żeby można było testować, debugować i powtarzalnie sprawdzać kroki pipeline'u
+### Generator interface
+- **Web UI from the start** — this is the target form of the product
+- **CLI scripts alongside** — every element of the generation process should be runnable from the CLI, so that pipeline steps can be tested, debugged, and verified repeatably
 
-### Kontekst Rails Way
-- Na start: bazowa wiedza LLM-a + baza archetypów aplikacji (nasz core IP)
-- App manifest (docs/) w generowanych apkach — samodokumentująca się struktura
-- Przyszłość: progressive disclosure — dostarczanie wiedzy na żądanie
-- **Ruby on Rails Guides** jako źródło prawdy o konwencjach. Możliwości: Context7 MCP, bezpośrednia integracja z guides, własna baza wiedzy zasilana z guides. Rails Foundation jest dumna z Guides — chcemy je uchonorować, nie obejść.
-- Pętla zwrotna: generowane aplikacje → feedback o tym które patterns działają → zasilanie bazy archetypów i wiedzy
+### Rails Way context
+- To start: LLM base knowledge + a database of application archetypes (our core IP)
+- App manifest (docs/) in generated apps — self-documenting structure
+- Future: progressive disclosure — delivering knowledge on demand
+- **Ruby on Rails Guides** as the source of truth about conventions. Options: Context7 MCP, direct integration with the guides, our own knowledge base fed from the guides. The Rails Foundation is proud of the Guides — we want to honor them, not route around them.
+- Feedback loop: generated apps → feedback on which patterns work → feeds the archetype and knowledge base
 
-### Deployment (przyszłość, nieskonkretyzowane)
-- **Kamal** — jeśli klient chce sam deployować (self-hosted)
-- **In-house hosting** — jeśli aplikacje trzymane są "u nas" (model SaaS?)
-- Deployment jest ważny, ale szczegóły do wypracowania później
+### Deployment (future, not yet concrete)
+- **Kamal** — if the client wants to deploy themselves (self-hosted)
+- **In-house hosting** — if apps are hosted "by us" (SaaS model?)
+- Deployment matters, but details to be worked out later
 
-## Odłożone na później
+## Deferred
 
-- **In-house hosting** — model do wypracowania (Kamal dla self-hosted)
-- **Mailer styling** — Tailwind for email? Premailer? Do rozwiązania przy mailach.
-- **Rails on WebAssembly** — Evil Martians pokazali, że da się odpalić Rails + część gemów w WASM bezpośrednio w przeglądarce. Do sprawdzenia jako ścieżka "try it now" dla wygenerowanych projektów — zero setup, game-changer dla UX generatora. Deployment nie jest pierwszym zmartwieniem, ale gdyby zadziałało, byłoby bardzo mocne. Źródła: [evilmartians.com/chronicles/ruby-on-rails-on-webassembly](https://evilmartians.com/chronicles/ruby-on-rails-on-webassembly-a-guide-to-full-stack-in-browser-action), kontynuacja na [writebook-on-wasm.fly.dev](https://writebook-on-wasm.fly.dev/5/ruby-on-rails-on-webassembly/).
-- **Finansowanie tokenów LLM** — trzeba znaleźć sponsora na koszty tokenów. Świadomie nie chcę polegać na Visuality — jeśli projekt wypali, chcę być jedynym właścicielem. Anthropic historycznie dawał darmowe tokeny, ostatnio rzadziej. Do rozważenia: kontakt z local ambasadorami Anthropic, inne programy sponsorskie.
+- **In-house hosting** — model to be worked out (Kamal for self-hosted)
+- **Mailer styling** — Tailwind for email? Premailer? To be resolved when we tackle mailers.
+- **Rails on WebAssembly** — Evil Martians showed that Rails + some gems can run in WASM directly in the browser. To be explored as a "try it now" path for generated projects — zero setup, game-changer for generator UX. Deployment isn't the first concern, but if this worked it would be very strong. Sources: [evilmartians.com/chronicles/ruby-on-rails-on-webassembly](https://evilmartians.com/chronicles/ruby-on-rails-on-webassembly-a-guide-to-full-stack-in-browser-action), continued at [writebook-on-wasm.fly.dev](https://writebook-on-wasm.fly.dev/5/ruby-on-rails-on-webassembly/).
+- **LLM token funding** — we need to find a sponsor for token costs. Consciously I don't want to rely on Visuality — if the project takes off, I want to be the sole owner. Anthropic historically gave free tokens, recently less often. To consider: contact with local Anthropic ambassadors, other sponsorship programs.

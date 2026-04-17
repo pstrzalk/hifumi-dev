@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
-# W1: Generowanie nowej aplikacji (uproszczone do spike'a)
-# Tworzy Rails app od zera i wykonuje rewizje
+# W1: Generation of a new application (simplified for the spike)
+# Creates a Rails app from scratch and executes revisions.
 #
-# Uruchomienie:
+# Run:
 #   bin/roast execute new_app_workflow.rb -- \
 #     --app-name flower-shop \
 #     --workspace /tmp \
-#     --prompt "Aplikacja do sprzedaży kwiatów. Klient przegląda bukiety, dodaje do koszyka, składa zamówienie z adresem dostawy."
+#     --prompt "App for selling flowers. Customer browses bouquets, adds to cart, places an order with a delivery address."
 
 config do
   agent do
@@ -25,26 +25,26 @@ config do
   end
 
   map(:revisions) do
-    parallel 1 # Sekwencyjnie — każda rewizja buduje na poprzedniej
+    parallel 1 # Sequential — each revision builds on the previous one
   end
 end
 
-# --- Scope: wykonanie jednej rewizji (W2 uproszczone) ---
+# --- Scope: execution of one revision (W2 simplified) ---
 
 execute(:execute_revision) do
   # Implement
   agent(:generate) do |_, revision|
     workspace = kwarg(:workspace_path)
     <<~PROMPT
-      ## Zadanie
+      ## Task
       #{revision[:prompt]}
 
-      ## Zasady
-      - Rails Way: konwencje, generatory, wbudowane rozwiązania
+      ## Rules
+      - Rails Way: conventions, generators, built-in solutions
       - Tailwind CSS, Hotwire (Turbo + Stimulus)
       - SQLite, Solid Queue/Cable/Cache
-      - Minitest, nie RSpec
-      - Pisz testy
+      - Minitest, not RSpec
+      - Write tests
     PROMPT
   end
 
@@ -94,42 +94,42 @@ execute do
     my.args = ["-c", "cd #{workspace} && rails new #{app_name} --css tailwind --database sqlite3 --skip-jbuilder --skip-test-unit"]
   end
 
-  # Zapisz workspace path
+  # Save workspace path
   ruby(:set_workspace) do
     path = File.join(kwarg(:workspace), kwarg(:app_name))
-    # Ustaw jako kwarg dla dalszych kroków
+    # Set as kwarg for later steps
     metadata[:workspace_path] = path
     path
   end
 
-  # Git init (rails new robi to automatycznie, ale upewnijmy się)
+  # Git init (rails new does this automatically, but let's make sure)
   cmd(:git_init) do |my|
     workspace = ruby!(:set_workspace).value
     my.command = "sh"
     my.args = ["-c", "cd #{workspace} && git add -A && git commit -m 'Initial Rails app' --allow-empty"]
   end
 
-  # W1.3: Plan — LLM generuje listę rewizji
+  # W1.3: Plan — LLM generates the list of revisions
   chat(:plan) do
     <<~PROMPT
-      Jesteś planistą aplikacji Rails. Na podstawie opisu wygeneruj plan implementacji
-      jako listę kroków (rewizji). Każdy krok powinien być atomowy i testowalny.
+      You are a Rails application planner. Based on the description, generate an implementation plan
+      as a list of steps (revisions). Every step should be atomic and testable.
 
-      Opis aplikacji: #{kwarg(:prompt)}
+      Application description: #{kwarg(:prompt)}
 
-      Odpowiedz jako JSON array obiektów z polami:
-      - "summary": krótki opis kroku (do git commit message)
-      - "prompt": szczegółowy opis co zrobić w tym kroku
+      Respond as a JSON array of objects with fields:
+      - "summary": short step description (for git commit message)
+      - "prompt": detailed description of what to do in this step
 
-      Zasady:
-      - Krok 1: modele i migracje (fundamenty)
-      - Krok 2: kontrolery i routing
-      - Krok 3: widoki (Tailwind + Hotwire)
-      - Krok 4: testy
-      - Max 4-5 kroków dla prostej aplikacji
-      - Każdy krok musi dać działającą aplikację (nie zostawiaj broken state)
+      Rules:
+      - Step 1: models and migrations (foundations)
+      - Step 2: controllers and routing
+      - Step 3: views (Tailwind + Hotwire)
+      - Step 4: tests
+      - Max 4-5 steps for a simple app
+      - Every step must yield a working app (do not leave broken state)
 
-      Odpowiedz TYLKO JSONem, bez markdown code blocks.
+      Respond ONLY with JSON, no markdown code blocks.
     PROMPT
   end
 
@@ -137,22 +137,22 @@ execute do
   ruby(:parse_plan) do
     require "json"
     raw = chat!(:plan).text
-    # Wyciągnij JSON z odpowiedzi (na wypadek gdyby LLM dodał tekst dookoła)
+    # Extract JSON from the response (in case the LLM added text around it)
     json_match = raw.match(/\[.*\]/m)
-    fail!("Plan nie zawiera JSON array") unless json_match
+    fail!("Plan does not contain a JSON array") unless json_match
     JSON.parse(json_match[0], symbolize_names: true)
   end
 
-  # W1.5: Wykonaj rewizje
+  # W1.5: Execute revisions
   map(:build, run: :execute_revision) do |my|
     my.items = ruby!(:parse_plan).value
   end
 
-  # Raport
+  # Report
   ruby(:report) do
     workspace = ruby!(:set_workspace).value
     log = `cd #{workspace} && git log --oneline 2>&1`
-    puts "\n=== Generowanie zakończone ==="
+    puts "\n=== Generation completed ==="
     puts "Workspace: #{workspace}"
     puts "Git log:\n#{log}"
     { workspace: workspace, status: :completed }

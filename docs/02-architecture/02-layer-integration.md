@@ -1,12 +1,12 @@
-# Integracja warstw
+# Layer integration
 
-Jak RubyLLM, Roast i Solid Queue komunikują się ze sobą.
+How RubyLLM, Roast, and Solid Queue communicate with each other.
 
-## Zasada
+## Principle
 
-Warstwy nie importują się nawzajem. Komunikacja przez eventy na granicach. Faza 1 używa `ActiveSupport::Notifications` jako lekkiego event busa. Faza 2 może podmienić na dowolny pub/sub bez zmiany workflow'ów ani chatu.
+Layers don't import each other. Communication happens through events at the boundaries. Phase 1 uses `ActiveSupport::Notifications` as a lightweight event bus. Phase 2 can swap in any pub/sub without changing workflows or chat.
 
-## Schemat
+## Diagram
 
 ```
 RubyLLM (chat)                    Roast (workflows)
@@ -22,8 +22,8 @@ RubyLLM (chat)                    Roast (workflows)
       ▼                                  ▼
 ┌─────────────────────────────────────────────────┐
 │  ActiveSupport::Notifications (event bus)        │
-│  Faza 1: in-process, synchronous subscribers     │
-│  Faza 2: wymienialny na pub/sub, message queue   │
+│  Phase 1: in-process, synchronous subscribers    │
+│  Phase 2: swappable for pub/sub, message queue   │
 └─────────────────────────────────────────────────┘
       │                                  │
       ▼                                  ▼
@@ -34,29 +34,29 @@ RubyLLM (chat)                    Roast (workflows)
 └──────────┘                     └──────────────┘
 ```
 
-## Eventy — faza 1
+## Events — phase 1
 
 ```ruby
-# Emitowane przez warstwę konwersacji (RubyLLM tool handlers)
-"instruction.requested"    # user chce generować → payload: { instruction_id: }
-"instruction.cancelled"    # user chce anulować  → payload: { instruction_id: }
-"undo.requested"           # user chce cofnąć    → payload: { project_id: }
+# Emitted by the conversation layer (RubyLLM tool handlers)
+"instruction.requested"    # user wants to generate  → payload: { instruction_id: }
+"instruction.cancelled"    # user wants to cancel    → payload: { instruction_id: }
+"undo.requested"           # user wants to undo      → payload: { project_id: }
 
-# Emitowane przez warstwę wykonania (Roast workflows)
-"revision.started"         # rewizja się rozpoczęła   → payload: { revision_id: }
-"revision.completed"       # rewizja zakończona       → payload: { revision_id:, git_sha: }
-"revision.failed"          # rewizja się nie powiodła  → payload: { revision_id:, error: }
-"instruction.completed"    # cała instrukcja gotowa    → payload: { instruction_id: }
-"instruction.failed"       # instrukcja się nie powiodła → payload: { instruction_id: }
-"preview.ready"            # preview wystartował       → payload: { project_id:, url: }
+# Emitted by the execution layer (Roast workflows)
+"revision.started"         # revision started        → payload: { revision_id: }
+"revision.completed"       # revision completed      → payload: { revision_id:, git_sha: }
+"revision.failed"          # revision failed         → payload: { revision_id:, error: }
+"instruction.completed"    # full instruction done   → payload: { instruction_id: }
+"instruction.failed"       # instruction failed      → payload: { instruction_id: }
+"preview.ready"            # preview started         → payload: { project_id:, url: }
 ```
 
-## Problem 1: Pętla zwrotna Roast → chat
+## Problem 1: Roast → chat feedback loop
 
-Roast nie wie o chacie. Publikuje event. Subscriber enqueue'uje job.
+Roast doesn't know about the chat. It publishes an event. A subscriber enqueues a job.
 
 ```ruby
-# Roast workflow — ostatni krok
+# Roast workflow — last step
 ruby(:publish_completed) do
   ActiveSupport::Notifications.instrument("instruction.completed", instruction_id: instruction.id)
 end
@@ -66,31 +66,31 @@ ActiveSupport::Notifications.subscribe("instruction.completed") do |*, payload|
   ChatFollowUpJob.perform_later(payload[:instruction_id])
 end
 
-# Job — jedyne miejsce gdzie warstwy się "dotykają"
+# Job — the only place where the layers "touch"
 class ChatFollowUpJob < ApplicationJob
   def perform(instruction_id)
     instruction = Instruction.find(instruction_id)
     project = instruction.project
-    # RubyLLM generuje follow-up w chacie
+    # RubyLLM generates follow-up in the chat
     project.chat.ask("Generation completed. Suggest next steps.", tools: [SuggestPrompts])
   end
 end
 ```
 
-Tak samo dla failure:
+Same for failure:
 ```ruby
 ActiveSupport::Notifications.subscribe("instruction.failed") do |*, payload|
   ChatFollowUpJob.perform_later(payload[:instruction_id], event: :failed)
 end
 ```
 
-**Coupling: zero.** Roast emituje event. Subscriber to glue code. RubyLLM działa w jobie. Żadna warstwa nie importuje drugiej.
+**Coupling: zero.** Roast emits an event. Subscriber is glue code. RubyLLM runs in a job. No layer imports another.
 
-**Faza 2**: subscriber zamiast enqueue'ować job, publikuje do message queue. Job po drugiej stronie. Zero zmian w Roast i RubyLLM.
+**Phase 2**: instead of enqueueing a job, the subscriber publishes to a message queue. Job on the other side. Zero changes in Roast and RubyLLM.
 
 ## Problem 2: Cancel mid-workflow
 
-Cancel to flaga w bazie + event. Workflow sprawdza flagę między krokami.
+Cancel is a DB flag + an event. The workflow checks the flag between steps.
 
 ```ruby
 # RubyLLM tool handler
@@ -107,48 +107,48 @@ ActiveSupport::Notifications.subscribe("instruction.cancelled") do |*, payload|
   CancelWorkflowJob.perform_later(payload[:instruction_id])
 end
 
-# CancelWorkflowJob — zabija Claude CLI process jeśli biegnie
+# CancelWorkflowJob — kills the Claude CLI process if running
 class CancelWorkflowJob < ApplicationJob
   def perform(instruction_id)
     instruction = Instruction.find(instruction_id)
-    # Kill running CLI process jeśli PID jest zapisany
+    # Kill running CLI process if PID is saved
     Process.kill("TERM", instruction.cli_pid) if instruction.cli_pid
-    # Git reset do ostatniej completed rewizji
+    # Git reset to the last completed revision
     GitService.reset_to_last_completed(instruction.project)
   end
 end
 ```
 
-Wewnątrz Roast workflow — check między krokami:
+Inside a Roast workflow — check between steps:
 ```ruby
-# Helper wywoływany między krokami
+# Helper invoked between steps
 ruby(:check_cancelled) do
   raise Cancelled if instruction.reload.cancelled?
 end
 ```
 
-**Faza 1**: flaga w bazie + SIGTERM na PID. Proste, działa.
-**Faza 2**: event "instruction.cancelled" może być broadcastowany do runnera workflow'u w real-time (np. przez Action Cable wewnętrznie), bez pollowania bazy.
+**Phase 1**: DB flag + SIGTERM on PID. Simple, works.
+**Phase 2**: "instruction.cancelled" event may be broadcast to the workflow runner in real time (e.g., via Action Cable internally), without polling the DB.
 
-## Problem 3: Dwa klienty LLM
+## Problem 3: Two LLM clients
 
-Faza 1: akceptujemy. Jasny podział:
+Phase 1: we accept it. Clear division:
 
-| Klient | Warstwa | Wywołania |
-|--------|---------|-----------|
-| RubyLLM | Konwersacja | Chat z userem, tool calls, suggested prompts |
-| Raix (Roast) | Workflow | Research, planning, update docs (kroki `chat()` w Roast) |
-| Claude CLI | Workflow | Generowanie kodu (krok `agent()` w Roast) |
+| Client | Layer | Calls |
+|--------|-------|-------|
+| RubyLLM | Conversation | Chat with the user, tool calls, suggested prompts |
+| Raix (Roast) | Workflow | Research, planning, update docs (`chat()` steps in Roast) |
+| Claude CLI | Workflow | Code generation (`agent()` step in Roast) |
 
-Wspólna konfiguracja:
+Shared configuration:
 ```ruby
 # config/initializers/llm.rb
-# Oba czytają z tych samych ENV vars
+# Both read from the same ENV vars
 RubyLLM.configure { |c| c.anthropic_api_key = ENV["ANTHROPIC_API_KEY"] }
-# Raix/Roast konfiguruje się osobno ale z tego samego źródła
+# Raix/Roast is configured separately but from the same source
 ```
 
-Tracking kosztów — jeden serwis, wiele źródeł:
+Cost tracking — one service, many sources:
 ```ruby
 class CostTracker
   def self.record(source:, tokens:, model:, instruction_id:)
@@ -158,11 +158,11 @@ class CostTracker
 end
 ```
 
-**Faza 2**: jeśli chcemy ujednolicić — RubyLLM jako jedyny klient. Roast kroki `chat()` zastąpione custom krokami `ruby()` wywołującymi RubyLLM. Ale to optymalizacja, nie konieczność.
+**Phase 2**: if we want to unify — RubyLLM as the only client. Roast `chat()` steps replaced with custom `ruby()` steps calling RubyLLM. But that's optimization, not necessity.
 
-## Turbo Streams — broadcasting z workflow'ów
+## Turbo Streams — broadcasting from workflows
 
-Roast workflow emituje eventy. Subscriber broadcastuje do UI.
+Roast workflow emits events. A subscriber broadcasts to the UI.
 
 ```ruby
 ActiveSupport::Notifications.subscribe("revision.started") do |*, payload|
@@ -176,44 +176,44 @@ ActiveSupport::Notifications.subscribe("revision.completed") do |*, payload|
 end
 ```
 
-Roast workflow nie wie o Turbo Streams. Publikuje event, ktoś inny broadcastuje.
+The Roast workflow doesn't know about Turbo Streams. It publishes an event, someone else broadcasts.
 
-## Wytyczne
+## Guidelines
 
-### Subscribers: tylko enqueue lub broadcast
+### Subscribers: only enqueue or broadcast
 
-Subscriber `ActiveSupport::Notifications` **nigdy** nie wykonuje ciężkiej logiki. Robi jedną z dwóch rzeczy:
-- `SomeJob.perform_later(...)` — zleca pracę do Solid Queue
-- `broadcast_replace_to(...)` — broadcastuje Turbo Stream
+An `ActiveSupport::Notifications` subscriber **never** runs heavy logic. It does one of two things:
+- `SomeJob.perform_later(...)` — schedules work to Solid Queue
+- `broadcast_replace_to(...)` — broadcasts a Turbo Stream
 
-Wszystko inne idzie do joba.
+Everything else goes into a job.
 
-### HTTP request: tylko zapis + enqueue
+### HTTP request: only save + enqueue
 
-Request HTTP nigdy nie czeka na LLM, Roast, ani Claude CLI. Cykl życia requestu:
-1. Zapisz dane (Message, Instruction)
+An HTTP request never waits on the LLM, Roast, or Claude CLI. Request lifecycle:
+1. Save data (Message, Instruction)
 2. Enqueue job
 3. Return
 
-Cała praca dzieje się w Solid Queue workerach. Eventy emitowane są z workerów, nie z requestów.
+All work happens in Solid Queue workers. Events are emitted from workers, not from requests.
 
-### ActiveSupport::Notifications — synchroniczne, świadomie
+### ActiveSupport::Notifications — synchronous, by design
 
-Notifications działają synchronicznie w procesie który je emituje. To nie jest problem bo:
-- Emitujemy z Solid Queue workerów, nie z HTTP requestów
-- Subscribers robią tylko enqueue/broadcast (milisekundy)
-- Ciężka praca idzie do osobnych jobów
+Notifications run synchronously in the process that emits them. This is not a problem because:
+- We emit from Solid Queue workers, not from HTTP requests
+- Subscribers do only enqueue/broadcast (milliseconds)
+- Heavy work goes into separate jobs
 
-W fazie 2 ten event bus może zostać zastąpiony asynchronicznym pub/sub (np. Solid Queue pub/sub, dedykowany broker). Interfejs eventów (nazwy, payloady) zostaje ten sam — zmienia się tylko transport.
+In phase 2 this event bus can be replaced with async pub/sub (e.g. Solid Queue pub/sub, a dedicated broker). The event interface (names, payloads) stays the same — only the transport changes.
 
 ## Flow-break ready
 
-Dzięki eventom na granicach, w fazie 2 można wstawić flow-break na dowolnym etapie:
+Thanks to events at the boundaries, in phase 2 we can insert a flow-break at any stage:
 
 ```
-revision.completed → subscriber sprawdza: czy potrzebny manual checkpoint?
-  [tak] → nie enqueue'uj następnej rewizji, czekaj na event od usera
-  [nie] → kontynuuj normalnie
+revision.completed → subscriber checks: is a manual checkpoint needed?
+  [yes] → don't enqueue the next revision, wait for an event from the user
+  [no] → continue normally
 ```
 
-To jest seedy pub/sub architektury bez budowania pub/sub.
+This is the seed of a pub/sub architecture without building pub/sub.

@@ -1,53 +1,53 @@
-# Stack generowanych aplikacji
+# Stack of generated applications
 
-Lista narzędzi i gemów używanych w generowanych aplikacjach.
-Zasada: Rails Way first. Gem tylko gdy Rails nie ma wbudowanego rozwiązania.
+List of tools and gems used in generated applications.
+Principle: Rails Way first. A gem only when Rails doesn't have a built-in solution.
 
 ---
 
-## Wbudowane w Rails (zero dodatkowych gemów)
+## Built into Rails (zero extra gems)
 
-To co Rails 8 daje out of the box. Używamy zawsze gdy pasuje.
+What Rails 8 gives out of the box. We use it whenever it fits.
 
-| Obszar | Rozwiązanie | Uwagi |
-|--------|-------------|-------|
-| Background jobs | **Solid Queue** | Default w Rails 8. Nie Redis. |
-| WebSockets | **Solid Cable** | Action Cable backend. Nie Redis. |
-| Cache | **Solid Cache** | DB-backed cache. Nie Redis. |
-| Pliki/uploady | **Active Storage** | Lokalne lub S3. |
-| Rich text | **Action Text** | WYSIWYG z Trix. |
-| Maile | **Action Mailer** | Z preview w dev. |
+| Area | Solution | Notes |
+|------|----------|-------|
+| Background jobs | **Solid Queue** | Default in Rails 8. Not Redis. |
+| WebSockets | **Solid Cable** | Action Cable backend. Not Redis. |
+| Cache | **Solid Cache** | DB-backed cache. Not Redis. |
+| Files/uploads | **Active Storage** | Local or S3. |
+| Rich text | **Action Text** | WYSIWYG with Trix. |
+| Mail | **Action Mailer** | With preview in dev. |
 | Frontend | **Turbo + Stimulus** | Hotwire. Zero React/Vue. |
 | CSS | **Tailwind CSS** | `rails new --css tailwind`. |
-| Baza danych | **SQLite** | Default. Wystarczy na start i dalej. |
-| Asset pipeline | **Propshaft** | Default w Rails 8. |
-| JS bundling | **importmap-rails** | Default. Bez node_modules. |
-| Testy | **Minitest** | Rails default. Fixtures, nie factory bot. |
-| Recurring jobs | **Solid Queue recurring** | Wbudowane. Bez dodatkowego gema. |
+| Database | **SQLite** | Default. Sufficient at start and beyond. |
+| Asset pipeline | **Propshaft** | Default in Rails 8. |
+| JS bundling | **importmap-rails** | Default. No node_modules. |
+| Tests | **Minitest** | Rails default. Fixtures, not factory bot. |
+| Recurring jobs | **Solid Queue recurring** | Built in. No extra gem. |
 
 ---
 
-## Pewniaki (zawsze dodajemy)
+## Sure bets (always add)
 
-Gemy które rozwiązują realne problemy lepiej niż ręczne implementacje.
+Gems that solve real problems better than hand-rolled implementations.
 
-### Autentykacja — Devise
+### Authentication — Devise
 
 ```ruby
 gem "devise"
 ```
-- Logowanie, rejestracja, reset hasła, potwierdzenie email, blokowanie konta
-- Ekosystem pochodnych: `devise_invitable`, `devise-jwt` itp.
-- Dlaczego nie Rails 8 `generate authentication`: Devise daje pełny cykl życia konta (maile, zmiana hasła, zaproszenia). Rails generator daje tylko basic login.
+- Login, registration, password reset, email confirmation, account lockout
+- Derivative ecosystem: `devise_invitable`, `devise-jwt`, etc.
+- Why not Rails 8 `generate authentication`: Devise provides the full account lifecycle (emails, password change, invitations). The Rails generator gives only basic login.
 
-### Paginacja — Pagy
+### Pagination — Pagy
 
 ```ruby
 gem "pagy"
 ```
-- Najszybszy, najlżejszy paginator
+- Fastest, lightest paginator
 - Rails Way: helper + partial, zero magic
-- Dlaczego nie Kaminari: Pagy jest szybszy, prostszy, mniej monkey-patchingu
+- Why not Kaminari: Pagy is faster, simpler, less monkey-patching
 
 ### ERB toolchain — Herb + ReActionView
 
@@ -55,139 +55,139 @@ gem "pagy"
 gem "herb"
 gem "reactionview"
 ```
-- **Herb** — HTML-aware parser ERB napisany w C. Linter, formatter, LSP, dev tools. Zastępuje `erb_lint` z dużo lepszym parserem (rozumie kontekst HTML, nie tylko tagi ERB).
-- **ReActionView** — integracja Herb::Engine z Rails ActionView. Drop-in replacement. Walidacja HTML podczas renderowania, lepsze błędy.
-- Herb uruchamiany po każdej rewizji i w git hooks
-- Templateki mogą być `.html.erb` (z interception) lub `.html.herb` (natywne)
+- **Herb** — HTML-aware ERB parser written in C. Linter, formatter, LSP, dev tools. Replaces `erb_lint` with a much better parser (understands HTML context, not just ERB tags).
+- **ReActionView** — Herb::Engine integration with Rails ActionView. Drop-in replacement. HTML validation during rendering, better errors.
+- Herb runs after every revision and in git hooks
+- Templates can be `.html.erb` (with interception) or `.html.herb` (native)
 
-### Autoryzacja — Pundit
+### Authorization — Pundit
 
 ```ruby
 gem "pundit"
 ```
-- Policy objects — prosty, przewidywalny pattern
+- Policy objects — simple, predictable pattern
 - Rails Way: plain Ruby objects, convention over configuration (app/policies/)
-- Dlaczego nie CanCanCan: Pundit jest prostszy, explicit, łatwiejszy do zrozumienia dla nowych developerów
+- Why not CanCanCan: Pundit is simpler, explicit, easier to understand for new developers
 
 ### Admin panel — Avo (Community Edition)
 
 ```ruby
 gem "avo"
 ```
-- Nowoczesny admin panel, aktywnie rozwijany, dobra integracja z Rails
-- Darmowa wersja (Community Edition) na start
-- Potencjalna współpraca z twórcami Avo w przyszłości
-- Kiedy: apka ma panel admina (większość apek)
+- Modern admin panel, actively developed, good Rails integration
+- Free version (Community Edition) to start
+- Potential collaboration with Avo creators in the future
+- When: the app has an admin panel (most apps)
 
 ---
 
-## Warunkowe (dodajemy gdy potrzebne)
+## Conditional (add when needed)
 
-Gemy dodawane w zależności od wymagań projektu. Agent decyduje na podstawie opisu aplikacji.
+Gems added based on project requirements. The agent decides based on the application description.
 
-### Płatności — Pay
+### Payments — Pay
 
 ```ruby
 gem "pay"
 ```
-- Wrapper na Stripe (i Paddle, Braintree)
-- Integracja z Rails: modele, hooki, webhooks
-- Kiedy: apka ma płatności online
-- Alternatywa: bezpośrednio `stripe` gem jeśli potrzeby są bardzo custom
+- Wrapper over Stripe (and Paddle, Braintree)
+- Rails integration: models, hooks, webhooks
+- When: the app has online payments
+- Alternative: `stripe` gem directly if needs are very custom
 
-### Wyszukiwanie/filtrowanie — Ransack
+### Search/filtering — Ransack
 
 ```ruby
 gem "ransack"
 ```
-- Search forms, sortowanie, filtrowanie
-- Kiedy: apka ma listy z wyszukiwarką/filtrami (produkty, zamówienia, etc.)
-- Alternatywa: proste scopes jeśli potrzeby minimalne
+- Search forms, sorting, filtering
+- When: the app has lists with search/filters (products, orders, etc.)
+- Alternative: plain scopes if needs are minimal
 
-### Slug-i w URL — FriendlyId
+### URL slugs — FriendlyId
 
 ```ruby
 gem "friendly_id"
 ```
-- `/products/czerwone-roze` zamiast `/products/42`
-- Kiedy: apka ma publiczne URL-e (sklep, blog, portfolio)
+- `/products/red-roses` instead of `/products/42`
+- When: the app has public URLs (shop, blog, portfolio)
 
-### Audyt zmian — PaperTrail
+### Change auditing — PaperTrail
 
 ```ruby
 gem "paper_trail"
 ```
-- Historia zmian na modelach
-- Kiedy: apka wymaga audytu (finanse, medycyna, prawo)
+- Change history on models
+- When: the app requires auditing (finance, medical, legal)
 
-### Eksport danych — Caxlsx
+### Data export — Caxlsx
 
 ```ruby
 gem "caxlsx"
 gem "caxlsx_rails"
 ```
-- Generowanie plików Excel
-- Kiedy: apka ma raporty/eksporty
+- Excel file generation
+- When: the app has reports/exports
 
-### Obrazki — image_processing
+### Images — image_processing
 
 ```ruby
 gem "image_processing", "~> 1.2"
 ```
 - Active Storage variants (resize, crop)
-- Wymaga libvips
-- Kiedy: apka ma uploady obrazków
+- Requires libvips
+- When: the app has image uploads
 
-### Archiwizacja rekordów
+### Record archiving
 
-- Brak dedykowanego gema. Prosta implementacja: `archived_at` timestamp + scope.
-- Nie używamy soft-delete (Discard, Paranoia) — koncept prowadzi do problemów.
-- Kiedy: dane nie powinny być kasowane (zamówienia, konta)
+- No dedicated gem. Simple implementation: `archived_at` timestamp + scope.
+- We don't use soft-delete (Discard, Paranoia) — the concept leads to problems.
+- When: data should not be deleted (orders, accounts)
 
-### Dekoratory — brak
+### Decorators — none
 
-- Nie używamy draper / view_component na start
-- Rails helpers + partials wystarczą
-- View Components rozważymy gdy UI się skomplikuje
+- We don't use draper / view_component at the start
+- Rails helpers + partials are enough
+- We'll consider View Components when UI gets complex
 
 ---
 
-## Czego NIE używamy
+## What we do NOT use
 
-| Nie | Dlaczego |
-|-----|----------|
-| Redis | Solid Queue/Cable/Cache zastępują |
+| No | Why |
+|----|-----|
+| Redis | Solid Queue/Cable/Cache replace it |
 | React / Vue / Angular | Hotwire only |
 | Sidekiq | Solid Queue |
 | Webpacker / jsbundling | Importmap |
-| Devise alternatives (Sorcery, Clearance) | Devise ma najlepszy ekosystem |
+| Devise alternatives (Sorcery, Clearance) | Devise has the best ecosystem |
 | Bootstrap | Tailwind |
 | Haml / Slim | ERB + Herb |
-| erb_lint | Herb zastępuje z lepszym parserem |
-| GraphQL | REST + Turbo. GraphQL to overengineering dla 99% apek |
-| Docker w developmencie | `rails server`. Prostota. |
-| Soft-delete (Discard, Paranoia) | Prowadzi do problemów. Archiwizacja przez `archived_at`. |
-| Multi-tenancy (ActsAsTenant) | Poza zasięgiem na ten moment |
-| RSpec | Minitest jest Rails Way |
+| erb_lint | Herb replaces it with a better parser |
+| GraphQL | REST + Turbo. GraphQL is overengineering for 99% of apps |
+| Docker in development | `rails server`. Simplicity. |
+| Soft-delete (Discard, Paranoia) | Leads to problems. Archive via `archived_at`. |
+| Multi-tenancy (ActsAsTenant) | Out of reach for now |
+| RSpec | Minitest is the Rails Way |
 
 ---
 
-## Stack naszej aplikacji (generator)
+## Our application's stack (generator)
 
-Osobna lista — gemy używane w samym generatorze, nie w generowanych apkach.
+Separate list — gems used in the generator itself, not in generated apps.
 
-| Gem | Po co |
-|-----|-------|
-| `ruby_llm` | Warstwa konwersacji, chat, tools |
-| `roast-ai` (~> 1.1) | Orkiestracja workflow'ów generowania. **Wymaga Ruby >= 3.3.** |
-| `devise` | Auth użytkowników generatora |
-| `solid_queue` | Background jobs (generowanie, preview) |
+| Gem | What for |
+|-----|----------|
+| `ruby_llm` | Conversation layer, chat, tools |
+| `roast-ai` (~> 1.1) | Orchestration of generation workflows. **Requires Ruby >= 3.3.** |
+| `devise` | Auth for generator users |
+| `solid_queue` | Background jobs (generation, preview) |
 | `solid_cable` | Turbo Streams (live progress) |
-| `tailwindcss-rails` | UI generatora |
+| `tailwindcss-rails` | Generator UI |
 | `turbo-rails` + `stimulus-rails` | Hotwire |
 
 ---
 
-## Odłożone decyzje
+## Deferred decisions
 
-- **Mailer styling** — Tailwind for email? Premailer? Do rozwiązania gdy zajmiemy się mailami.
+- **Mailer styling** — Tailwind for email? Premailer? To be resolved when we tackle mailers.

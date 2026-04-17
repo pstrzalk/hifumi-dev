@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Deterministic verification of a Rails workspace.
-# Uruchamiane zarówno z workflow'u jak i standalone (bin/verify).
+# Run both from the workflow and standalone (bin/verify).
 
 module VerifyRevision
   CHECKS = %i[bundle_check db_prepare herb_lint boot_check rails_test].freeze
@@ -53,8 +53,8 @@ module VerifyRevision
     with_clean_bundler_env { system("cd #{workspace} && bundle show #{name} > /dev/null 2>&1") }
   end
 
-  # Roast działa pod `bundle exec`, więc ENV ma BUNDLE_GEMFILE spike'a.
-  # Shell do workspace musi dostać czyste env, żeby workspace'owy Gemfile był widoczny.
+  # Roast runs under `bundle exec`, so ENV has the spike's BUNDLE_GEMFILE.
+  # The shell into the workspace must get a clean env so the workspace's Gemfile is visible.
   def self.with_clean_bundler_env
     saved = {}
     bundler_keys = ENV.keys.select { |k| k.start_with?("BUNDLE", "BUNDLER", "RUBYOPT") }
