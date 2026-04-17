@@ -19,7 +19,7 @@ Minimalizujemy "agent sam ocenia." Zamiast tego: "workflow W1, krok 3 używa LLM
 │  kiedy triggerować workflow          │
 │  → via tool calls                   │
 └────────────┬────────────────────────┘
-             │ tool call: CreateInstruction
+             │ tool call: StartGeneration
              │ tool call: CancelInstruction
              │ tool call: SuggestPrompts
              ▼
@@ -43,20 +43,22 @@ Tool calls to most między agentem a workflow'ami.
 
 ### W1: Generowanie nowej aplikacji
 
-Triggerowany przez: tool call `CreateInstruction` z planem.
+Triggerowany przez: tool call `StartGeneration(intent, clarifications)`. Rewizje są już w DB gdy W1 startuje — wygenerował je `CreatePlan` service wewnątrz tool handlera. W1 dostaje `instruction_id` i iteruje po Revisions.
 
 ```
-W1.1  [deterministic]  Załaduj archetype (dopasuj typ apki do bazy archetypów)
-W1.2  [LLM]            Research domeny (jeśli archetype nie wystarcza)
+W1.1  [deterministic]  Załaduj archetype (dopasuj typ apki do bazy archetypów)  ← delegowane do CreatePlan w Fazie 2
+W1.2  [LLM]            Research domeny (jeśli archetype nie wystarcza)          ← delegowane do CreatePlan w Fazie 2
         → Decyzja D1: czy archetype pokrywa wymagania?
           [a] tak → skip W1.2, przejdź do W1.3
           [b] nie → LLM analizuje domenę, generuje dodatkowy kontekst
-W1.3  [LLM]            Wygeneruj plan (lista rewizji)
-W1.4  [deterministic]  Utwórz rekordy Revision w bazie (pending)
+W1.3  [LLM]            Wygeneruj plan (lista rewizji)                            ← delegowane do CreatePlan w Fazie 2
+W1.4  [deterministic]  Utwórz rekordy Revision w bazie (pending)                 ← delegowane do CreatePlan w Fazie 2
 W1.5  [loop]           Dla każdej rewizji → wywołaj W2 (Execution workflow)
 W1.6  [deterministic]  Oznacz Instruction jako completed
 W1.7  [deterministic]  Triggeruj W3 (Preview)
 ```
+
+W Fazie 2 W1 zaczyna się od W1.5 — kroki W1.1-W1.4 (archetype, research, plan, utworzenie rewizji) żyją wewnątrz `CreatePlan` service wywoływanego w tool handlerze `StartGeneration`. W przyszłych fazach gdy ruszy content workstream archetypów, te kroki mogą wrócić do W1 jako Roast workflow — ale wtedy dalej pozostaną niewidoczne dla chat LLM.
 
 ### W2: Wykonanie pojedynczej rewizji
 
@@ -137,20 +139,22 @@ W3 jest **w pełni deterministyczny**. Żadnych decyzji LLM.
 
 ### W4: Iteracja (zmiana w istniejącej apce)
 
-Triggerowany przez: tool call `CreateInstruction` (iteracja).
+Triggerowany przez: tool call `StartGeneration(intent, clarifications)` w kontekście istniejącego projektu. Analogicznie jak W1: rewizje już w DB (wygenerowane przez `CreatePlan`), W4 iteruje po nich.
 
 ```
-W4.1  [deterministic]  Załaduj app manifest (docs/)
-W4.2  [LLM]            Research (jeśli potrzebny)
+W4.1  [deterministic]  Załaduj app manifest (docs/)                              ← delegowane do CreatePlan w Fazie 2
+W4.2  [LLM]            Research (jeśli potrzebny)                                ← delegowane do CreatePlan w Fazie 2
         → Decyzja D3: czy manifest + request usera wystarczą do planu?
           [a] proste (dodaj pole, zmień kolor) → skip, przejdź do W4.3
           [b] wymaga nowych rozwiązań → LLM szuka gemów, bada opcje
           [c] wymaga zrozumienia istniejącego kodu głębiej niż manifest → czyta pliki
-W4.3  [LLM]            Wygeneruj plan rewizji
+W4.3  [LLM]            Wygeneruj plan rewizji                                    ← delegowane do CreatePlan w Fazie 2
 W4.4  [loop]           Dla każdej rewizji → wywołaj W2
 W4.5  [deterministic]  Oznacz Instruction jako completed
 W4.6  [deterministic]  Triggeruj W3 (restart preview)
 ```
+
+Ta sama zasada co W1: W4.1-W4.3 są wewnątrz `CreatePlan` service. Decyzje D1/D3 żyją w prompt engineeringu `CreatePlan::AdHocLLM`, nie w chat LLM.
 
 ### W5: Undo
 

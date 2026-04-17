@@ -7,6 +7,7 @@ Pełna ścieżka użytkownika od otwarcia strony do działającej aplikacji.
 - **Chat jest jedynym interfejsem** — nie ma osobnych pól, formularzy, statusów projektu. Wszystko dzieje się w konwersacji.
 - **Wszystko jest wersjonowane** — wersja A + instrukcja X = wersja B. Każda zmiana to git commit.
 - **RubyLLM jako fundament** — warstwa konwersacji zbudowana na RubyLLM, z narzędziami (tools) jako mechanizmem sterowania.
+- **Chat = concierge intencji** — LLM chatu zbiera intencje od usera i przekazuje je do warstwy generacji przez tool call. Nie generuje planu implementacji, nie zna pełnej struktury wygenerowanej aplikacji, nie widzi detailed prompts. Prompt engineering planu żyje w service `CreatePlan`; szczegóły implementacji w workspace (git repo). Chat widzi tylko user-facing summaries rewizji (git commit messages).
 - **Tool calls sterują procesem** — LLM decyduje o generowaniu, anulowaniu, sugerowaniu kolejnych kroków przez tool calls. Przyciski w UI to safety net, nie primary flow.
 - **Suggested prompts prowadzą użytkownika** — system proponuje kolejne kroki jako edytowalne prompty. User nie musi wiedzieć co powiedzieć.
 - **Dwa niezależne timeline'y** — chat biegnie ciągle, rewizje powstają w pewnych punktach. Synchronizowane przez anchor.
@@ -22,10 +23,13 @@ LLM ma dostęp do narzędzi. To jest jedyny sposób na triggerowanie akcji w sys
 ### Narzędzia
 
 ```ruby
-# Startuje generowanie. Tworzy Instruction + Revisions.
-class CreateInstruction < RubyLLM::Tool
-  param :plan, type: :array, desc: "Lista kroków generowania"
-  # LLM wywołuje po ustaleniu planu (guided) lub od razu (quick)
+# Startuje generowanie. Przekazuje INTENCJĘ, nie plan.
+class StartGeneration < RubyLLM::Tool
+  param :intent, type: :string, desc: "Plain language: co user chce zbudować"
+  param :clarifications, type: :object, desc: "Odpowiedzi na doprecyzowujące pytania (key/value)"
+  # LLM wywołuje gdy user jest gotowy. NIE wymyśla planu — tool handler deleguje do CreatePlan service,
+  # który generuje rewizje (detailed prompts) wewnątrz własnego system promptu. Chat LLM nie zna
+  # wygenerowanego planu — dostaje tylko confirmation (instruction_id, revision_count).
 end
 
 # Anuluje bieżącą instrukcję.
@@ -45,15 +49,45 @@ class UndoLastChange < RubyLLM::Tool
 end
 ```
 
+### Warstwa `CreatePlan` — osobny service, nie tool
+
+Tool `StartGeneration` jest lightweight — tylko przekazuje intent do service `CreatePlan`. Service żyje poza chatem, ma własny system prompt (reguły "Rails Way, 3-6 kroków, Tailwind, Hotwire, Devise..." — secret sauce projektu), i generuje listę rewizji z detailed prompts do Claude CLI.
+
+```ruby
+module CreatePlan
+  # Interface: zwraca tablicę { summary:, prompt: } gotową do Revision.create!
+  def self.call(intent:, clarifications: {}, context: {})
+    implementation.call(intent: intent, clarifications: clarifications, context: context)
+  end
+
+  def self.implementation
+    @implementation ||= AdHocLLM  # W przyszłości: Archetypes, Hybrid, CheapButGood
+  end
+
+  class AdHocLLM
+    # LLM call z dedykowanym system promptem (secret sauce).
+    # NIE jest to widoczne dla chat LLM ani dla usera.
+  end
+end
+```
+
+Dlaczego osobno: jakość planów = klucz do jakości generatora. Swap'owalne implementacje (archetype, hybrid, tańszy-ale-dobry model) to osobny workstream. System prompt plannera jest w 100% pod naszą kontrolą, nie zmieszany z system promptem chatu. Decyzje D1/D3 z `../02-architecture/01-workflows-and-decisions.md` żyją tutaj.
+
 ### Kontekst dla LLM
 
 Przy każdym `chat.ask(...)` LLM dostaje w kontekście:
 - Historię konwersacji (RubyLLM robi to automatycznie)
 - **Status bieżącej instrukcji** (jeśli jest aktywna): która rewizja się generuje, ile gotowych, ile zostało
-- **Listę rewizji** projektu (summary + status) — żeby wiedzieć co już zostało zrobione
+- **Listę rewizji** projektu — **tylko `summary` + `status`**, czyli user-facing wersja tego co się dzieje (summaries to git commit messages, zrozumiałe dla usera)
 - Dostępne narzędzia
 
-Dzięki temu LLM może reagować na kontekst: "widzę że krok 3 się nie powiódł, spróbuję innego podejścia" albo "generowanie zakończone, proponuję następne kroki."
+Co LLM **nie dostaje** (wprost wynika z zasady "chat = concierge intencji"):
+- Detailed prompts rewizji (`Revision.prompt`) — one idą tylko do Claude CLI przez workflow Roast
+- Tree plików wygenerowanej apki, schema modeli, zawartość kontrolerów
+- Outputów Claude CLI, logów weryfikacji, stack traces (failure payload jest sumaryzowany do user-facing opisu przed wejściem do kontekstu)
+- System promptu `CreatePlan` ani generated plan przed startem rewizji
+
+Dzięki temu LLM może reagować na to co user widzi: "widzę że krok 3 się nie powiódł, spróbuję innego podejścia" albo "generowanie zakończone, proponuję następne kroki." Ale nie zaczyna rozmowy o architekturze kontrolerów ani nie pisze "dodałem metodę X w klasie Y" — bo tego nie wie.
 
 ### Flow
 
@@ -65,7 +99,7 @@ RubyLLM chat.ask(message, tools: [...], context: generation_status)
 LLM odpowiada tekstem + opcjonalnie tool calls
     ↓
     ├── tekst → Message w chacie → Turbo Stream
-    ├── CreateInstruction → tworzy Instruction + Revisions → orkiestracja
+    ├── StartGeneration → CreatePlan service → Instruction + Revisions → orkiestracja
     ├── CancelInstruction → anuluje bieżącą → git reset
     ├── SuggestPrompts → renderuje karty w UI → user klika/edytuje
     └── UndoLastChange → git revert jako nowa rewizja
@@ -90,11 +124,12 @@ Każda sugestia to klikalna karta z tekstem. Tekst może mieć luki (`___`) któ
 ### Kiedy się pojawiają
 
 LLM wywołuje `SuggestPrompts` w naturalnych momentach:
-- Po pierwszej wiadomości (guided): sugestie kierunku
-- Po wygenerowaniu planu: "Zaczynamy?" jako sugestia
+- Po pierwszej wiadomości (guided): sugestie kierunku (np. *"system rezerwacji z kalendarzem"*, *"sklep z produktami cyfrowymi"*)
 - **Po zakończeniu generowania**: co dodać dalej
 - Po odpowiedzi na pytanie: "Czy chcesz też..."
 - Gdy user pisze coś niejasnego: sugestie uściślające
+
+Sugestie **nie obejmują** zatwierdzenia planu przed startem — user nie widzi planu. Po zebraniu intencji LLM po prostu wywołuje `StartGeneration`, generowanie rusza, user widzi postęp.
 
 ### Nie są obowiązkowe
 
@@ -225,7 +260,7 @@ Revision
 
 ### Kluczowe decyzje
 
-**Instruction powstaje z tool call** — nie z logiki aplikacji. LLM wywołuje `CreateInstruction`, tool handler tworzy rekord. Anchor = wiadomość z tool callem.
+**Instruction powstaje z tool call** — nie z logiki aplikacji. LLM wywołuje `StartGeneration(intent, clarifications)`, tool handler deleguje do `CreatePlan` service który generuje rewizje, potem tworzy rekord `Instruction` + N × `Revision`. Anchor = wiadomość z tool callem.
 
 **Cancel z tool call** — LLM interpretuje "stop" i wywołuje `CancelInstruction`. Przycisk "Cancel" w UI robi to samo (tworzy system message + wywołuje ten sam handler).
 
@@ -236,7 +271,7 @@ Revision
 ### Dwa timeline'y
 
 ```
-Chat:       msg1 → msg2 → msg3(tool:create) → msg4 → msg5 → msg6(tool:suggest) → msg7 → msg8(tool:create)
+Chat:       msg1 → msg2 → msg3(tool:start) → msg4 → msg5 → msg6(tool:suggest) → msg7 → msg8(tool:start)
                               |                                                              |
                             anchor                                                         anchor
                               |                                                              |
@@ -244,11 +279,11 @@ Instruction:               instr1                                               
                               |                                                              |
 Revisions:     rev1 → rev2 → rev3                                                         rev4
 
-- msg3 to tool call CreateInstruction — anchor na tym punkcie
+- msg3 to tool call StartGeneration — anchor na tym punkcie. CreatePlan service tworzy rev1-rev3.
 - msg4-msg5 to rozmowa PODCZAS generowania
 - msg6 to tool call SuggestPrompts po zakończeniu — user widzi sugestie
 - msg7 to user klikający sugestię (lub piszący własne)
-- msg8 to tool call CreateInstruction z nową instrukcją
+- msg8 to tool call StartGeneration z nową instrukcją — CreatePlan tworzy rev4
 ```
 
 ---
@@ -293,30 +328,40 @@ Sugestie to gotowe odpowiedzi — klik i wysyłka. Albo user pisze własne.
    - Sugestie → renderowane jako karty pod wiadomością
 
 ### Quick path
-LLM od razu wywołuje `CreateInstruction` zamiast pytań.
+LLM od razu wywołuje `StartGeneration(intent, clarifications: {})` bez pytań doprecyzowujących.
 
 ---
 
-## Krok 3: Plan + start generowania
+## Krok 3: Start generowania
+
+Nie ma "pokaż plan, user zatwierdza". Po zebraniu intencji LLM wywołuje `StartGeneration` i generowanie rusza. User widzi postęp, nie plan.
 
 ### Co widzi użytkownik
-Wiadomość z planem (LLM odpowiada) + sugestia zatwierdzenia:
+Krótka wiadomość od LLM + lista rewizji w toku pojawiająca się obok/pod chatem:
 
-> *Oto plan:*
-> 1. *Rails new + gems*
-> 2. *Modele domenowe*
-> 3. *Panel klienta*
-> 4. *Panel florystki*
-> 5. *Devise auth*
+> *OK, rozumiem. Zaczynam budować — zobaczysz postęp poniżej.*
 >
-> [Zaczynaj!]
-> [Zaczynaj, ale bez ___ ]
+> ⏳ Revision 1: "Rails scaffolding + Tailwind" — *generating*
+> ⚪ Revision 2: "Modele domenowe (Product, Order, Delivery)" — *pending*
+> ⚪ Revision 3: "Panel klienta" — *pending*
+> ⚪ Revision 4: "Panel florystki" — *pending*
+> ⚪ Revision 5: "Devise auth + role" — *pending*
+
+User widzi **tylko summaries rewizji** (user-facing, git commit-like). Detailed prompts (`Revision.prompt`) żyją w DB i idą do Claude CLI, ale **nigdy nie trafiają do UI ani chatu**.
 
 ### Serwer
-User klika "Zaczynaj!" → to jest wiadomość → LLM wywołuje `CreateInstruction`:
-1. `Instruction.create!(anchor_message: msg, status: :processing)`
-2. `Revision.create!` per krok, status: `pending`
-3. `GenerationOrchestrator` startuje
+1. LLM wywołuje `StartGeneration(intent: "sklep z kwiatami z dostawą tego samego dnia", clarifications: {admin_panel: "osobny", delivery_tracking: "pełne"})`
+2. Tool handler:
+   - `CreatePlan.call(intent, clarifications)` — service generuje rewizje z own system promptem (secret sauce)
+   - `Instruction.create!(anchor_message: msg, phase: :processing)`
+   - `Revision.create!` per wygenerowana rewizja, status: `pending`
+3. Tool zwraca do LLM **tylko confirmation**: `{instruction_id, revision_count: 5, intent}`. LLM nie dostaje treści `Revision.prompt`.
+4. Event `instruction.requested` → Solid Queue triggeruje workflow W1 (od kroku W1.5 — pętla po rewizjach)
+
+### Gdzie żyje "plan"
+- **Intencja + clarifications** — w argumentach tool call, widoczne w chacie
+- **Summaries rewizji** — user-facing, w DB (`Revision.summary`), w UI, w kontekście chatu po fakcie ich utworzenia
+- **Detailed prompts** — w DB (`Revision.prompt`), czytane przez Roast workflow, nigdzie indziej
 
 ---
 
@@ -397,7 +442,7 @@ Chat obok preview. Pisze własne albo klika sugestię:
 
 ### Serwer
 1. User message → `ChatRespondJob`
-2. LLM analizuje request → wywołuje `CreateInstruction` (mała zmiana = 1 rewizja, duża = plan + wiele rewizji)
+2. LLM analizuje request → wywołuje `StartGeneration(intent, clarifications)`. Czy to będzie 1 rewizja czy 5 — decyzja `CreatePlan` service, nie chat LLM
 3. Generowanie → git commit → preview restart
 4. LLM wywołuje `SuggestPrompts` po zakończeniu
 
@@ -437,7 +482,7 @@ Akcje w UI (nie przez chat):
 │  Project ──has_one──→ Chat (RubyLLM)                  │
 │     │                   ├── Messages                  │
 │     │                   └── Tools:                    │
-│     │                       CreateInstruction         │
+│     │                       StartGeneration           │
 │     │                       CancelInstruction         │
 │     │                       SuggestPrompts            │
 │     │                       UndoLastChange            │
