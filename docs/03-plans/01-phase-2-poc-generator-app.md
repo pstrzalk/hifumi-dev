@@ -72,7 +72,7 @@ HTTP request                           Solid Queue worker
 │             │     instruction.done   │   w lib/roast/    │
 └──────┬──────┘                        └────────┬──────────┘
        │ tool call                              │
-       │ CreateInstruction                      │ Claude CLI
+       │ StartGeneration                        │ Claude CLI
        ▼                                        ▼
 ┌─────────────┐                        ┌───────────────────┐
 │ ChatRespond │                        │ storage/workspaces│
@@ -115,7 +115,8 @@ Instruction
   belongs_to :anchor_message, class_name: "Message"
   has_many :revisions
   - phase: enum (processing, completed, failed, cancelled)
-  - description: text
+  - user_intent: text            # raw intent z chatu (tool arg StartGeneration#intent) — do audytu + widoczny w UI
+  - description: text            # human-readable, do commit messages — generowany przez CreatePlan
 
 Revision
   belongs_to :project
@@ -163,9 +164,10 @@ Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
 - `.ruby-version` = `4.0.2` (to samo co spike — Roast 1.1 wymaga 3.3+, lepiej pin na to co działa)
 - Gemfile — stack z `../02-architecture/03-tech-stack.md` § "Stack naszej aplikacji (generator)", plus dev: `debug`, `web-console`
 - Solid Queue + Solid Cable skonfigurowane (`bin/rails solid_queue:install`, mount w `routes.rb` opcjonalnie)
+- `Procfile.dev` (generowany przez Rails 8) rozszerzony o `worker: bin/rails solid_queue:start` — `bin/dev` odpala wtedy web + Tailwind watcher + Solid Queue worker jednym poleceniem. Alternatywa: `bin/rails solid_queue:start` w osobnym terminalu
 - Skopiuj `revision_workflow.rb`, `verify_revision.rb`, `bin/roast`, `bin/roast-openrouter` do nowego Gemfile context
 - Dodaj plik `tmp/smoke_workflow.sh` — odpala `bin/roast lib/roast/revision_workflow.rb` na pustym workspace z dummy kwargiem
-- **DoD**: `bin/rails s` odpala (pusty root), smoke script przechodzi (workflow startuje, wysypuje się dopiero na braku workspace'u — dowodzi że wrapper + frum + Gemfile są ok)
+- **DoD**: `bin/dev` odpala (web + worker, pusty root), smoke script przechodzi (workflow startuje, wysypuje się dopiero na braku workspace'u — dowodzi że wrapper + frum + Gemfile są ok)
 
 ### Krok 2 — Model danych + migracje (półdzień)
 
@@ -174,17 +176,30 @@ Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
 - Rozszerz `Chat`: `belongs_to :project`. Rozszerz `Message`: nic dodatkowego (RubyLLM wystarczy)
 - Fixtures w `test/fixtures/` — 1 projekt, 1 chat, kilka wiadomości, 1 instruction z 2 rewizjami
 - Model testy (minimalne): walidacje, associations, enum transitions
-- **DoD**: `bin/rails test test/models` zielone
+- **RubyLLM smoke w IRB** (~30 min, przed Krokiem 3 żeby złapać ewentualny friction wcześnie):
+  - `Message#broadcast_append_to("chat_#{id}")` działa (wymaga `turbo-rails` w Gemfile i ewentualnie `broadcasts_to` w modelu — sprawdzić co RubyLLM daje out of the box vs co trzeba dopisać)
+  - `acts_as_message` persistuje pole `tool_calls` jsonb po `chat.ask(msg, tools: [FakeTool])` — czy jest dedykowana kolumna czy tool_call leci w `content` jako markdown?
+  - `chat.ask(msg, tools: [T1, T2])` — sprawdzić jak RubyLLM zwraca tool call (parallel vs sekwencyjnie; API dostępu do args)
+  - Wynik smoke'a — notatka w `thoughts/` albo komentarz w Kroku 4 jeśli któraś z tych rzeczy wymaga workaroundu
+- **DoD**: `bin/rails test test/models` zielone + smoke w IRB udokumentowany (wynik pozytywny lub notatka o fallbacku)
 
 ### Krok 3 — Chat baseline bez tools (pół-dzień)
 
 - `ProjectsController#new, create, show` — formularz "opisz apkę" → `Project.create!` + `Chat.create!` + `Message.create!(role: :user)` → redirect do `/projects/:id`
 - View `projects/show.html.erb` — Turbo Frame `chat`, partial `_message.html.erb`, pole input
+- `app/models/current.rb`:
+  ```ruby
+  class Current < ActiveSupport::CurrentAttributes
+    attribute :project
+  end
+  ```
+  Niewykorzystane w Kroku 3 (baseline bez tools), przygotowane pod `StartGeneration#execute` w Kroku 4 — tool handler odczytuje `Current.project` zamiast przyjmować project_id jako arg.
 - `ChatRespondJob`:
   ```ruby
   def perform(message_id)
     message = Message.find(message_id)
     chat = message.chat
+    Current.project = chat.project     # setup dla tools w Kroku 4; w Kroku 3 no-op
     chat.ask(message.content)          # RubyLLM sam persistuje assistant message
     chat.messages.last.broadcast_append_to("chat_#{chat.id}")
   end
@@ -288,9 +303,7 @@ Każdy krok ma własny DoD. Zielone wszystkie = Faza 2 domknięta.
 
 - UI: partial `_suggested_prompts.html.erb` renderuje `tool_calls[:SuggestPrompts][:prompts]` jako klikalne karty
 
-- Model danych uzupełnienie: `Instruction.user_intent: text` (raw intent z chatu, do audytu + widoczny w UI), `Instruction.description: text` (human-readable, do commit messages — generowany przez `CreatePlan`)
-
-- **DoD**: user pisze "todo list", LLM zadaje 0-2 pytania i wywołuje `StartGeneration(intent: "prosta lista todo z Tailwind", clarifications: {...})`. `CreatePlan::AdHocLLM` generuje wewnętrznie 3 rewizje z detailed prompts. W DB powstaje Instruction + 3 Revisions. Chat kontynuuje "Zacząłem budować, oto co się dzieje..." bez odsłaniania prompts.
+- **DoD**: user pisze "todo list", LLM zadaje 0-2 pytania i wywołuje `StartGeneration(intent: "prosta lista todo z Tailwind", clarifications: {...})`. `CreatePlan::AdHocLLM` generuje wewnętrznie 3 rewizje z detailed prompts. W DB powstaje Instruction (z `user_intent` = raw arg z toola) + 3 Revisions. Chat kontynuuje "Zacząłem budować, oto co się dzieje..." bez odsłaniania prompts.
 
 ### Krok 5 — `ExecuteInstructionJob` + integracja Roast (1-2 dni)
 
@@ -402,7 +415,7 @@ Dodatkowo:
     prompt = event == :completed ?
       "Generowanie zakończone. Zaproponuj 3-5 naturalnych kolejnych kroków (SuggestPrompts tool)." :
       "Rewizja #{instruction.revisions.failed.first&.summary} nie przeszła weryfikacji. Wyjaśnij userowi co się stało i zaproponuj podejście."
-    chat.ask(prompt, tools: [CreateInstruction, SuggestPrompts])
+    chat.ask(prompt, tools: [StartGeneration, SuggestPrompts])
   end
   ```
 - View: `app/views/revisions/_revision.html.erb` z `turbo-frame id="revision_<%= revision.id %>"` renderuje status badge (pending/generating/completed/failed) + git SHA dla completed
@@ -413,12 +426,12 @@ Dodatkowo:
 
 - Integration test `test/integration/generate_todo_list_test.rb`:
   - Tworzy projekt, wysyła wiadomość "Prosta lista todo, Tailwind"
-  - Stub RubyLLM `chat.ask` na deterministyczną odpowiedź — od razu wywołuje `CreateInstruction` z planem TODO_LIST ze spike'a (fixture)
+  - Stub dwóch warstw: `chat.ask` (LLM chatu) → deterministycznie woła `StartGeneration(intent: "prosta lista todo, Tailwind", clarifications: {})`; `CreatePlan.call` → zwraca fixture TODO_LIST ze spike'a (`test/fixtures/plans/todo_list.rb`). Dzięki temu test jest deterministyczny i nie zużywa tokenów na chat + plan
   - `ExecuteInstructionJob.perform_now` — real subprocess (nie stub, to jest E2E)
   - Assert: `instruction.reload.completed?`, `project.revisions.count == 3`, `git log` w workspace ma 3+1 (scaffolding) commitów, `rails test` w workspace zielony
   - Pomiar: `wall_time < 900s` (15 min z zapasem nad 496s ze spike'a)
 - CLI mirror w `bin/generate`:
-  - `bin/generate full --prompt "..."` — tworzy projekt + wymusza CreateInstruction (stub LLM jak w teście) + odpala job synchronicznie
+  - `bin/generate full --prompt "..."` — tworzy projekt + wymusza `StartGeneration` (stub `chat.ask` + `CreatePlan.call` jak w teście) + odpala job synchronicznie
   - `bin/generate respond --project-id=N` — ręczne triggerowanie ChatRespondJob
   - `bin/generate execute --instruction-id=N` — synchroniczne ExecuteInstructionJob (debugging bez Solid Queue workera)
 - **DoD**: `bin/rails test` green (unit + integration), `bin/generate full --prompt "..."` przechodzi end-to-end, manual demo przez UI działa
