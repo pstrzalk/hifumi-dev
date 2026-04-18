@@ -3,8 +3,8 @@
 
 #: self as Roast::Workflow
 
-# Minimalny test: cmd + ruby + data passing
-# Uruchomienie: bundle exec roast test_basic.rb
+# Minimal test: cmd + ruby + data passing
+# Run: bundle exec roast test_basic.rb
 
 config do
   cmd { display! }

@@ -166,7 +166,7 @@ All silent killers, each blocked the whole run. Fixes in commit b94e9a7. Details
 | agent(:generate) — 2 Ruby files | Haiku | 7s | $0.015 |
 | Full W1 todo-list (3 revisions) | Sonnet via subscription | 496s wall | $0 actual (covered by subscription) |
 
-**Note:** Claude CLI in the Roast log reports an "informational" price (e.g. $0.13 per revision 1, ~$1.5 total for todo-list) — that's API pricing, not actual subscription usage. If a hard number is needed for the DoD, the same pipeline has to be run through `bin/roast-openrouter` one-off (Step 5 plan in tor-1-plan.md — optional).
+**Note:** Claude CLI in the Roast log reports an "informational" price (e.g. $0.13 per revision 1, ~$1.5 total for todo-list) — that's API pricing, not actual subscription usage. If a hard number is needed for the DoD, the same pipeline has to be run through `bin/roast-openrouter` one-off (deferred, optional — see Next steps #4).
 
 ---
 
@@ -208,7 +208,7 @@ Known limitations and gotchas documented:
 - Three ENV leaks (`ANTHROPIC_API_KEY` / frum Ruby shim / `BUNDLE_GEMFILE`) — workaround: `bin/roast` wrapper + `VerifyRevision.with_clean_bundler_env`
 - `skip_permissions!` requires an isolated workspace (→ Phase X: preview isolation with Kamal+Docker)
 
-## Next steps (what's left from tor-1-plan.md)
+## Next steps (what was left from the Phase 1 plan)
 
 1. ✅ ~~Rewrite revision_workflow.rb following test_agent.rb~~
 2. ✅ ~~Test happy path on a real Rails app (todo-list plan, 3 revisions)~~

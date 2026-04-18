@@ -3,10 +3,10 @@
 
 #: self as Roast::Workflow
 
-# Test: agent cog z Claude CLI + working_directory
-# Generuje prosty plik Ruby i weryfikuje
+# Test: agent cog with Claude CLI + working_directory
+# Generates a simple Ruby file and verifies it
 #
-# Uruchomienie: bundle exec roast test_agent.rb
+# Run: bundle exec roast test_agent.rb
 
 WORKSPACE = File.expand_path("tmp/agent_test", __dir__)
 

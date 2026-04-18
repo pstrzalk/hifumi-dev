@@ -8,7 +8,7 @@
 # 2. Verify — fail first 2 times, pass on 3rd
 # 3. Remediation loop with repeat + break!
 #
-# Uruchomienie: bundle exec roast test_remediation.rb
+# Run: bundle exec roast test_remediation.rb
 
 config do
   cmd { display! }
