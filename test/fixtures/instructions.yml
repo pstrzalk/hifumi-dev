@@ -1,0 +1,5 @@
+flowers_v1:
+  project: flowers
+  anchor_message: start_generation
+  phase: implementing
+  description: Build initial flower shop skeleton (catalog, cart, checkout).

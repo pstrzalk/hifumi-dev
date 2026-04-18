@@ -1,0 +1,15 @@
+flowers_v1_step1:
+  project: flowers
+  instruction: flowers_v1
+  position: 0
+  status: completed
+  summary: Scaffold Flower model + catalog index page.
+  git_sha: aaaaaaa
+
+flowers_v1_step2:
+  project: flowers
+  instruction: flowers_v1
+  parent: flowers_v1_step1
+  position: 1
+  status: pending
+  summary: Add cart session + checkout form.

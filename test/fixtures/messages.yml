@@ -1,0 +1,14 @@
+first_user:
+  chat: flowers
+  role: user
+  content: An app for selling and delivering flowers.
+
+first_assistant:
+  chat: flowers
+  role: assistant
+  content: Sounds great. I'll get started on a plan.
+
+start_generation:
+  chat: flowers
+  role: assistant
+  content: "[tool call: StartGeneration]"
