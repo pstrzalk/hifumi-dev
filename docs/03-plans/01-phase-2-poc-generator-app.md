@@ -211,6 +211,8 @@ Every step has its own DoD. All green = Phase 2 closed.
 
 **Key principle** (from decision A7): detailed prompts for Claude CLI **never leave the backend**. The chat LLM only gets information that the user is ready + their intents; the full planner prompt engineering (secret sauce) lives in the `CreatePlan` service.
 
+The revision prompts produced by `CreatePlan` must satisfy the [W2.3 agent prompt invariants](../02-architecture/01-workflows-and-decisions.md#w23-agent-prompt-invariants) — concrete tasks (not meta), no "Claude"/"Anthropic" mentions unless the user's intent explicitly asks for Anthropic integration, and the assumption that the workspace is an already-initialized Rails app. `CreatePlan::AdHocLLM`'s system prompt encodes these as generation rules.
+
 - Service `app/services/create_plan.rb` (abstraction from A6):
   ```ruby
   module CreatePlan
@@ -316,6 +318,9 @@ class ExecuteInstructionJob < ApplicationJob
     project = instruction.project
     workspace = Rails.root.join("storage/workspaces/#{project.id}").to_s
 
+    # W2.3.1 precondition: every revision's agent step assumes a real Rails app
+    # in the workspace. These three calls run once per project; iteration starts
+    # after they've completed.
     prepare_workspace(project, workspace) unless project.workspace_initialized?
     rails_new(project, workspace) unless File.exist?(File.join(workspace, "Gemfile"))
     init_docs_baseline(workspace) unless File.exist?(File.join(workspace, "docs"))

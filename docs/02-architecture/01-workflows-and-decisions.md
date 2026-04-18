@@ -122,6 +122,18 @@ W2.F3 [deterministic]  Report failure to the conversation layer
         → Agent (chat) decides how to react (D6): change approach, ask the user
 ```
 
+#### W2.3 agent prompt invariants
+
+W2.3 hands a prompt to Claude CLI. Three constraints on that prompt must hold; violating any one pushes the agent off-task in ways that burn tokens and are hard to spot until the workspace contains code nobody asked for.
+
+1. **The workspace is a real Rails app.** W2 assumes `rails new`, `git init`, and the `docs/` baseline have already run. An empty directory causes the agent to bootstrap a Rails app itself (it calls `rails new .` because it has nothing to edit). Precondition enforced by the caller — in Phase 2, `ExecuteInstructionJob` runs these once per project before iterating revisions.
+
+2. **No mentions of "Claude" or "Anthropic" in the prompt unless the app genuinely integrates Anthropic.** Claude CLI auto-loads the `claude-api` skill on such mentions, injecting ~8000 lines of Anthropic SDK documentation that then dominate the agent's reasoning. `CreatePlan::AdHocLLM` strips these tokens from revision prompts unless the user's intent explicitly names a Claude/Anthropic integration as the feature to build.
+
+3. **Concrete tasks, not meta.** W2.2 appends a fixed rules block ("Rails Way, Tailwind, Minitest, Write tests for new functionality") to every prompt. The rules assume the Task section names specific code changes ("Add Todo model with title/body/done"). Paired with a vague or meta task ("verify pipeline", "smoke test"), the rules amplify: the agent scaffolds features that weren't requested and writes tests for them. Meta and diagnostic flows do not use `revision_workflow.rb` — they use a dedicated workflow with only `ruby(...)` steps (see `lib/roast/smoke_workflow.rb`), which exercises the wrapper + DSL + require paths without invoking the agent.
+
+These constraints live in the execution layer because they are conditions on what Claude CLI receives. `CreatePlan` (Phase 2) is responsible for producing revision prompts that satisfy them.
+
 ### W3: Preview
 
 Triggered by: completion of W1 or W4.
