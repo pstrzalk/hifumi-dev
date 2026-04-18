@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ProjectsControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   test "GET / renders new with placeholder text" do
     get root_path
     assert_response :success
@@ -82,5 +84,19 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
   test "GET /projects/:id with unknown id returns 404" do
     get project_path(id: 999999)
     assert_response :not_found
+  end
+
+  test "POST /projects (valid) enqueues ChatRespondJob with the first user message id" do
+    assert_enqueued_with(job: ChatRespondJob) do
+      post projects_path, params: { project: { description: "Build a thing" } }
+    end
+    first_message = Project.order(:id).last.chat.messages.order(:created_at).first
+    assert_enqueued_with(job: ChatRespondJob, args: [ first_message.id ])
+  end
+
+  test "POST /projects (blank) does NOT enqueue ChatRespondJob" do
+    assert_no_enqueued_jobs(only: ChatRespondJob) do
+      post projects_path, params: { project: { description: "" } }
+    end
   end
 end

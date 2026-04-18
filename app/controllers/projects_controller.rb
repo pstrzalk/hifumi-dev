@@ -14,7 +14,8 @@ class ProjectsController < ApplicationController
 
     project = Project.create!(name: description.truncate(60))
     chat = project.create_chat!
-    chat.messages.create!(role: :user, content: description)
+    first_message = chat.messages.create!(role: :user, content: description)
+    ChatRespondJob.perform_later(first_message.id)
 
     redirect_to project
   end

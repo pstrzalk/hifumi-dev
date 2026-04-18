@@ -1,6 +1,8 @@
 require "test_helper"
 
 class MessagesControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
     @project = projects(:flowers)
   end
@@ -57,5 +59,19 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
   test "POST with unknown project_id returns 404" do
     post project_messages_path(project_id: 999999), params: { message: { content: "hello" } }
     assert_response :not_found
+  end
+
+  test "POST (valid) enqueues ChatRespondJob with the new message id" do
+    assert_enqueued_with(job: ChatRespondJob) do
+      post project_messages_path(@project), params: { message: { content: "Keep going" } }
+    end
+    message = @project.chat.messages.order(:created_at).last
+    assert_enqueued_with(job: ChatRespondJob, args: [ message.id ])
+  end
+
+  test "POST (blank) does NOT enqueue ChatRespondJob" do
+    assert_no_enqueued_jobs(only: ChatRespondJob) do
+      post project_messages_path(@project), params: { message: { content: "" } }
+    end
   end
 end

@@ -423,22 +423,22 @@ ChatRespondJob.perform_later(first_message.id)
 
 #### Automated Verification:
 
-- [ ] `bin/rails test test/jobs/chat_respond_job_test.rb` covers, each as its own test:
-  - [ ] Happy path with single chunk: stub `chat.ask` to yield one chunk with `.content == "Hello"`, assert one assistant `Message` persisted with `content == "Hello"`.
-  - [ ] Happy path with multiple chunks: stub `chat.ask` to yield `["Hel", "lo, ", "world"]`, assert final `Message.content == "Hello, world"`.
-  - [ ] Chunk accumulation: after N chunks, exactly N `broadcast_replace_to` calls targeting the assistant's `dom_id` (assert via `assert_broadcasts` or stub + count on `Turbo::StreamsChannel`).
-  - [ ] Empty chunk content: stub a chunk with `.content == ""` or `nil`; assert no broadcast_replace issued for that chunk (defensive path — relevant when Step 4 tool-call messages arrive).
-  - [ ] No chunks yielded at all: stub `chat.ask` to return without yielding; assert the pre-created assistant Message remains with `content == ""` and no replace broadcasts issued (this is Step 4's tool-call scenario, harmless to pin now).
-  - [ ] Rescue path — exception mid-stream: stub `chat.ask` to yield one chunk and then raise `RubyLLM::Error` (or `StandardError`); assert the assistant Message's content gets set to `"Error: #{message}"` and a final `broadcast_replace_to` runs.
-  - [ ] Rescue path — exception before first chunk: stub `chat.ask` to raise immediately; assert an assistant Message exists with `content == "Error: …"`.
-- [ ] `bin/rails test test/controllers/messages_controller_test.rb` adds:
-  - [ ] `POST /projects/:id/messages` happy path enqueues `ChatRespondJob` with the new `message.id` (`assert_enqueued_with`).
-  - [ ] `POST /projects/:id/messages` blank-content path does NOT enqueue `ChatRespondJob` (`assert_no_enqueued_jobs`).
-- [ ] `bin/rails test test/controllers/projects_controller_test.rb` adds:
-  - [ ] `POST /projects` happy path enqueues `ChatRespondJob` with the first user message's id.
-  - [ ] `POST /projects` blank path does NOT enqueue `ChatRespondJob`.
-- [ ] `bin/rails test` all green (models + controllers + job).
-- [ ] No introduction of a system test with real network — all RubyLLM interaction is stubbed.
+- [x] `bin/rails test test/jobs/chat_respond_job_test.rb` covers, each as its own test:
+  - [x] Happy path with single chunk: stub `chat.complete` to yield one chunk with `.content == "Hello"`, assert one assistant `Message` persisted with `content == "Hello"`.
+  - [x] Happy path with multiple chunks: stub `chat.complete` to yield `["Hel", "lo, ", "world"]`, assert final `Message.content == "Hello, world"`.
+  - [x] Chunk accumulation: after N chunks, N `broadcast_replace_to` + 1 `broadcast_append_to` (from `after_create_commit`) = N+1 total broadcasts.
+  - [x] Empty chunk content: stub chunks with `.content == ""` or `nil`; assert no broadcast_replace issued for those chunks.
+  - [x] No chunks yielded at all: stub yields nothing; assert the assistant Message remains with `content == ""` and only the creation-append broadcast fires.
+  - [x] Rescue path — exception mid-stream: stub to yield one chunk then raise; assert the assistant Message's content begins with `"Error: "`.
+  - [x] Rescue path — exception before first chunk: stub raises immediately; assert an assistant Message exists with `content == "Error: …"`.
+- [x] `bin/rails test test/controllers/messages_controller_test.rb` adds:
+  - [x] `POST /projects/:id/messages` happy path enqueues `ChatRespondJob` with the new `message.id` (`assert_enqueued_with`).
+  - [x] `POST /projects/:id/messages` blank-content path does NOT enqueue `ChatRespondJob` (`assert_no_enqueued_jobs`).
+- [x] `bin/rails test test/controllers/projects_controller_test.rb` adds:
+  - [x] `POST /projects` happy path enqueues `ChatRespondJob` with the first user message's id.
+  - [x] `POST /projects` blank path does NOT enqueue `ChatRespondJob`.
+- [x] `bin/rails test` all green (models + controllers + job).
+- [x] No introduction of a system test with real network — all RubyLLM interaction is stubbed.
 
 #### Manual Verification:
 

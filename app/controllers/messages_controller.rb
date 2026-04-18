@@ -11,7 +11,8 @@ class MessagesController < ApplicationController
       return
     end
 
-    @project.chat.messages.create!(role: :user, content: content)
+    message = @project.chat.messages.create!(role: :user, content: content)
+    ChatRespondJob.perform_later(message.id)
 
     respond_to do |format|
       format.turbo_stream { render turbo_stream: turbo_stream.replace(ActionView::RecordIdentifier.dom_id(@project, :message_form), partial: "messages/form", locals: { project: @project }) }
