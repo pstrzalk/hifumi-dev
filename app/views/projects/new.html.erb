@@ -1,0 +1,28 @@
+<section class="w-full max-w-2xl mx-auto" data-controller="suggestions">
+  <h1 class="text-3xl font-semibold mb-6">Describe the app you want to build</h1>
+
+  <% if @error %>
+    <div class="mb-4 text-red-700"><%= @error %></div>
+  <% end %>
+
+  <%= form_with model: @project, url: projects_path, class: "flex flex-col gap-4" do |f| %>
+    <%= f.text_area :description,
+        rows: 5,
+        placeholder: "a flower shop page, with full payment system",
+        class: "border rounded px-3 py-2 w-full",
+        data: { suggestions_target: "textarea" } %>
+
+    <div class="flex gap-2 flex-wrap">
+      <% [ "Flower shop with checkout", "Todo list with Tailwind", "Team standup tracker" ].each do |suggestion| %>
+        <button type="button"
+                class="px-3 py-1 rounded border text-sm hover:bg-gray-100"
+                data-action="click->suggestions#prefill"
+                data-suggestions-value-param="<%= suggestion %>">
+          <%= suggestion %>
+        </button>
+      <% end %>
+    </div>
+
+    <%= f.submit "Start", class: "bg-black text-white rounded px-4 py-2 w-fit" %>
+  <% end %>
+</section>

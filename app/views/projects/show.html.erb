@@ -1,0 +1,9 @@
+<section class="w-full max-w-3xl mx-auto">
+  <%= turbo_stream_from @project %>
+
+  <h1 class="text-2xl font-semibold mb-4"><%= @project.name %></h1>
+
+  <div id="messages" class="flex flex-col gap-3 mb-6">
+    <%= render partial: "messages/message", collection: @messages, as: :message %>
+  </div>
+</section>

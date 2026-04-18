@@ -4,5 +4,8 @@ class Project < ApplicationRecord
   has_many :revisions, dependent: :destroy
 
   validates :name, presence: true
-  validates :workspace_path, presence: true, uniqueness: true
+
+  def workspace_path
+    "storage/workspaces/#{id}"
+  end
 end

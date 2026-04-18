@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_18_092038) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_18_151522) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -106,8 +106,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_18_092038) do
     t.datetime "created_at", null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
-    t.string "workspace_path", null: false
-    t.index ["workspace_path"], name: "index_projects_on_workspace_path", unique: true
   end
 
   create_table "revisions", force: :cascade do |t|

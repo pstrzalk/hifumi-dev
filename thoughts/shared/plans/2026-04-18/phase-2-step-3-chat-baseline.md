@@ -210,20 +210,20 @@ Register in `app/javascript/controllers/index.js` if eager loading isn't in plac
 
 #### Automated Verification:
 
-- [ ] `bin/rails test test/controllers/projects_controller_test.rb` covers, each as its own test:
-  - [ ] `GET /` renders `new` with status 200 and the placeholder text.
-  - [ ] `GET /` renders the three suggestion buttons with their labels.
-  - [ ] `POST /projects` with valid description creates exactly one `Project`, one `Chat`, one `Message(role: :user)` with `content == description` and redirects to `project_path(project)`.
-  - [ ] `POST /projects` with valid description sets `project.name == description.truncate(60)` and `project.workspace_path == "storage/workspaces/#{project.id}"`.
-  - [ ] `POST /projects` with two consecutive valid descriptions produces distinct `workspace_path` values (no collision).
-  - [ ] `POST /projects` with blank description does NOT persist a Project, re-renders `:new` with status 422, and shows an error.
-  - [ ] `POST /projects` with whitespace-only description is treated as blank (rejected).
-  - [ ] `GET /projects/:id` with a project that has no messages renders status 200 and an empty messages container.
-  - [ ] `GET /projects/:id` with fixture messages renders each message via `_message.html.erb`.
-  - [ ] `GET /projects/:id` with an unknown id returns 404.
+- [x] `bin/rails test test/controllers/projects_controller_test.rb` covers, each as its own test:
+  - [x] `GET /` renders `new` with status 200 and the placeholder text.
+  - [x] `GET /` renders the three suggestion buttons with their labels.
+  - [x] `POST /projects` with valid description creates exactly one `Project`, one `Chat`, one `Message(role: :user)` with `content == description` and redirects to `project_path(project)`.
+  - [x] `POST /projects` with valid description sets `project.name == description.truncate(60)` and `project.workspace_path == "storage/workspaces/#{project.id}"`.
+  - [x] `POST /projects` with two consecutive valid descriptions produces distinct `workspace_path` values (no collision).
+  - [x] `POST /projects` with blank description does NOT persist a Project, re-renders `:new` with status 422, and shows an error.
+  - [x] `POST /projects` with whitespace-only description is treated as blank (rejected).
+  - [x] `GET /projects/:id` with a project that has no messages renders status 200 and an empty messages container.
+  - [x] `GET /projects/:id` with fixture messages renders each message via `_message.html.erb`.
+  - [x] `GET /projects/:id` with an unknown id returns 404.
 - [ ] `bin/rails test test/system` (if system test added) or a controller-level assertion confirms the Stimulus controller is registered (script tag present). A lightweight JS unit test is overkill; we rely on manual verification.
-- [ ] `bin/rails routes | grep projects` shows `root`, `projects#new`, `projects#create`, `projects#show`, and `projects/:project_id/messages#create`.
-- [ ] `bin/rails test test/models` still green.
+- [x] `bin/rails routes | grep projects` shows `root`, `projects#new`, `projects#create`, `projects#show`, and `projects/:project_id/messages#create`.
+- [x] `bin/rails test test/models` still green.
 - [ ] `bin/dev` boots; root responds 200.
 
 #### Manual Verification:

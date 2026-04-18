@@ -5,17 +5,15 @@ class ProjectTest < ActiveSupport::TestCase
     assert projects(:flowers).valid?
   end
 
-  test "requires name and workspace_path" do
+  test "requires name" do
     project = Project.new
     assert_not project.valid?
     assert_includes project.errors[:name], "can't be blank"
-    assert_includes project.errors[:workspace_path], "can't be blank"
   end
 
-  test "workspace_path must be unique" do
-    duplicate = Project.new(name: "Other", workspace_path: projects(:flowers).workspace_path)
-    assert_not duplicate.valid?
-    assert_includes duplicate.errors[:workspace_path], "has already been taken"
+  test "workspace_path is derived from id" do
+    project = projects(:flowers)
+    assert_equal "storage/workspaces/#{project.id}", project.workspace_path
   end
 
   test "has one chat and many instructions/revisions" do
