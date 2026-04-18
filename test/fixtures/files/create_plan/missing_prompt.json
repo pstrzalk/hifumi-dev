@@ -1,0 +1,6 @@
+{
+  "instruction_description": "missing prompt field on revision",
+  "revisions": [
+    { "summary": "s" }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "instruction_description": "missing summary field on revision",
+  "revisions": [
+    { "prompt": "p" }
+  ]
+}

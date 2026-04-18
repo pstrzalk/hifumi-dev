@@ -1,0 +1,8 @@
+{
+  "instruction_description": "Simple todo list with Tailwind",
+  "revisions": [
+    { "summary": "Add Task model", "prompt": "Generate a Task model with title:string and done:boolean." },
+    { "summary": "Add TasksController", "prompt": "Generate a TasksController with index/create/update/destroy actions." },
+    { "summary": "Add index view", "prompt": "Add app/views/tasks/index.html.erb rendering tasks in a Tailwind list." }
+  ]
+}
