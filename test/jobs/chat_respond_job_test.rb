@@ -73,6 +73,34 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_match(/\AError: /, assistant.content)
   end
 
+  test "applies CHAT_SYSTEM_PROMPT via with_instructions on each perform" do
+    captured = []
+    spy_with_instructions(captured) do
+      stub_complete(chunks: [ "ok" ]) do
+        perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+      end
+    end
+
+    assert_equal 1, captured.size
+    args, kwargs = captured.first
+    assert_equal ChatRespondJob::CHAT_SYSTEM_PROMPT, args.first
+    assert_equal true, kwargs[:replace]
+  end
+
+  test "registers a StartGeneration tool bound to the project before completing" do
+    captured_tools = []
+    spy_with_tools(captured_tools) do
+      stub_complete(chunks: [ "ok" ]) do
+        perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+      end
+    end
+
+    tools = captured_tools.first
+    start_gen = tools.find { |t| t.is_a?(StartGeneration) }
+    assert start_gen, "expected a StartGeneration tool instance passed to with_tools"
+    assert_equal @project, start_gen.instance_variable_get(:@project)
+  end
+
   private
 
   def latest_assistant
@@ -86,7 +114,7 @@ class ChatRespondJobTest < ActiveJob::TestCase
 
     Chat.class_eval do
       alias_method :_original_complete, :complete if method_defined?(:complete) && !method_defined?(:_original_complete)
-      define_method(:complete) do |&block|
+      define_method(:complete) do |**_kwargs, &block|
         raise StandardError, "boom" if ChatCompleteStub.raise_immediately
         messages.create!(role: :assistant, content: "")
         ChatCompleteStub.chunks.each_with_index do |content, i|
@@ -105,6 +133,36 @@ class ChatRespondJobTest < ActiveJob::TestCase
   module ChatCompleteStub
     class << self
       attr_accessor :chunks, :raise_at, :raise_immediately
+    end
+  end
+
+  def spy_with_instructions(captured)
+    Chat.class_eval do
+      alias_method :_original_with_instructions, :with_instructions
+      define_method(:with_instructions) do |*args, **kwargs, &block|
+        captured << [ args, kwargs ]
+        _original_with_instructions(*args, **kwargs, &block)
+      end
+    end
+    yield
+  ensure
+    Chat.class_eval do
+      alias_method :with_instructions, :_original_with_instructions if method_defined?(:_original_with_instructions)
+    end
+  end
+
+  def spy_with_tools(captured)
+    Chat.class_eval do
+      alias_method :_original_with_tools, :with_tools
+      define_method(:with_tools) do |*tools, **kwargs, &block|
+        captured << tools
+        _original_with_tools(*tools, **kwargs, &block)
+      end
+    end
+    yield
+  ensure
+    Chat.class_eval do
+      alias_method :with_tools, :_original_with_tools if method_defined?(:_original_with_tools)
     end
   end
 end

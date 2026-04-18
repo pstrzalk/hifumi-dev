@@ -1,6 +1,14 @@
-<div id="<%= dom_id(message) %>" class="flex <%= message.role == "user" ? "justify-end" : "justify-start" %>">
-  <div class="max-w-[80%] rounded px-3 py-2 <%= message.role == "user" ? "bg-blue-100" : "bg-gray-100" %>">
-    <div class="text-xs text-gray-500 mb-1"><%= message.role %></div>
-    <div class="whitespace-pre-wrap"><%= message.content %></div>
+<%# Tool-result rows carry internal state; render nothing. %>
+<% unless message.role == "tool" %>
+  <div id="<%= dom_id(message) %>" class="flex <%= message.role == "user" ? "justify-end" : "justify-start" %>">
+    <div class="max-w-[80%] rounded px-3 py-2 <%= message.role == "user" ? "bg-blue-100" : "bg-gray-100" %>">
+      <div class="text-xs text-gray-500 mb-1"><%= message.role %></div>
+
+      <% if message.role == "assistant" && message.content.to_s.strip.empty? && message.tool_calls.any? %>
+        <div class="text-sm italic text-gray-600"><%= tool_call_pill_text(message) %></div>
+      <% else %>
+        <div class="whitespace-pre-wrap"><%= message.content %></div>
+      <% end %>
+    </div>
   </div>
-</div>
+<% end %>

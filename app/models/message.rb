@@ -3,12 +3,22 @@ class Message < ApplicationRecord
   has_many_attached :attachments
 
   after_create_commit :broadcast_append_message
+  after_update_commit :broadcast_replace_message
 
   private
 
   def broadcast_append_message
+    return unless %w[user assistant].include?(role)
+
     broadcast_append_later_to chat.project,
       target: "messages",
+      partial: "messages/message",
+      locals: { message: self }
+  end
+
+  def broadcast_replace_message
+    broadcast_replace_later_to chat.project,
+      target: ActionView::RecordIdentifier.dom_id(self),
       partial: "messages/message",
       locals: { message: self }
   end
