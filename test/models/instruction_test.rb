@@ -42,4 +42,14 @@ class InstructionTest < ActiveSupport::TestCase
       instructions(:flowers_v1).destroy!
     end
   end
+
+  test "user_intent is optional" do
+    instruction = Instruction.new(
+      project: projects(:flowers),
+      anchor_message: messages(:start_generation),
+      description: "Plan without recorded user intent"
+    )
+    assert_nil instruction.user_intent
+    assert instruction.valid?
+  end
 end

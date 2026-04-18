@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_18_151522) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_18_172451) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -56,6 +56,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_18_151522) do
     t.integer "project_id", null: false
     t.text "research_output"
     t.datetime "updated_at", null: false
+    t.text "user_intent"
     t.index ["anchor_message_id"], name: "index_instructions_on_anchor_message_id"
     t.index ["project_id"], name: "index_instructions_on_project_id"
   end
@@ -110,11 +111,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_18_151522) do
 
   create_table "revisions", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.datetime "finished_at"
     t.string "git_sha"
     t.integer "instruction_id", null: false
+    t.json "metrics", default: {}, null: false
     t.integer "parent_id"
     t.integer "position", null: false
     t.integer "project_id", null: false
+    t.text "prompt", default: "", null: false
+    t.datetime "started_at"
     t.string "status", default: "pending", null: false
     t.text "summary", null: false
     t.datetime "updated_at", null: false

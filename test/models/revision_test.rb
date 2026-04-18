@@ -11,7 +11,8 @@ class RevisionTest < ActiveSupport::TestCase
       project: projects(:flowers),
       instruction: instructions(:flowers_v1),
       position: 99,
-      summary: "New step"
+      summary: "New step",
+      prompt: "Add a new step to the plan."
     )
     assert_equal "pending", revision.status
     assert revision.valid?
@@ -47,8 +48,20 @@ class RevisionTest < ActiveSupport::TestCase
       project: projects(:flowers),
       instruction: instructions(:flowers_v1),
       position: revisions(:flowers_v1_step1).position,
-      summary: "Duplicate position"
+      summary: "Duplicate position",
+      prompt: "Duplicate position prompt"
     )
     assert_raises(ActiveRecord::RecordNotUnique) { duplicate.save!(validate: false) }
+  end
+
+  test "requires prompt" do
+    revision = Revision.new(
+      project: projects(:flowers),
+      instruction: instructions(:flowers_v1),
+      position: 42,
+      summary: "Missing prompt"
+    )
+    assert_not revision.valid?
+    assert_includes revision.errors[:prompt], "can't be blank"
   end
 end

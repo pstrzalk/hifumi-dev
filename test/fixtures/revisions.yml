@@ -4,6 +4,7 @@ flowers_v1_step1:
   position: 0
   status: completed
   summary: Scaffold Flower model + catalog index page.
+  prompt: Generate a Flower model with name:string and price_cents:integer, then add a FlowersController#index that lists all flowers with a minimal Tailwind grid view.
   git_sha: aaaaaaa
 
 flowers_v1_step2:
@@ -13,3 +14,4 @@ flowers_v1_step2:
   position: 1
   status: pending
   summary: Add cart session + checkout form.
+  prompt: Add a session-backed Cart that stores flower_id/quantity pairs, a CartsController with add/remove/show actions, and a CheckoutsController#new form that collects name, email, and shipping address.
