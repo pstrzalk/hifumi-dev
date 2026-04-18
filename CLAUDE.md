@@ -2,10 +2,10 @@
 
 Ruby on Rails application generator — equivalent of Lovable/bolt.new for the Rails ecosystem. Output: clean Rails repo, zero vendor lock-in.
 
-## Status (2026-04-16)
+## Status (2026-04-18)
 
 - **Phase 1** (Roast 1.1 + Claude CLI spike): **closed**. Pipeline driver → Roast → Claude CLI → verify → remediation validated end-to-end. Code in `spikes/roast/`, results in `spikes/roast/findings.md`.
-- **Phase 2** (PoC of the main generator app: RubyLLM + Solid Queue + Roast per Instruction): **laid out** in `docs/03-plans/01-phase-2-poc-generator-app.md`, **alternatives A1-A7 resolved 2026-04-16** (two architectural changes: `CreatePlan` service + lightweight `StartGeneration` tool). Ready for Step 1.
+- **Phase 2** (PoC of the main generator app: RubyLLM + Solid Queue + Roast per Instruction): Steps 1-2 shipped (Rails 8 skeleton + Roast wiring in `61667ee`; domain model + fixtures + tests + RubyLLM smoke in `b8c7ade`). RubyLLM pinned to `anthropic/claude-haiku-4.5` via OpenRouter. Next: Step 3 (chat baseline without tools) in `docs/03-plans/01-phase-2-poc-generator-app.md`.
 - **Phase 3** (preview isolation via Kamal + Docker): **analysis ready** in `docs/03-plans/02-phase-3-preview-isolation.md`. Out of scope for Phase 2.
 
 ## Documentation structure

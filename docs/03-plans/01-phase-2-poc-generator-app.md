@@ -171,17 +171,15 @@ Every step has its own DoD. All green = Phase 2 closed.
 
 ### Step 2 — Data model + migrations (half-day)
 
-- Migration: `projects`, `chats`, `messages`, `instructions`, `revisions` per the schema above
-- RubyLLM scaffolding: `rails generate ruby_llm:install` → gives `Chat`/`Message` models (with `acts_as_chat`, message and tool-call persistence)
-- Extend `Chat`: `belongs_to :project`. Extend `Message`: nothing extra (RubyLLM is enough)
-- Fixtures in `test/fixtures/` — 1 project, 1 chat, a few messages, 1 instruction with 2 revisions
-- Model tests (minimal): validations, associations, enum transitions
-- **RubyLLM smoke in IRB** (~30 min, before Step 3 to catch any friction early):
-  - `Message#broadcast_append_to("chat_#{id}")` works (requires `turbo-rails` in Gemfile and possibly `broadcasts_to` in the model — check what RubyLLM provides out of the box vs. what we need to add)
-  - `acts_as_message` persists the `tool_calls` jsonb field after `chat.ask(msg, tools: [FakeTool])` — is there a dedicated column or does the tool call land in `content` as markdown?
-  - `chat.ask(msg, tools: [T1, T2])` — check how RubyLLM returns tool calls (parallel vs. sequential; args access API)
-  - Smoke result — note in `thoughts/` or a comment in Step 4 if any of these need a workaround
-- **DoD**: `bin/rails test test/models` green + smoke in IRB documented (positive result or fallback note)
+Migrations, models (`Project`, `Instruction`, `Revision`, `Chat` extended with `belongs_to :project`), fixtures, and model tests shipped in `b8c7ade` — `bin/rails test test/models` green (19 runs, 56 assertions). `rails g ruby_llm:install` also ran in that commit.
+
+**RubyLLM smoke** (done via OpenRouter → `anthropic/claude-haiku-4.5`, pinned in `config/initializers/ruby_llm.rb`):
+
+- `Message#broadcast_append_to("chat_#{id}")` — works OOTB. turbo-rails includes `Turbo::Broadcastable` on `ActiveRecord::Base`; no extra include or `broadcasts_to` declaration needed on `Message`.
+- **Tool call persistence is a dedicated table, not markdown in content.** `ToolCall(name, arguments: json, message_id)`. An assistant tool-call message has `content: ""` and one or more associated `ToolCall` rows; the `role: "tool"` result message carries `tool_call_id` pointing at the `ToolCall`. Args access: `tool_call.arguments["city"]` (string keys).
+- **Parallel tool calls supported.** Haiku 4.5 emits both calls in a single assistant message (shared `message_id`), followed by N `role: "tool"` result messages, then a final assistant summary. Flow per turn: `user → assistant(empty + N tool_calls) → N × tool(tool_call_id set) → assistant(text)`.
+
+**Rendering rule for Step 3/4**: if an assistant message has `tool_calls.any?`, render the tool calls (args + linked tool-result content) instead of the (empty) message content.
 
 ### Step 3 — Chat baseline without tools (half-day)
 
