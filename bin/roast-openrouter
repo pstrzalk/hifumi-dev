@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+# Wrapper: roast via OpenRouter (Anthropic Skin) — PAID per-token.
+# For use when the subscription doesn't work.
+
+set -e
+
+: "${OPENROUTER_API_KEY:?Set OPENROUTER_API_KEY in your environment}"
+
+export ANTHROPIC_BASE_URL="https://openrouter.ai/api"
+export ANTHROPIC_AUTH_TOKEN="$OPENROUTER_API_KEY"
+export ANTHROPIC_API_KEY=""
+export ANTHROPIC_DEFAULT_OPUS_MODEL="anthropic/claude-opus-4.6"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="anthropic/claude-sonnet-4.6"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="anthropic/claude-haiku-4.5"
+
+cd "$(dirname "$0")/.."
+exec bundle exec roast "$@"
