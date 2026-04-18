@@ -1,0 +1,61 @@
+require "test_helper"
+
+class MessagesControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @project = projects(:flowers)
+  end
+
+  test "POST with valid content creates a user message on the project's chat" do
+    assert_difference -> { @project.chat.messages.count } => 1 do
+      post project_messages_path(@project), params: { message: { content: "Add Tailwind" } }
+    end
+    message = @project.chat.messages.order(:created_at).last
+    assert_equal "user", message.role
+    assert_equal "Add Tailwind", message.content
+  end
+
+  test "POST with valid HTML Accept redirects to project" do
+    post project_messages_path(@project), params: { message: { content: "Add Tailwind" } }
+    assert_redirected_to project_path(@project)
+  end
+
+  test "POST with valid turbo_stream Accept replaces the form instead of redirecting" do
+    post project_messages_path(@project),
+         params: { message: { content: "Add Tailwind" } },
+         headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    assert_response :success
+    assert_match(/turbo-stream action="replace" target="#{ActionView::RecordIdentifier.dom_id(@project, :message_form)}"/, @response.body)
+  end
+
+  test "POST with blank content does not persist" do
+    assert_no_difference -> { @project.chat.messages.count } do
+      post project_messages_path(@project), params: { message: { content: "" } }
+    end
+  end
+
+  test "POST with blank content (HTML) redirects with alert" do
+    post project_messages_path(@project), params: { message: { content: "" } }
+    assert_redirected_to project_path(@project)
+    assert_equal "Message cannot be blank.", flash[:alert]
+  end
+
+  test "POST with blank content (turbo_stream) returns 422 and re-renders the form" do
+    post project_messages_path(@project),
+         params: { message: { content: "" } },
+         headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    assert_response :unprocessable_entity
+    assert_match(/turbo-stream action="replace" target="#{ActionView::RecordIdentifier.dom_id(@project, :message_form)}"/, @response.body)
+  end
+
+  test "POST with whitespace-only content is treated as blank" do
+    assert_no_difference -> { @project.chat.messages.count } do
+      post project_messages_path(@project), params: { message: { content: "   \n\t  " } }
+    end
+    assert_equal "Message cannot be blank.", flash[:alert]
+  end
+
+  test "POST with unknown project_id returns 404" do
+    post project_messages_path(project_id: 999999), params: { message: { content: "hello" } }
+    assert_response :not_found
+  end
+end

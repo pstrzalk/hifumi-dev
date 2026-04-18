@@ -312,18 +312,18 @@ end
 
 #### Automated Verification:
 
-- [ ] `bin/rails test test/controllers/messages_controller_test.rb` — one test per branch:
-  - [ ] `POST /projects/:id/messages` with valid content creates exactly one `Message(role: :user, content: params[:message][:content])` on the project's chat.
-  - [ ] `POST /projects/:id/messages` with valid content redirects to `project_path(project)`.
-  - [ ] `POST /projects/:id/messages` with blank content does NOT persist a `Message` and redirects with a flash alert.
-  - [ ] `POST /projects/:id/messages` with whitespace-only content is treated as blank.
-  - [ ] `POST /projects/:id/messages` with an unknown project_id returns 404.
-- [ ] `bin/rails test test/models/message_test.rb` — add branches:
-  - [ ] `Message.create!` on a chat whose project exists broadcasts one `turbo_stream.append` targeting `messages` (assert via `assert_broadcasts` or capture turbo streams in test helper).
-  - [ ] The broadcast is routed to the Message's `chat.project` stream (not the chat).
-  - [ ] The broadcast renders `messages/_message.html.erb` with the message as local (structural assertion: content appears in the broadcast payload).
-- [ ] Existing `projects_controller_test.rb` branches still green.
-- [ ] Route `project_messages` (POST) is reachable: `bin/rails routes` shows it.
+- [x] `bin/rails test test/controllers/messages_controller_test.rb` — one test per branch:
+  - [x] `POST /projects/:id/messages` with valid content creates exactly one `Message(role: :user, content: params[:message][:content])` on the project's chat.
+  - [x] `POST /projects/:id/messages` with valid content redirects to `project_path(project)`.
+  - [x] `POST /projects/:id/messages` with blank content does NOT persist a `Message` and redirects with a flash alert.
+  - [x] `POST /projects/:id/messages` with whitespace-only content is treated as blank.
+  - [x] `POST /projects/:id/messages` with an unknown project_id returns 404.
+- [x] `bin/rails test test/models/message_test.rb` — add branches:
+  - [x] `Message.create!` on a chat whose project exists broadcasts one `turbo_stream.append` targeting `messages` (assert via `assert_broadcasts` or capture turbo streams in test helper).
+  - [x] The broadcast is routed to the Message's `chat.project` stream (not the chat).
+  - [x] The broadcast renders `messages/_message.html.erb` with the message as local (structural assertion: content appears in the broadcast payload).
+- [x] Existing `projects_controller_test.rb` branches still green.
+- [x] Route `project_messages` (POST) is reachable: `bin/rails routes` shows it.
 
 #### Manual Verification:
 

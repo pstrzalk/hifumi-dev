@@ -6,4 +6,10 @@
   <div id="messages" class="flex flex-col gap-3 mb-6">
     <%= render partial: "messages/message", collection: @messages, as: :message %>
   </div>
+
+  <% if flash[:alert] %>
+    <div class="mb-4 text-red-700"><%= flash[:alert] %></div>
+  <% end %>
+
+  <%= render "messages/form", project: @project %>
 </section>
