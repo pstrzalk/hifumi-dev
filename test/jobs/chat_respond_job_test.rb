@@ -4,9 +4,11 @@ require "ostruct"
 class ChatRespondJobTest < ActiveJob::TestCase
   include ActionCable::TestHelper
 
+  AGENT_INSTRUCTIONS = Rails.root.join("app/prompts/generator_agent/instructions.txt.erb").read.freeze
+
   setup do
     @project = Project.create!(name: "Test Project")
-    @chat = @project.create_chat!
+    @chat = GeneratorAgent.create!(project: @project)
     @user_message = @chat.messages.create!(role: :user, content: "Hello")
     @stream_name = @project.to_gid_param
   end
@@ -73,7 +75,7 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_match(/\AError: /, assistant.content)
   end
 
-  test "applies CHAT_SYSTEM_PROMPT via with_instructions on each perform" do
+  test "applies the GeneratorAgent instructions via with_instructions on each perform" do
     captured = []
     spy_with_instructions(captured) do
       stub_complete(chunks: [ "ok" ]) do
@@ -82,9 +84,8 @@ class ChatRespondJobTest < ActiveJob::TestCase
     end
 
     assert_equal 1, captured.size
-    args, kwargs = captured.first
-    assert_equal ChatRespondJob::CHAT_SYSTEM_PROMPT, args.first
-    assert_equal true, kwargs[:replace]
+    args, _kwargs = captured.first
+    assert_equal AGENT_INSTRUCTIONS, args.first
   end
 
   test "registers a StartGeneration tool bound to the project before completing" do
@@ -152,21 +153,21 @@ class ChatRespondJobTest < ActiveJob::TestCase
 
   def spy_with_instructions(captured)
     Chat.class_eval do
-      alias_method :_original_with_instructions, :with_instructions
-      define_method(:with_instructions) do |*args, **kwargs, &block|
+      alias_method :_original_with_runtime_instructions, :with_runtime_instructions
+      define_method(:with_runtime_instructions) do |*args, **kwargs, &block|
         captured << [ args, kwargs ]
-        _original_with_instructions(*args, **kwargs, &block)
+        _original_with_runtime_instructions(*args, **kwargs, &block)
       end
     end
     yield
   ensure
     Chat.class_eval do
-      alias_method :with_instructions, :_original_with_instructions if method_defined?(:_original_with_instructions)
+      alias_method :with_runtime_instructions, :_original_with_runtime_instructions if method_defined?(:_original_with_runtime_instructions)
     end
   end
 
   def spy_with_tools(captured)
-    Chat.class_eval do
+    RubyLLM::Chat.class_eval do
       alias_method :_original_with_tools, :with_tools
       define_method(:with_tools) do |*tools, **kwargs, &block|
         captured << tools
@@ -175,7 +176,7 @@ class ChatRespondJobTest < ActiveJob::TestCase
     end
     yield
   ensure
-    Chat.class_eval do
+    RubyLLM::Chat.class_eval do
       alias_method :with_tools, :_original_with_tools if method_defined?(:_original_with_tools)
     end
   end

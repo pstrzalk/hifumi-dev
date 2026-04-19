@@ -17,18 +17,18 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "POST /projects with valid description creates project, chat, and first user message, then redirects" do
+  test "POST /projects with valid description creates project, chat, system + user messages, then redirects" do
     assert_difference -> { Project.count } => 1,
                       -> { Chat.count } => 1,
-                      -> { Message.count } => 1 do
+                      -> { Message.count } => 2 do
       post projects_path, params: { project: { description: "A todo list app" } }
     end
 
     project = Project.order(:id).last
     assert_redirected_to project_path(project)
-    message = project.chat.messages.sole
-    assert_equal "user", message.role
-    assert_equal "A todo list app", message.content
+    user_message = project.chat.messages.find_by!(role: :user)
+    assert_equal "A todo list app", user_message.content
+    assert_equal 1, project.chat.messages.where(role: :system).count
   end
 
   test "POST /projects sets name to description truncated to 60 chars and derives workspace_path from id" do
@@ -90,7 +90,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_enqueued_with(job: ChatRespondJob) do
       post projects_path, params: { project: { description: "Build a thing" } }
     end
-    first_message = Project.order(:id).last.chat.messages.order(:created_at).first
+    first_message = Project.order(:id).last.chat.messages.where(role: :user).order(:created_at).first
     assert_enqueued_with(job: ChatRespondJob, args: [ first_message.id ])
   end
 

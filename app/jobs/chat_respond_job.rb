@@ -1,21 +1,13 @@
 class ChatRespondJob < ApplicationJob
   queue_as :default
 
-  CHAT_SYSTEM_PROMPT = Rails.root.join("app/prompts/chat_system.md").read.freeze
-
   def perform(message_id)
     user_message = Message.find(message_id)
+    agent = GeneratorAgent.find(user_message.chat_id)
     chat = user_message.chat
     project = chat.project
 
-    chat.with_instructions(CHAT_SYSTEM_PROMPT, replace: true)
-    chat.with_tools(
-      StartGeneration.new(project: project),
-      SuggestPrompts.new(project: project),
-      replace: true
-    )
-
-    chat.complete do |chunk|
+    agent.complete do |chunk|
       delta = chunk.content.to_s
       next if delta.empty?
 

@@ -13,7 +13,7 @@ class ProjectsController < ApplicationController
     end
 
     project = Project.create!(name: description.truncate(60))
-    chat = project.create_chat!
+    chat = GeneratorAgent.create!(project: project)
     first_message = chat.messages.create!(role: :user, content: description)
     ChatRespondJob.perform_later(first_message.id)
 
