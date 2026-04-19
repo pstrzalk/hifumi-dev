@@ -461,12 +461,12 @@ The initializer loads on Rails boot, so this test exercises the real subscriber.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test test/jobs/execute_instruction_job_test.rb` green (all phase-2 tests + the new enqueue test).
-- [ ] `bin/rails test` fully green.
-- [ ] `bin/rails solid_queue:install` has no pending migrations (if any were introduced; should be none).
+- [x] `bin/rails test test/jobs/execute_instruction_job_test.rb` green (all phase-2 tests + the new enqueue test).
+- [x] `bin/rails test` fully green.
+- [x] `bin/rails solid_queue:install` has no pending migrations (if any were introduced; should be none).
 
 #### Manual Verification:
-- [ ] `bin/rails runner 'ActiveSupport::Notifications.instrument("instruction.requested", instruction_id: 99999)'` — no raise, Solid Queue enqueue logged with `queue: "generation"`.
+- [x] `bin/rails runner 'ActiveSupport::Notifications.instrument("instruction.requested", instruction_id: 99999)'` — no raise; verified via `SolidQueue::Job` row (class_name=ExecuteInstructionJob, queue_name=generation, args=[99999]); orphan row cleaned up.
 - [ ] `bin/dev` starts without error (Procfile.dev's `worker: bin/jobs` picks up both pools from `config/queue.yml`).
 
 **Implementation note**: Pause here for manual confirmation that `bin/dev` starts clean and an instrumented event shows up as a queued job before moving to Phase 4.

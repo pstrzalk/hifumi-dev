@@ -176,6 +176,18 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal({ instruction_id: other_instruction.id }, failed_payload)
   end
 
+  # --- subscriber wiring (initializer-driven) ---------------------------
+
+  test "instruction.requested notification enqueues ExecuteInstructionJob on the generation queue" do
+    assert_enqueued_with(
+      job: ExecuteInstructionJob,
+      args: [ @instruction.id ],
+      queue: "generation"
+    ) do
+      ActiveSupport::Notifications.instrument("instruction.requested", instruction_id: @instruction.id)
+    end
+  end
+
   private
 
   def build_rev(position, summary, prompt, parent: nil)
