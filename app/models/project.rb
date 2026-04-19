@@ -6,6 +6,10 @@ class Project < ApplicationRecord
   validates :name, presence: true
 
   def workspace_path
-    "storage/workspaces/#{id}"
+    "storage/workspaces/project_#{id}"
+  end
+
+  def workspace_initialized?
+    File.exist?(Rails.root.join(workspace_path, "Gemfile"))
   end
 end

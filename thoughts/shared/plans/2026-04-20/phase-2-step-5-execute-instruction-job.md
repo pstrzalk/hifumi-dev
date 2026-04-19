@@ -367,14 +367,14 @@ Stub the three setup helpers similarly so tests don't hit the filesystem at all.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test test/models/project_test.rb` green (3 new/updated tests pass).
-- [ ] `bin/rails test test/controllers/projects_controller_test.rb` green (updated assertion passes).
-- [ ] `bin/rails test test/jobs/execute_instruction_job_test.rb` green (8 tests).
-- [ ] `bin/rails test` fully green across the suite.
-- [ ] No test hits the real filesystem for workspace paths (all three setup helpers stubbed) — verify by spot-checking test output / timing.
+- [x] `bin/rails test test/models/project_test.rb` green (3 new/updated tests pass).
+- [x] `bin/rails test test/controllers/projects_controller_test.rb` green (updated assertion passes).
+- [x] `bin/rails test test/jobs/execute_instruction_job_test.rb` green (8 tests).
+- [x] `bin/rails test` fully green across the suite.
+- [x] No test hits the real filesystem for workspace paths (all three setup helpers stubbed) — verify by spot-checking test output / timing.
 
 #### Manual Verification:
-- [ ] The `workspace_initialized?` true-branch test manually cleans up its tempdir (confirms no leftover in `storage/workspaces/`).
+- [x] The `workspace_initialized?` true-branch test manually cleans up its tempdir (confirms no leftover in `storage/workspaces/`).
 
 **Implementation note**: test suite green but `config/queue.yml` still has the single pool — `queue_as :generation` on the job is accepted, enqueued jobs just sit there waiting for a `generation` worker (which doesn't exist yet). Phase 3 adds the pool. Pause here for manual confirmation that unit tests pass before proceeding.
 
