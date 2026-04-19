@@ -7,6 +7,8 @@
     <%= render partial: "messages/message", collection: @messages, as: :message %>
   </div>
 
+  <%= render "suggestions/frame", prompts: [] %>
+
   <% if flash[:alert] %>
     <div class="mb-4 text-red-700"><%= flash[:alert] %></div>
   <% end %>

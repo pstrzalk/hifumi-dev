@@ -5,6 +5,11 @@ class Message < ApplicationRecord
   after_create_commit :broadcast_append_message
   after_update_commit :broadcast_replace_message
 
+  def visible_in_chat?
+    return true if role == "user"
+    role == "assistant" && (content.to_s.strip.present? || tool_calls.any?)
+  end
+
   private
 
   def broadcast_append_message

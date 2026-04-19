@@ -9,7 +9,11 @@ class ChatRespondJob < ApplicationJob
     project = chat.project
 
     chat.with_instructions(CHAT_SYSTEM_PROMPT, replace: true)
-    chat.with_tools(StartGeneration.new(project: project), replace: true)
+    chat.with_tools(
+      StartGeneration.new(project: project),
+      SuggestPrompts.new(project: project),
+      replace: true
+    )
 
     chat.complete do |chunk|
       delta = chunk.content.to_s

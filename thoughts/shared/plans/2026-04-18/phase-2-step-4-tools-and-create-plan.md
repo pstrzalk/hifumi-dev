@@ -607,9 +607,9 @@ Alternative to keeping the monkey-patch stub: use `Minitest::Mock` on `Chat#comp
 - [x] Start `bin/dev`. Create a project with description "simple todo list with Tailwind".
 - [x] Chat responds with 0–2 clarifying questions, then (without user typing another message prompting a plan) calls `StartGeneration`. Observe: no raw tool-call bubble; a "⚙ Starting generation…" pill appears briefly; final assistant message summarises what was started.
 - [x] `Instruction.last` in `bin/rails c` shows `user_intent`, `description`, `phase: "implementing"`, 3+ revisions with `prompt` populated.
-- [ ] Open `bin/rails c`, run `ActiveSupport::Notifications.subscribe("instruction.requested") { |*, p| puts p.inspect }`, trigger a new project in another terminal, confirm the payload hits stdout.
+- [x] Open `bin/rails c`, run `ActiveSupport::Notifications.subscribe("instruction.requested") { |*, p| puts p.inspect }`, trigger a new project in another terminal, confirm the payload hits stdout.
 - [x] No `role: "tool"` bubbles visible in the chat UI.
-- [ ] Break Haiku (temporarily point `OPENROUTER_API_KEY` at a dud) → observe `"Error: …"` message in chat, no orphaned Instruction in DB.
+- [x] Break Haiku (temporarily point `OPENROUTER_API_KEY` at a dud) → observe `"Error: …"` message in chat, no orphaned Instruction in DB.
 
 **Implementation Note**: Pause for manual confirmation before Phase 4. If Haiku flakes on calling `StartGeneration` reliably (>1 failure in 5 tries), open Step 4.5 for the UI fallback button before continuing.
 
@@ -762,16 +762,16 @@ One test per branch:
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] `bin/rails test` all green.
-- [ ] `bin/rails test test/tools/suggest_prompts_test.rb` green — every branch.
-- [ ] `app/tools/suggest_prompts.rb` loads.
+- [x] `bin/rails test` all green.
+- [x] `bin/rails test test/tools/suggest_prompts_test.rb` green — every branch.
+- [x] `app/tools/suggest_prompts.rb` loads.
 
 #### Manual Verification:
-- [ ] Trigger a `StartGeneration` flow end-to-end. After the final assistant summary message, observe a row of 3–5 clickable cards below the chat.
-- [ ] Click one — the message form's input is prefilled with that text; focus lands in the input.
-- [ ] Submit the prefilled message → normal chat flow continues; new suggestions replace the old ones after the assistant's next turn.
-- [ ] Refresh the page → the suggestions frame is empty on load (Phase 4 doesn't persist suggestions — Step 6/7 could, if we wanted).
-- [ ] Two tabs on the same project: clicking in tab A prefills only tab A's input (local interaction); the frame replacement on the next LLM turn updates both tabs (broadcast).
+- [x] Trigger a `StartGeneration` flow end-to-end. After the final assistant summary message, observe a row of 3–5 clickable cards below the chat.
+- [x] Click one — the message form's input is prefilled with that text; focus lands in the input.
+- [x] Submit the prefilled message → normal chat flow continues; new suggestions replace the old ones after the assistant's next turn.
+- [x] Refresh the page → the suggestions frame is empty on load (Phase 4 doesn't persist suggestions — Step 6/7 could, if we wanted).
+- [x] Two tabs on the same project: clicking in tab A prefills only tab A's input (local interaction); the frame replacement on the next LLM turn updates both tabs (broadcast).
 
 **Implementation Note**: After Phase 4 manual verification, Step 4 is closed. Proceed to Step 5.
 
