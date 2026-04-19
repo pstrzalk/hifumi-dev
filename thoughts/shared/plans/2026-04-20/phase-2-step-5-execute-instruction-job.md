@@ -467,7 +467,7 @@ The initializer loads on Rails boot, so this test exercises the real subscriber.
 
 #### Manual Verification:
 - [x] `bin/rails runner 'ActiveSupport::Notifications.instrument("instruction.requested", instruction_id: 99999)'` — no raise; verified via `SolidQueue::Job` row (class_name=ExecuteInstructionJob, queue_name=generation, args=[99999]); orphan row cleaned up.
-- [ ] `bin/dev` starts without error (Procfile.dev's `worker: bin/jobs` picks up both pools from `config/queue.yml`).
+- [x] `bin/dev` starts without error (Procfile.dev's `worker: bin/jobs` picks up both pools from `config/queue.yml`).
 
 **Implementation note**: Pause here for manual confirmation that `bin/dev` starts clean and an instrumented event shows up as a queued job before moving to Phase 4.
 
@@ -510,12 +510,12 @@ Permissions: `chmod +x bin/execute-instruction`.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `test -x bin/execute-instruction` (file exists and executable).
-- [ ] `bin/execute-instruction` without args exits non-zero with the usage message.
-- [ ] `bin/execute-instruction nan` exits non-zero (Integer() raises).
+- [x] `test -x bin/execute-instruction` (file exists and executable).
+- [x] `bin/execute-instruction` without args exits non-zero with the usage message.
+- [x] `bin/execute-instruction nan` exits non-zero (Integer() raises).
 
 #### Manual Verification:
-- [ ] `bin/execute-instruction 999999` (non-existent ID) exits with `ActiveRecord::RecordNotFound` — proves the env boots.
+- [x] `bin/execute-instruction 999999` (non-existent ID) exits with `ActiveRecord::RecordNotFound` — proves the env boots.
 
 ---
 

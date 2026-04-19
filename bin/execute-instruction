@@ -1,0 +1,13 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+#
+# Runs ExecuteInstructionJob synchronously in the current process.
+# Useful for debugging without starting a Solid Queue worker.
+#
+# Usage:
+#   bin/execute-instruction <instruction_id>
+
+require_relative "../config/environment"
+
+id = Integer(ARGV[0] || abort("Usage: bin/execute-instruction <instruction_id>"))
+ExecuteInstructionJob.perform_now(id)
