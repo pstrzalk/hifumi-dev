@@ -7,21 +7,21 @@
 # Aligned with ../../docs/02-architecture/01-workflows-and-decisions.md (W2.1–W2.8 + W2.R remediation + W2.F failure path).
 #
 # Run:
-#   REVISION_WORKSPACE=/path/to/app bundle exec roast revision_workflow.rb -- \
+#   RAILS_APP_GENERATOR_WORKSPACE=/path/to/app bundle exec roast revision_workflow.rb -- \
 #     revision_id=1 \
 #     revision_summary="Add Todo model" \
 #     revision_prompt="Create Todo model with title, body, done. Migration + tests."
 #
 # Model override via ENV:
-#   CLAUDE_MODEL=haiku REVISION_WORKSPACE=... bundle exec roast revision_workflow.rb -- ...
+#   RAILS_APP_GENERATOR_MODEL=haiku RAILS_APP_GENERATOR_WORKSPACE=... bundle exec roast revision_workflow.rb -- ...
 
 require "shellwords"
 require_relative "verify_revision"
 
-WORKSPACE = ENV.fetch("REVISION_WORKSPACE") do
-  abort("REVISION_WORKSPACE env var is required (path to Rails workspace).")
+WORKSPACE = ENV.fetch("RAILS_APP_GENERATOR_WORKSPACE") do
+  abort("RAILS_APP_GENERATOR_WORKSPACE env var is required (path to Rails workspace).")
 end
-CLAUDE_MODEL = ENV.fetch("CLAUDE_MODEL", "sonnet")
+CLAUDE_MODEL = ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet")
 
 # Shared state between workflow steps (Roast DSL blocks do not share `metadata`
 # or instance variables). Used to pass verify errors from W2.4 verify
