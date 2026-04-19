@@ -1,18 +1,16 @@
 require "test_helper"
 
 class CreatePlan::AdHocLLMTest < ActiveSupport::TestCase
-  # Stubs invoke_llm so the test can drive the tool directly with fixture args,
-  # mimicking what RubyLLM does when the real LLM invokes emit_plan.
-  def with_tool_invocation(tool_args)
+  # Stubs invoke_llm so the test drives build_result with fixture content directly,
+  # mimicking what RubyLLM returns from chat.with_schema(...).ask(...).content.
+  def with_llm_response(content)
     captured = {}
     original = CreatePlan::AdHocLLM.method(:invoke_llm)
 
     CreatePlan::AdHocLLM.define_singleton_method(:invoke_llm) do |system:, user:|
       captured[:system] = system
       captured[:user] = user
-      tool = CreatePlan::AdHocLLM::EmitPlan.new
-      tool.call(tool_args) unless tool_args.nil?
-      tool
+      content
     end
 
     yield captured
@@ -20,12 +18,12 @@ class CreatePlan::AdHocLLMTest < ActiveSupport::TestCase
     CreatePlan::AdHocLLM.define_singleton_method(:invoke_llm, original) if original
   end
 
-  def plan_fixture_args(name)
+  def plan_fixture(name)
     JSON.parse(file_fixture("create_plan/#{name}").read)
   end
 
-  test "happy path: returns Result built from tool call args" do
-    with_tool_invocation(plan_fixture_args("valid_plan.json")) do
+  test "happy path: returns Result built from schema response" do
+    with_llm_response(plan_fixture("valid_plan.json")) do
       result = CreatePlan::AdHocLLM.call(intent: "todo list", clarifications: {}, context: {})
       assert_instance_of CreatePlan::Result, result
       assert_equal "Simple todo list with Tailwind", result.instruction_description
@@ -36,7 +34,7 @@ class CreatePlan::AdHocLLMTest < ActiveSupport::TestCase
   end
 
   test "passes system prompt and user prompt with intent to the LLM" do
-    with_tool_invocation(plan_fixture_args("valid_plan.json")) do |captured|
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
       CreatePlan::AdHocLLM.call(intent: "todo list", clarifications: {}, context: {})
       assert_equal CreatePlan::AdHocLLM::SYSTEM_PROMPT, captured[:system]
       assert_includes captured[:user], "Intent: todo list"
@@ -45,7 +43,7 @@ class CreatePlan::AdHocLLMTest < ActiveSupport::TestCase
   end
 
   test "includes clarifications in the user prompt when present" do
-    with_tool_invocation(plan_fixture_args("valid_plan.json")) do |captured|
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
       CreatePlan::AdHocLLM.call(
         intent: "flower shop",
         clarifications: { "auth?" => "yes, Devise", "payments?" => "Stripe" },
@@ -57,8 +55,8 @@ class CreatePlan::AdHocLLMTest < ActiveSupport::TestCase
     end
   end
 
-  test "raises InvalidResponse when LLM never calls emit_plan" do
-    with_tool_invocation(nil) do
+  test "raises InvalidResponse when LLM returns no content" do
+    with_llm_response(nil) do
       assert_raises(CreatePlan::AdHocLLM::InvalidResponse) do
         CreatePlan::AdHocLLM.call(intent: "x", clarifications: {}, context: {})
       end
@@ -66,7 +64,7 @@ class CreatePlan::AdHocLLMTest < ActiveSupport::TestCase
   end
 
   test "raises InvalidResponse when revisions array is empty" do
-    with_tool_invocation(plan_fixture_args("empty_revisions.json")) do
+    with_llm_response(plan_fixture("empty_revisions.json")) do
       assert_raises(CreatePlan::AdHocLLM::InvalidResponse) do
         CreatePlan::AdHocLLM.call(intent: "x", clarifications: {}, context: {})
       end
@@ -74,7 +72,7 @@ class CreatePlan::AdHocLLMTest < ActiveSupport::TestCase
   end
 
   test "raises InvalidResponse when instruction_description key missing" do
-    with_tool_invocation(plan_fixture_args("missing_description.json")) do
+    with_llm_response(plan_fixture("missing_description.json")) do
       assert_raises(CreatePlan::AdHocLLM::InvalidResponse) do
         CreatePlan::AdHocLLM.call(intent: "x", clarifications: {}, context: {})
       end
@@ -82,7 +80,7 @@ class CreatePlan::AdHocLLMTest < ActiveSupport::TestCase
   end
 
   test "raises InvalidResponse when revision is missing summary" do
-    with_tool_invocation(plan_fixture_args("missing_summary.json")) do
+    with_llm_response(plan_fixture("missing_summary.json")) do
       assert_raises(CreatePlan::AdHocLLM::InvalidResponse) do
         CreatePlan::AdHocLLM.call(intent: "x", clarifications: {}, context: {})
       end
@@ -90,7 +88,7 @@ class CreatePlan::AdHocLLMTest < ActiveSupport::TestCase
   end
 
   test "raises InvalidResponse when revision is missing prompt" do
-    with_tool_invocation(plan_fixture_args("missing_prompt.json")) do
+    with_llm_response(plan_fixture("missing_prompt.json")) do
       assert_raises(CreatePlan::AdHocLLM::InvalidResponse) do
         CreatePlan::AdHocLLM.call(intent: "x", clarifications: {}, context: {})
       end
