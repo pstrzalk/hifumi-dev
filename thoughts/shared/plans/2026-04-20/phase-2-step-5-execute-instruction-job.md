@@ -573,10 +573,10 @@ Expect no security fix available in `~> 1.1`. If there is, either upgrade (separ
 ### Success Criteria (DoD)
 
 #### Automated Verification:
-- [ ] `cd ~/projects/rails-app-generator-workspaces/project_<project_id> && git log --oneline | wc -l` ≥ 2 (scaffolding baseline + revision commit).
-- [ ] `bin/rails runner "r = Revision.find(<revision_id>); raise unless r.completed? && r.git_sha.present? && r.metrics['exit_code'] == 0"` — no raise.
-- [ ] `bin/rails runner "raise unless Instruction.find(<instruction_id>).completed?"` — no raise.
-- [ ] Workspace's own test suite green: `cd ~/projects/rails-app-generator-workspaces/project_<id> && bin/rails test` (subset of W2.4 verify already ran inside the workflow; repeating outside confirms the app is healthy).
+- [x] `cd ~/projects/rails-app-generator-workspaces/project_<project_id> && git log --oneline | wc -l` ≥ 2 (scaffolding baseline + revision commit). Verified: 3 commits (scaffolding baseline + Add Welcome controller + docs update).
+- [x] `bin/rails runner "r = Revision.find(<revision_id>); raise unless r.completed? && r.git_sha.present? && r.metrics['exit_code'] == 0"` — no raise. Verified: Revision 67 completed, git_sha=02bee31..., exit_code=0, wall_seconds=110.79.
+- [x] `bin/rails runner "raise unless Instruction.find(<instruction_id>).completed?"` — no raise. Verified: Instruction 13 phase=completed.
+- [x] Workspace's own test suite green: `cd ~/projects/rails-app-generator-workspaces/project_<id> && bin/rails test`. Verified: 0 runs (no unit tests generated); the one system test Claude generated ran green inside W2.4's verify step. **Observation**: Claude generated a Selenium/headless Chrome system test; macOS Gatekeeper blocked chromedriver on first launch and required manual approval. Won't work on remote/headless hosts — see memory `project_verify_no_system_tests.md`, revisit in Phase 3.
 
 #### Manual Verification:
 - [ ] `cd ~/projects/rails-app-generator-workspaces/project_<id> && bin/rails server` — root URL renders the Tailwind-styled landing page.
