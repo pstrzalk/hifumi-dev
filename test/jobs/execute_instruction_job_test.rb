@@ -16,7 +16,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   end
 
   teardown do
-    FileUtils.rm_rf(Rails.root.join(@project.workspace_path)) if @project
+    FileUtils.rm_rf(@project.workspace_path) if @project
   end
 
   # --- happy path --------------------------------------------------------
@@ -89,9 +89,9 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   # --- idempotent setup --------------------------------------------------
 
   test "skips prepare_workspace + rails_new + init_docs_baseline when workspace already initialized" do
-    ws = Rails.root.join(@project.workspace_path)
-    FileUtils.mkdir_p(ws.join("docs"))
-    File.write(ws.join("Gemfile"), "")
+    ws = @project.workspace_path
+    FileUtils.mkdir_p(File.join(ws, "docs"))
+    File.write(File.join(ws, "Gemfile"), "")
 
     spy_snapshot = nil
     with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
@@ -113,7 +113,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
       first_call = spy[:subprocess_calls].first
     end
 
-    expected_ws = Rails.root.join(@project.workspace_path).to_s
+    expected_ws = @project.workspace_path
     assert_equal expected_ws, first_call[:env]["RAILS_APP_GENERATOR_WORKSPACE"]
     assert_equal ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet"),
                  first_call[:env]["RAILS_APP_GENERATOR_MODEL"]

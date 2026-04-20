@@ -41,7 +41,7 @@ After Step 5:
 ### Verification
 
 - `bin/rails test` green.
-- `bin/execute-instruction <id>` on a hand-crafted `Instruction` with one real revision produces a Rails app in `storage/workspaces/project_<id>/` with 2 commits (`docs: scaffolding baseline` + revision summary), `Revision.reload.completed?` true, `git_sha` populated, `metrics[:wall_seconds] > 0`, `metrics[:exit_code] == 0`.
+- `bin/execute-instruction <id>` on a hand-crafted `Instruction` with one real revision produces a Rails app in `<Project.workspace_root>/project_<id>/` (default `~/projects/rails-app-generator-workspaces/project_<id>/`) with 2 commits (`docs: scaffolding baseline` + revision summary), `Revision.reload.completed?` true, `git_sha` populated, `metrics[:wall_seconds] > 0`, `metrics[:exit_code] == 0`.
 
 ### Key Discoveries
 
@@ -538,7 +538,7 @@ Expect no security fix available in `~> 1.1`. If there is, either upgrade (separ
 
 ### Manual DoD run
 
-1. Ensure prior workspace is clean: `rm -rf storage/workspaces/project_*` (dev-only affordance).
+1. Ensure prior workspace is clean: `rm -rf ~/projects/rails-app-generator-workspaces/project_*` (dev-only affordance).
 2. Create the instruction and revision via Rails console:
    ```
    bin/rails console
@@ -573,13 +573,13 @@ Expect no security fix available in `~> 1.1`. If there is, either upgrade (separ
 ### Success Criteria (DoD)
 
 #### Automated Verification:
-- [ ] `cd storage/workspaces/project_<project_id> && git log --oneline | wc -l` ≥ 2 (scaffolding baseline + revision commit).
+- [ ] `cd ~/projects/rails-app-generator-workspaces/project_<project_id> && git log --oneline | wc -l` ≥ 2 (scaffolding baseline + revision commit).
 - [ ] `bin/rails runner "r = Revision.find(<revision_id>); raise unless r.completed? && r.git_sha.present? && r.metrics['exit_code'] == 0"` — no raise.
 - [ ] `bin/rails runner "raise unless Instruction.find(<instruction_id>).completed?"` — no raise.
-- [ ] Workspace's own test suite green: `cd storage/workspaces/project_<id> && bin/rails test` (subset of W2.4 verify already ran inside the workflow; repeating outside confirms the app is healthy).
+- [ ] Workspace's own test suite green: `cd ~/projects/rails-app-generator-workspaces/project_<id> && bin/rails test` (subset of W2.4 verify already ran inside the workflow; repeating outside confirms the app is healthy).
 
 #### Manual Verification:
-- [ ] `cd storage/workspaces/project_<id> && bin/rails server` — root URL renders the Tailwind-styled landing page.
+- [ ] `cd ~/projects/rails-app-generator-workspaces/project_<id> && bin/rails server` — root URL renders the Tailwind-styled landing page.
 - [ ] No leftover processes (`ps aux | grep roast` — should be empty after the CLI returns).
 
 ---
@@ -615,7 +615,20 @@ Real rails_new, real bin/roast, real Claude CLI. Single revision to keep wall ti
 
 ## Migration Notes
 
-No DB migrations. Existing projects (if any) remain untouched; `workspace_path` format changes from `storage/workspaces/<id>` to `storage/workspaces/project_<id>` at the method level only — no data to update. Any pre-existing workspace directories under the old path become orphans; clean up manually (`rm -rf storage/workspaces/<id>` for each non-prefixed name).
+No DB migrations. `workspace_path` is derived at runtime, not stored.
+
+Format evolved across this step:
+- Pre-Step 5: `storage/workspaces/<id>` (repo-relative).
+- Step 5 commit 2/5: `storage/workspaces/project_<id>` (still repo-relative; added `project_` prefix so `rails new` accepts the app name).
+- Step 5 commit 5/5 (this fix): `<workspace_root>/project_<id>` where `workspace_root` defaults to `~/projects/rails-app-generator-workspaces/` and is overridable via `RAILS_APP_GENERATOR_WORKSPACE_ROOT`. Moving out of the repo tree avoids `rails new`'s inside_application? walk-up check (which fires whenever cwd sits under our own `config/application.rb`). See the "Lessons from Phase 5 DoD" section below.
+
+Any pre-existing `storage/workspaces/*` directories from earlier dev runs become orphans; clean up manually. Tests scope the root per parallel worker via `parallelize_setup` in `test/test_helper.rb` (writes into `tmp/test_workspaces/worker_<n>/`, auto-cleaned by `parallelize_teardown`).
+
+## Lessons from Phase 5 DoD
+
+1. **`rails new` inside_application? walk-up.** Our original design placed workspaces under `storage/workspaces/`. When `ExecuteInstructionJob#rails_new` shelled out, Rails walked up from the subprocess cwd, found the generator's own `config/application.rb`, and aborted with "Can't initialize a new Rails application within the directory of another." **Fix**: move workspaces to `~/projects/rails-app-generator-workspaces/` (sibling of the generator repo).
+2. **Frum shim vs. cwd outside repo.** With cwd outside the repo, there's no `.ruby-version` up the chain for the frum shim to resolve. **Fix**: `ExecuteInstructionJob#subprocess_env` prepends the pinned Ruby's bin dir to the subprocess PATH — same trick `bin/roast` uses. Applied only to `rails_new` (the Roast subprocess already goes through `bin/roast`, which has its own PATH pin).
+3. **Parallel-filesystem race in tests.** Rails parallel tests isolate DBs per worker but share the filesystem. Multiple workers creating project ID collisions → same `storage/workspaces/project_<id>/` path → teardown races. **Fix**: `parallelize_setup` sets `RAILS_APP_GENERATOR_WORKSPACE_ROOT` to `tmp/test_workspaces/worker_<n>/` per worker. Confirmed stable over 5+ suite runs.
 
 ## ENV hygiene summary
 

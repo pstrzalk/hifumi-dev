@@ -11,9 +11,9 @@ class ProjectTest < ActiveSupport::TestCase
     assert_includes project.errors[:name], "can't be blank"
   end
 
-  test "workspace_path is derived from id with project_ prefix" do
+  test "workspace_path is under workspace_root with project_ prefix" do
     project = projects(:flowers)
-    assert_equal "storage/workspaces/project_#{project.id}", project.workspace_path
+    assert_equal File.join(Project.workspace_root, "project_#{project.id}"), project.workspace_path
   end
 
   test "workspace_initialized? returns false when no Gemfile in workspace" do
@@ -23,12 +23,20 @@ class ProjectTest < ActiveSupport::TestCase
 
   test "workspace_initialized? returns true when Gemfile exists in workspace" do
     project = Project.create!(name: "Initialized")
-    ws = Rails.root.join(project.workspace_path)
+    ws = project.workspace_path
     FileUtils.mkdir_p(ws)
-    File.write(ws.join("Gemfile"), "source 'https://rubygems.org'\n")
+    File.write(File.join(ws, "Gemfile"), "source 'https://rubygems.org'\n")
     assert project.workspace_initialized?
   ensure
     FileUtils.rm_rf(ws) if ws
+  end
+
+  test "workspace_root honors RAILS_APP_GENERATOR_WORKSPACE_ROOT env var" do
+    original = ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"]
+    ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] = "/tmp/custom_ws_root"
+    assert_equal "/tmp/custom_ws_root", Project.workspace_root
+  ensure
+    ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] = original
   end
 
   test "has one chat and many instructions/revisions" do

@@ -36,7 +36,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     post projects_path, params: { project: { description: long_description } }
     project = Project.order(:id).last
     assert_equal long_description.truncate(60), project.name
-    assert_equal "storage/workspaces/project_#{project.id}", project.workspace_path
+    assert_equal File.join(Project.workspace_root, "project_#{project.id}"), project.workspace_path
   end
 
   test "POST /projects twice produces distinct workspace_path values" do

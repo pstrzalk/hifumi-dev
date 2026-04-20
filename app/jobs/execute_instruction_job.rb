@@ -6,7 +6,7 @@ class ExecuteInstructionJob < ApplicationJob
   def perform(instruction_id)
     instruction = Instruction.find(instruction_id)
     project = instruction.project
-    workspace = Rails.root.join(project.workspace_path).to_s
+    workspace = project.workspace_path
 
     prepare_workspace(workspace) unless project.workspace_initialized?
     rails_new(workspace) unless File.exist?(File.join(workspace, "Gemfile"))
@@ -37,12 +37,23 @@ class ExecuteInstructionJob < ApplicationJob
 
     Bundler.with_unbundled_env do
       ok = system(
+        subprocess_env,
         "cd #{Shellwords.escape(parent)} && " \
         "rails new #{Shellwords.escape(app_name)} " \
         "--css tailwind --database sqlite3 --skip-jbuilder --skip-kamal --skip-ci"
       )
       raise "rails new failed in #{parent} for #{app_name}" unless ok
     end
+  end
+
+  # Cwd for rails new / git / bundle is outside this repo (Project.workspace_root),
+  # so the frum shim can't resolve Ruby from .ruby-version there. Prepend the
+  # pinned Ruby's bin dir to PATH the same way bin/roast does.
+  def subprocess_env
+    ruby_version = File.read(Rails.root.join(".ruby-version")).strip
+    frum_bin = File.join(Dir.home, ".frum", "versions", ruby_version, "bin")
+    return {} unless File.directory?(frum_bin)
+    { "PATH" => "#{frum_bin}:#{ENV.fetch('PATH', '')}" }
   end
 
   def init_docs_baseline(workspace)
