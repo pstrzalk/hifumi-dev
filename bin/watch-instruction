@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+#
+# Polls an Instruction + its Revisions and prints a compact live status
+# until the instruction reaches a terminal phase (completed / failed).
+# Useful until Step 6 wires the Turbo-Streams progress UI.
+#
+# Usage:
+#   bin/watch-instruction            # defaults to Instruction.last
+#   bin/watch-instruction <id>
+
+require_relative "../config/environment"
+
+id = Integer(ARGV[0] || Instruction.last&.id || abort("no instructions"))
+
+ICONS = { "pending" => "⏸", "generating" => "⏳", "completed" => "✅", "failed" => "❌" }.freeze
+
+loop do
+  i = Instruction.find(id)
+  system("clear")
+  puts "##{i.id} #{i.phase} — #{i.user_intent.to_s[0, 60]}"
+  i.revisions.order(:position).each do |r|
+    t = r.started_at ? "#{((r.finished_at || Time.current) - r.started_at).to_i}s" : "—"
+    puts "  #{ICONS[r.status]} #{r.position} #{r.status.ljust(10)} #{t.rjust(5)}  #{r.summary}"
+  end
+  break if %w[completed failed].include?(i.reload.phase)
+  sleep 2
+end
