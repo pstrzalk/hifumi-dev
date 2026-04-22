@@ -1,0 +1,16 @@
+<div id="<%= dom_id(revision) %>" class="flex items-center gap-3 py-2">
+  <% case revision.status %>
+  <% when "pending" %>
+    <span class="text-xs px-2 py-0.5 rounded bg-gray-200 text-gray-700">⏸ pending</span>
+  <% when "generating" %>
+    <span class="text-xs px-2 py-0.5 rounded bg-blue-200 text-blue-800">⏳ generating</span>
+  <% when "completed" %>
+    <span class="text-xs px-2 py-0.5 rounded bg-green-200 text-green-800">✅ completed</span>
+  <% when "failed" %>
+    <span class="text-xs px-2 py-0.5 rounded bg-red-200 text-red-800">❌ failed</span>
+  <% end %>
+  <span class="text-sm"><%= revision.summary %></span>
+  <% if revision.completed? && revision.git_sha.present? %>
+    <span class="text-xs font-mono text-gray-500 ml-auto"><%= revision.git_sha.first(7) %></span>
+  <% end %>
+</div>

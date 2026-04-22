@@ -23,9 +23,17 @@ class ProjectsController < ApplicationController
   def show
     @project = Project.find(params[:id])
     @messages = @project.chat.messages.order(:created_at)
+    @active_revisions = active_revisions_for(@project)
   end
 
   private
+
+  def active_revisions_for(project)
+    instruction = project.instructions
+      .where.not(phase: %w[completed failed cancelled])
+      .order(:created_at).last
+    instruction&.revisions&.order(:position) || []
+  end
 
   def project_params
     params.require(:project).permit(:description)
