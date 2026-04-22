@@ -18,7 +18,7 @@ class ChatRespondJob < ApplicationJob
       broadcast_replace(project, assistant)
     end
   rescue StandardError => e
-    # TODO(Step 6): typed error event + proper UX
+    # TODO(later): typed error event + proper UX
     Rails.logger.error(e.full_message)
     target = latest_streaming_assistant(chat) || chat.messages.create!(role: :assistant, content: "")
     target.update!(content: "Error: #{e.message}")

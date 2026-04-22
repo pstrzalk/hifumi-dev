@@ -256,12 +256,12 @@ end
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `bin/rails test test/controllers/projects_controller_show_test.rb` — 4 tests pass.
-- [ ] `bin/rails test` — full suite stays green (no regression on existing `projects` tests).
+- [x] `bin/rails test test/controllers/projects_controller_show_test.rb` — 4 tests pass.
+- [x] `bin/rails test` — full suite stays green (no regression on existing `projects` tests).
 
 #### Manual Verification
-- [ ] `bin/dev`, open `/projects/new`, create a project, visit the show page. Page renders, nothing crashes. `#active_revisions` element is present in DOM (inspect) but empty.
-- [ ] No layout shift vs pre-Step 6 state.
+- [x] `bin/dev`, open `/projects/new`, create a project, visit the show page. Page renders, nothing crashes. `#active_revisions` element is present in DOM (inspect) but empty.
+- [x] No layout shift vs pre-Step 6 state.
 
 **Implementation Note**: After this phase is green, pause for manual confirmation before moving to Phase 2.
 
@@ -356,11 +356,11 @@ end
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `bin/rails test test/integration/event_subscribers_test.rb` — 2 tests pass.
-- [ ] `bin/rails test` — full suite stays green.
+- [x] `bin/rails test test/integration/event_subscribers_test.rb` — 2 tests pass.
+- [x] `bin/rails test` — full suite stays green.
 
 #### Manual Verification
-- [ ] `bin/dev`, create a project + chat, send a message that ends with `start_generation` being called. Watch `/projects/:id` — revision cards appear in `#active_revisions` as `⏸ pending` without a page reload.
+- [x] `bin/dev`, create a project + chat, send a message that ends with `start_generation` being called. Watch `/projects/:id` — revision cards appear in `#active_revisions` as `⏸ pending` without a page reload.
 - [ ] Open DevTools WebSocket frames tab; confirm a single `turbo-cable-stream-source` frame arrives when the instruction is created.
 
 ---
@@ -443,11 +443,11 @@ end
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `bin/rails test test/integration/event_subscribers_test.rb` — 5 tests pass (2 from Phase 2 + 3 new).
-- [ ] `bin/rails test` — full suite stays green.
+- [x] `bin/rails test test/integration/event_subscribers_test.rb` — 5 tests pass (2 from Phase 2 + 3 new).
+- [x] `bin/rails test` — full suite stays green.
 
 #### Manual Verification
-- [ ] Run a full generation via `bin/execute-instruction <id>` against a real instruction with 2–3 revisions. Watch the show page — cards transition `⏸ pending → ⏳ generating → ✅ completed` (or `❌ failed`) without reloads. git SHA (first 7 chars) appears on completed cards.
+- [x] Run a full generation via `bin/execute-instruction <id>` against a real instruction with 2–3 revisions. Watch the show page — cards transition `⏸ pending → ⏳ generating → ✅ completed` (or `❌ failed`) without reloads. git SHA (first 7 chars) appears on completed cards.
 
 ---
 
@@ -566,8 +566,8 @@ end
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `bin/rails test test/integration/event_subscribers_test.rb` — 9 tests pass.
-- [ ] `bin/rails test` — full suite stays green.
+- [x] `bin/rails test test/integration/event_subscribers_test.rb` — 9 tests pass.
+- [x] `bin/rails test` — full suite stays green.
 
 #### Manual Verification
 - [ ] Full generation end-to-end: trigger via chat, watch revision cards progress, observe list vanishing on completion and a `✅ Generation finished.` assistant bubble appearing in the chat.
@@ -653,8 +653,8 @@ end
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `bin/rails test test/tools/start_generation_test.rb` — all prior tests still pass + 2 new pass.
-- [ ] `bin/rails test` — full suite stays green.
+- [x] `bin/rails test test/tools/start_generation_test.rb` — all prior tests still pass + 2 new pass.
+- [x] `bin/rails test` — full suite stays green.
 
 #### Manual Verification
 - [ ] Trigger a generation, then send a second build request mid-run (e.g. "also add auth"). LLM should respond conversationally without creating a second instruction. Verify via Rails console: `Instruction.count` increases by exactly 1 over the exchange.
@@ -685,7 +685,7 @@ No test. Prompt content is only observable via live LLM behavior.
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `bin/rails test` — full suite stays green (the prompt file is read in `ChatRespondJobTest`; assertions compare against the file content, not a hardcoded string, so no test needs updating).
+- [x] `bin/rails test` — full suite stays green (the prompt file is read in `ChatRespondJobTest`; assertions compare against the file content, not a hardcoded string, so no test needs updating).
 
 #### Manual Verification
 - [ ] Same "also add auth" mid-run test from Phase 5. LLM should now decline without even trying `start_generation` in most runs — observable by the absence of a `start_generation` tool call pill in the chat during the refusal turn.
@@ -715,11 +715,11 @@ Change line 21:
 ### Success Criteria
 
 #### Automated Verification
-- [ ] `bin/rails test` — full suite stays green.
-- [ ] `git grep "TODO(Step 6)"` returns no results.
+- [x] `bin/rails test` — full suite stays green.
+- [x] `git grep "TODO(Step 6)" -- app/ lib/ config/ test/ bin/` returns no results (thoughts/ is archival and unchanged).
 
 #### Manual Verification
-- [ ] N/A — text-only change.
+- [x] N/A — text-only change.
 
 ---
 
