@@ -17,6 +17,12 @@ class StartGeneration < RubyLLM::Tool
   end
 
   def execute(intent:, clarifications: {})
+    if @project.instructions.where.not(phase: %w[completed failed cancelled]).exists?
+      return {
+        error: "A generation is already in progress. Tell the user you'll start their next change once the current build finishes."
+      }
+    end
+
     result = CreatePlan.call(
       intent: intent,
       clarifications: clarifications,

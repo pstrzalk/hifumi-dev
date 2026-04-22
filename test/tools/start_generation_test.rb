@@ -120,4 +120,42 @@ class StartGenerationTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "refuses and persists nothing when an implementing instruction already exists" do
+    @project.instructions.create!(
+      user_intent: "earlier", description: "earlier",
+      phase: :implementing, anchor_message: @user_message
+    )
+
+    payloads = []
+    subscriber = ActiveSupport::Notifications.subscribe("instruction.requested") { |*, p| payloads << p }
+
+    result = nil
+    assert_no_difference -> { Instruction.count } do
+      assert_no_difference -> { Revision.count } do
+        stub_create_plan(@plan) do
+          result = @tool.execute(intent: "second build", clarifications: {})
+        end
+      end
+    end
+
+    assert result[:error].present?, "expected refusal to include an :error key"
+    assert_match(/already in progress/, result[:error])
+    assert_equal 0, payloads.size, "expected no instruction.requested notification"
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
+  test "does not refuse when all prior instructions are terminal" do
+    @project.instructions.create!(
+      user_intent: "earlier", description: "earlier",
+      phase: :completed, anchor_message: @user_message
+    )
+
+    stub_create_plan(@plan) do
+      result = @tool.execute(intent: "second build", clarifications: {})
+      assert result[:instruction_id].present?
+      refute result.key?(:error)
+    end
+  end
 end
