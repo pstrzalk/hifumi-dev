@@ -2,11 +2,13 @@
 
 Ruby on Rails application generator — equivalent of Lovable/bolt.new for the Rails ecosystem. Output: clean Rails repo, zero vendor lock-in.
 
-## Status (2026-04-18)
+## Status (2026-04-22)
 
 - **Phase 1** (Roast 1.1 + Claude CLI spike): **closed**. Pipeline driver → Roast → Claude CLI → verify → remediation validated end-to-end. Code in `spikes/roast/`, results in `spikes/roast/findings.md`.
-- **Phase 2** (PoC of the main generator app: RubyLLM + Solid Queue + Roast per Instruction): Steps 1-2 shipped (Rails 8 skeleton + Roast wiring in `61667ee`; domain model + fixtures + tests + RubyLLM smoke in `b8c7ade`). RubyLLM pinned to `anthropic/claude-haiku-4.5` via OpenRouter. Next: Step 3 (chat baseline without tools) in `docs/03-plans/01-phase-2-poc-generator-app.md`.
+- **Phase 2** (PoC of the main generator app: RubyLLM + Solid Queue + Roast per Instruction): Steps 1-6 shipped. Step 6 added live revision UI (Turbo Streams), terminal chat status line, `StartGeneration` concurrency guard, and runtime project state injected into `GeneratorAgent`'s system prompt each turn (`Project#current_state_prompt` + block-based instructions). RubyLLM pinned to `anthropic/claude-haiku-4.5` via OpenRouter. Next: Step 7 (E2E integration test + `bin/generate` CLI mirror) in `docs/03-plans/01-phase-2-poc-generator-app.md`.
 - **Phase 3** (preview isolation via Kamal + Docker): **analysis ready** in `docs/03-plans/02-phase-3-preview-isolation.md`. Out of scope for Phase 2.
+
+Deferred observations from Step 6 (revisit later, not blockers): refused-tool-call pill UX (the `🌀 Starting generation…` flash when the LLM ignores the state rule and Phase 5's tool guard rescues); deferred-request handling after `✅ Generation finished.` — see `docs/09-ideas/02-deferred-request-handling.md`.
 
 ## Documentation structure
 
