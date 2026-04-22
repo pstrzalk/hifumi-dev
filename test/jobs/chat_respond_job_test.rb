@@ -4,7 +4,7 @@ require "ostruct"
 class ChatRespondJobTest < ActiveJob::TestCase
   include ActionCable::TestHelper
 
-  AGENT_INSTRUCTIONS = Rails.root.join("app/prompts/generator_agent/instructions.txt.erb").read.freeze
+  AGENT_INSTRUCTIONS_TEMPLATE = Rails.root.join("app/prompts/generator_agent/instructions.txt.erb").read.freeze
 
   setup do
     @project = Project.create!(name: "Test Project")
@@ -85,7 +85,37 @@ class ChatRespondJobTest < ActiveJob::TestCase
 
     assert_equal 1, captured.size
     args, _kwargs = captured.first
-    assert_equal AGENT_INSTRUCTIONS, args.first
+    rendered = args.first
+    # Rendered instructions = static prompt body + interpolated project state.
+    assert_includes rendered, "describe a Rails web application"
+    assert_includes rendered, "Current project state:"
+    assert_includes rendered, "No generation is currently running"
+  end
+
+  test "injects a RUNNING state line when the project has a non-terminal instruction" do
+    instruction = @project.instructions.create!(
+      user_intent: "x", description: "x",
+      phase: :implementing, anchor_message: @user_message
+    )
+    2.times do |i|
+      instruction.revisions.create!(
+        project: @project, position: i, status: (i.zero? ? :completed : :pending),
+        summary: "rev #{i}", prompt: "p"
+      )
+    end
+
+    captured = []
+    spy_with_instructions(captured) do
+      stub_complete(chunks: [ "ok" ]) do
+        perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+      end
+    end
+
+    rendered = captured.first.first.first
+    assert_includes rendered, "CURRENTLY RUNNING"
+    assert_includes rendered, "instruction ##{instruction.id}"
+    assert_includes rendered, "1/2 revisions complete"
+    assert_includes rendered, "Do NOT call `start_generation` now"
   end
 
   test "registers a StartGeneration tool bound to the project before completing" do

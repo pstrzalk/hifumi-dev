@@ -3,9 +3,9 @@ class ChatRespondJob < ApplicationJob
 
   def perform(message_id)
     user_message = Message.find(message_id)
-    agent = GeneratorAgent.find(user_message.chat_id)
     chat = user_message.chat
     project = chat.project
+    agent = GeneratorAgent.find(user_message.chat_id)
 
     agent.complete do |chunk|
       delta = chunk.content.to_s
