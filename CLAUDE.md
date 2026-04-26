@@ -2,13 +2,16 @@
 
 Ruby on Rails application generator — equivalent of Lovable/bolt.new for the Rails ecosystem. Output: clean Rails repo, zero vendor lock-in.
 
-## Status (2026-04-22)
+## Status (2026-04-26)
 
 - **Phase 1** (Roast 1.1 + Claude CLI spike): **closed**. Pipeline driver → Roast → Claude CLI → verify → remediation validated end-to-end. Code in `spikes/roast/`, results in `spikes/roast/findings.md`.
-- **Phase 2** (PoC of the main generator app: RubyLLM + Solid Queue + Roast per Instruction): Steps 1-6 shipped. Step 6 added live revision UI (Turbo Streams), terminal chat status line, `StartGeneration` concurrency guard, and runtime project state injected into `GeneratorAgent`'s system prompt each turn (`Project#current_state_prompt` + block-based instructions). RubyLLM pinned to `anthropic/claude-haiku-4.5` via OpenRouter. Next: Step 7 (E2E integration test + `bin/generate` CLI mirror) in `docs/03-plans/01-phase-2-poc-generator-app.md`.
-- **Phase 3** (preview isolation via Kamal + Docker): **analysis ready** in `docs/03-plans/02-phase-3-preview-isolation.md`. Out of scope for Phase 2.
+- **Phase 2** (PoC of the main generator app: RubyLLM + Solid Queue + Roast per Instruction): **closed**. Step 7 added the gated E2E integration test (`E2E_GENERATE=1 bin/rails test test/integration/generate_todo_list_test.rb` — full chain green: `POST /projects` → `ChatRespondJob` → `StartGeneration` → `ExecuteInstructionJob` with the real `bin/roast` subprocess and 3 deterministic revisions) and the `bin/generate` CLI mirror (`full` / `respond` / `execute`). UI demo green on project 38. RubyLLM pinned to `anthropic/claude-haiku-4.5` via OpenRouter.
+- **Phase 3** (preview isolation via Kamal + Docker): **analysis ready** in `docs/03-plans/02-phase-3-preview-isolation.md`. Candidate next.
 
-Deferred observations from Step 6 (revisit later, not blockers): refused-tool-call pill UX (the `🌀 Starting generation…` flash when the LLM ignores the state rule and Phase 5's tool guard rescues); deferred-request handling after `✅ Generation finished.` — see `docs/09-ideas/02-deferred-request-handling.md`.
+Deferred observations from Phase 2 (revisit later, not blockers):
+- refused-tool-call pill UX (Step 6) — the `🌀 Starting generation…` flash when the LLM ignores the state rule and Phase 5's tool guard rescues.
+- deferred-request handling after `✅ Generation finished.` — see `docs/09-ideas/02-deferred-request-handling.md`.
+- Step 7 wall-time margin (Step 7) — real run consumed ~900s vs the spike's 496s; the integration test's `WALL_TIME_BUDGET = 900` sits right at the edge. Bump the budget or investigate W2-phase slowdown (looks heavy on the docs-update agent) before relying on this in CI.
 
 ## Documentation structure
 
