@@ -126,6 +126,18 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal "revision_prompt=prompt 1",                          first_call[:args][5]
   end
 
+  # --- subprocess_env normalization -------------------------------------
+
+  test "subprocess_env strips the ruby- prefix from .ruby-version when computing frum_bin" do
+    raw = File.read(Rails.root.join(".ruby-version")).strip
+    expected_version = raw.delete_prefix("ruby-")
+    expected_bin = File.join(Dir.home, ".frum", "versions", expected_version, "bin")
+    skip "frum bin for #{expected_version} is not installed at #{expected_bin}" unless File.directory?(expected_bin)
+
+    env = ExecuteInstructionJob.new.send(:subprocess_env)
+    assert_equal "#{expected_bin}:#{ENV.fetch('PATH', '')}", env["PATH"]
+  end
+
   # --- notification payload shapes --------------------------------------
 
   test "revision.completed payload is {revision_id:, git_sha:}" do

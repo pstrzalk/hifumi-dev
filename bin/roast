@@ -18,7 +18,9 @@ cd "$(dirname "$0")/.."
 # Pin Ruby to 4.0.2 (see .ruby-version). When the wrapper is invoked as a subprocess
 # from a shell under a different Ruby (e.g. the default 3.2.6), the frum shim for bundle
 # resolves the wrong version and looks for gems in 3.2.0 instead of 4.0.0.
+# `.ruby-version` content carries the `ruby-` prefix; frum's directory layout omits it.
 RUBY_VERSION_PIN=$(cat .ruby-version)
+RUBY_VERSION_PIN="${RUBY_VERSION_PIN#ruby-}"
 FRUM_RUBY_BIN="$HOME/.frum/versions/$RUBY_VERSION_PIN/bin"
 if [ -d "$FRUM_RUBY_BIN" ]; then
   export PATH="$FRUM_RUBY_BIN:$PATH"
