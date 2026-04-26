@@ -1,0 +1,108 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+#
+# Debugging CLI mirroring the UI generation flow without a Solid Queue worker.
+#
+# Subcommands:
+#   bin/generate full --prompt "..." [--plan todo_list]
+#       Creates a project, forces StartGeneration with a stubbed plan
+#       (default: todo_list), and runs ExecuteInstructionJob synchronously.
+#       Burns Claude tokens for the W2 implementation phase only — the
+#       chat-LLM and CreatePlan layers are bypassed.
+#
+#   bin/generate respond --project-id N
+#       Runs ChatRespondJob.perform_now on the project's latest user
+#       message. Burns chat-LLM tokens.
+#
+#   bin/generate execute --instruction-id N
+#       Runs ExecuteInstructionJob.perform_now synchronously.
+
+require "optparse"
+require_relative "../config/environment"
+
+USAGE = <<~U
+  Usage:
+    bin/generate full --prompt "..." [--plan todo_list]
+    bin/generate respond --project-id N
+    bin/generate execute --instruction-id N
+U
+
+def usage!(msg = nil)
+  warn(msg) if msg
+  warn(USAGE)
+  exit 1
+end
+
+subcommand = ARGV.shift or usage!
+
+case subcommand
+when "full"
+  prompt = nil
+  plan_name = "todo_list"
+  OptionParser.new do |o|
+    o.on("--prompt PROMPT") { |v| prompt = v }
+    o.on("--plan NAME")     { |v| plan_name = v }
+  end.parse!(ARGV)
+  usage!("--prompt is required") if prompt.nil? || prompt.strip.empty?
+
+  fixture_path = Rails.root.join("test/fixtures/plans/#{plan_name}.rb")
+  abort("no plan fixture: #{fixture_path}") unless File.exist?(fixture_path)
+  require fixture_path.to_s
+  abort("plan fixture #{plan_name} did not define PlanFixtures.#{plan_name}") unless PlanFixtures.respond_to?(plan_name)
+  plan_result = PlanFixtures.public_send(plan_name)
+
+  # Use the :test adapter so the instruction.requested subscriber's perform_later
+  # is recorded but not auto-run; we then invoke perform_now explicitly so the
+  # CLI blocks on real generation in the foreground.
+  ActiveJob::Base.queue_adapter = :test
+
+  project = Project.create!(name: prompt.truncate(60))
+  chat = GeneratorAgent.create!(project: project)
+  chat.messages.create!(role: :user, content: prompt)
+
+  fake_plan = Class.new do
+    define_singleton_method(:call) { |**| plan_result }
+  end
+  original_impl = CreatePlan.implementation
+  CreatePlan.implementation = fake_plan
+  begin
+    result = StartGeneration.new(project: project).execute(intent: prompt, clarifications: {})
+  ensure
+    CreatePlan.implementation = original_impl
+  end
+
+  abort("StartGeneration error: #{result[:error]}") if result[:error]
+
+  puts "project ##{project.id}"
+  puts "instruction ##{result[:instruction_id]} (#{result[:revision_count]} revisions)"
+  puts "running ExecuteInstructionJob.perform_now — this may take many minutes…"
+
+  ExecuteInstructionJob.perform_now(result[:instruction_id])
+
+  instruction = Instruction.find(result[:instruction_id])
+  puts "phase=#{instruction.phase}"
+
+when "respond"
+  project_id = nil
+  OptionParser.new do |o|
+    o.on("--project-id ID", Integer) { |v| project_id = v }
+  end.parse!(ARGV)
+  usage!("--project-id is required") unless project_id
+
+  project = Project.find(project_id)
+  user_message = project.chat.messages.where(role: :user).order(:id).last
+  abort("project ##{project.id} has no user messages") unless user_message
+  ChatRespondJob.perform_now(user_message.id)
+
+when "execute"
+  instruction_id = nil
+  OptionParser.new do |o|
+    o.on("--instruction-id ID", Integer) { |v| instruction_id = v }
+  end.parse!(ARGV)
+  usage!("--instruction-id is required") unless instruction_id
+
+  ExecuteInstructionJob.perform_now(instruction_id)
+
+else
+  usage!("unknown subcommand: #{subcommand}")
+end
