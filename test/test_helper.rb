@@ -1,6 +1,11 @@
 ENV["RAILS_ENV"] ||= "test"
+require "tmpdir"
+
+# Test workspaces must live OUTSIDE the generator repo: `rails new` walks up
+# from cwd via inside_application? and refuses if it finds a parent Rails app.
+TEST_WORKSPACES_ROOT = File.join(Dir.tmpdir, "rails-app-generator-test-workspaces")
 ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] ||=
-  File.expand_path("../tmp/test_workspaces/pid_#{Process.pid}", __dir__)
+  File.join(TEST_WORKSPACES_ROOT, "pid_#{Process.pid}")
 
 require_relative "../config/environment"
 require "rails/test_help"
@@ -15,11 +20,11 @@ module ActiveSupport
     # isolate DBs per worker, but the filesystem is shared by default).
     parallelize_setup do |worker|
       ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] =
-        Rails.root.join("tmp/test_workspaces", "worker_#{worker}").to_s
+        File.join(TEST_WORKSPACES_ROOT, "worker_#{worker}")
     end
 
     parallelize_teardown do |worker|
-      FileUtils.rm_rf(Rails.root.join("tmp/test_workspaces", "worker_#{worker}"))
+      FileUtils.rm_rf(File.join(TEST_WORKSPACES_ROOT, "worker_#{worker}"))
     end
 
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
