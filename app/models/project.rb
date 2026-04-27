@@ -5,8 +5,27 @@ class Project < ApplicationRecord
 
   validates :name, presence: true
 
+  enum :preview_state, {
+    stopped:  0,
+    starting: 1,
+    running:  2,
+    failed:   3
+  }, default: :stopped, prefix: :preview
+
   def workspace_path
     File.join(self.class.workspace_root, "project_#{id}")
+  end
+
+  # Preview HTTP endpoint — derived from id, only meaningful while running
+  # (per memory feedback_derive_dont_store: don't store what's a pure
+  # function of another column).
+  def preview_url
+    return nil unless preview_running?
+    "http://localhost:#{preview_port}"
+  end
+
+  def preview_port
+    3000 + id
   end
 
   def workspace_initialized?

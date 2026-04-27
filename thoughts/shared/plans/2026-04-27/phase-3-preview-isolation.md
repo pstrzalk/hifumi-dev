@@ -317,12 +317,12 @@ end
 ### Success Criteria
 
 #### Automated:
-- [ ] `bundle exec rails db:migrate` clean.
-- [ ] `bundle exec rails test test/models/project_test.rb` green.
-- [ ] `bundle exec rails test` full suite green.
+- [x] `bundle exec rails db:migrate` clean.
+- [x] `bundle exec rails test test/models/project_test.rb` green.
+- [x] `bundle exec rails test` full suite green.
 
 #### Manual:
-- [ ] In `rails c`: `Project.first.update!(preview_state: :running, preview_container_id: "abc"); Project.first.preview_url` returns `"http://localhost:#{3000 + first.id}"`.
+- [x] In `rails c`: `Project.first.update!(preview_state: :running, preview_container_id: "abc"); Project.first.preview_url` returns `"http://localhost:#{3000 + first.id}"`.
 
 ---
 

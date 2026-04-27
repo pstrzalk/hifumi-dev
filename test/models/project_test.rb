@@ -54,4 +54,31 @@ class ProjectTest < ActiveSupport::TestCase
       project.destroy!
     end
   end
+
+  # --- preview state ----------------------------------------------------
+
+  test "preview_state defaults to :stopped" do
+    project = Project.create!(name: "fresh")
+    assert_equal "stopped", project.preview_state
+    assert project.preview_stopped?
+  end
+
+  test "preview_port is 3000 + id" do
+    project = projects(:flowers)
+    assert_equal 3000 + project.id, project.preview_port
+  end
+
+  test "preview_url returns nil unless preview_state == :running" do
+    project = projects(:flowers)
+    %w[stopped starting failed].each do |state|
+      project.update!(preview_state: state)
+      assert_nil project.preview_url, "expected preview_url to be nil when state=#{state}"
+    end
+  end
+
+  test "preview_url returns http://localhost:<3000 + id> when running" do
+    project = projects(:flowers)
+    project.update!(preview_state: :running)
+    assert_equal "http://localhost:#{3000 + project.id}", project.preview_url
+  end
 end
