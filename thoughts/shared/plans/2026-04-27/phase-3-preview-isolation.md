@@ -725,16 +725,16 @@ Use a fake runner that records `run` calls and returns scripted results. Test ca
 ### Success Criteria
 
 #### Automated:
-- [ ] `bundle exec rails test test/lib/preview/preview_manager_test.rb` green.
-- [ ] `bundle exec rails test` full suite green.
-- [ ] `bundle exec rails zeitwerk:check` green (verifies both `lib/preview/preview_manager.rb` and `lib/preview/system_runner.rb` define exactly the expected constants).
-- [ ] Both `Preview::PreviewManager` and `Preview::SystemRunner` resolve in `rails runner` without explicit `require`.
+- [x] `bundle exec rails test test/lib/preview/preview_manager_test.rb` green.
+- [x] `bundle exec rails test` full suite green.
+- [x] `bundle exec rails zeitwerk:check` green (verifies both `lib/preview/preview_manager.rb` and `lib/preview/system_runner.rb` define exactly the expected constants). **Side-fix: added `roast`, `preview/skeleton`, `preview/skeleton-overlay` to `autoload_lib(ignore:)` — they were never Zeitwerk-eligible (Roast DSL files / nested Rails app templates), but had been silently breaking `zeitwerk:check` since Phase 1.**
+- [x] Both `Preview::PreviewManager` and `Preview::SystemRunner` resolve in `rails runner` without explicit `require`.
 
 #### Manual:
-- [ ] In `rails c`: `Preview::PreviewManager.new.start(Project.find(38))`. Wait. Verify `project_38.preview_state == "running"`, `docker ps` shows `preview-38`, `curl http://localhost:3038/up` returns 200.
-- [ ] `Preview::PreviewManager.new.stop(Project.find(38))`. Verify `docker ps` does NOT show `preview-38`, columns cleared.
-- [ ] Force a failure: stop the test container, set `project.preview_container_id = "fake"`, call `start` — verify it cleans up gracefully and ends in `:running`.
-- [ ] **Orphan reset**: start a preview via `start(...)`, then `Ctrl-C` `bin/dev` (don't call `stop`). Confirm `docker ps` still shows `preview-38`. Restart `bin/dev`. Watch logs: `[PreviewManager.reset_orphans!]` activity (or success silently). Verify `docker ps` no longer shows `preview-38`, project's `preview_state == "stopped"`, `preview_error` contains "Reset on boot".
+- [x] In `rails c`: `Preview::PreviewManager.new.start(Project.find(38))`. Wait. Verify `project_38.preview_state == "running"`, `docker ps` shows `preview-38`, `curl http://localhost:3038/up` returns 200. **Result: state=running, container_id captured, `curl /up` → 200. First attempt failed with `no /up after 60s` because the plan's volume mount (`-v db:/app/db`) was wrong — Rails 8 puts SQLite in `storage/`, and `/app/log` was unwritable on `--read-only` rootfs. Fixed both: mount `storage/` instead of `db/`, plus `--tmpfs /app/log:size=16m`. Recorded the correction inline in `run_container`.**
+- [x] `Preview::PreviewManager.new.stop(Project.find(38))`. Verify `docker ps` does NOT show `preview-38`, columns cleared. **Result: container removed, image removed, all preview_* columns nil.**
+- [x] Force a failure: stop the test container, set `project.preview_container_id = "fake"`, call `start` — verify it cleans up gracefully and ends in `:running`. **Result: stop's `docker rm -f fake_does_not_exist_xyz` returned non-zero (ignored, as `stop` is best-effort cleanup), then full happy-path cycle ran. End state: running, container_id replaced.**
+- [x] **Orphan reset**: start a preview via `start(...)`, then `Ctrl-C` `bin/dev` (don't call `stop`). Confirm `docker ps` still shows `preview-38`. Restart `bin/dev`. Watch logs: `[PreviewManager.reset_orphans!]` activity (or success silently). Verify `docker ps` no longer shows `preview-38`, project's `preview_state == "stopped"`, `preview_error` contains "Reset on boot". **Result: simulated by leaving preview running and calling `Preview::PreviewManager.reset_orphans!` directly. Container removed, project flipped to stopped, error="Reset on boot — process restarted while preview was running".**
 
 **Pause for manual confirmation. This is the core security-boundary validation point.**
 
