@@ -1,0 +1,17 @@
+ARG RUBY_VERSION=4.0.2
+FROM ruby:${RUBY_VERSION}-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential libsqlite3-dev libyaml-dev curl git \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV BUNDLE_PATH=/usr/local/bundle \
+    BUNDLE_JOBS=4 \
+    BUNDLE_RETRY=2
+
+WORKDIR /app
+
+# Bake the skeleton's bundle. Per-project images (FROM preview-base) only
+# need to install gems added by the generated app on top of this.
+COPY skeleton/Gemfile skeleton/Gemfile.lock ./
+RUN bundle install

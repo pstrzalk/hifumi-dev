@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Build the preview base image. Run after Gemfile changes in lib/preview/skeleton/.
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RUBY_VERSION="$(cat "$REPO_ROOT/.ruby-version" | sed 's/^ruby-//')"
+
+docker build \
+  -t preview-base:latest \
+  --build-arg RUBY_VERSION="$RUBY_VERSION" \
+  -f "$REPO_ROOT/lib/preview/Dockerfile.base" \
+  "$REPO_ROOT/lib/preview"
+
+echo "Base image rebuilt. Verify: docker images preview-base"

@@ -62,6 +62,7 @@ Explicitly out of scope for Phase 3:
 - **No deferred-request handling change** (`docs/09-ideas/02-deferred-request-handling.md`). Stays as-is in Phase 2 deferred.
 - **No name-on-Project change.** Discussed; deferred.
 - **Cookie isolation between generator and preview is structural, not enforced.** Both run on `localhost`, so they share a per-host cookie jar in the browser. Cookie *names* differ (`_rails_app_generator_session` vs `_rails_application_session` — Rails derives the name from the Application module), so functionally they don't collide. Phase 4's distinct hostnames per preview properly isolate jars; PoC accepts the cohabitation.
+- **Network egress isolation deferred — `--internal` fallback taken.** Step 3 smoke test (2026-04-27, Docker Desktop 28.4.0 on macOS) confirmed `--internal` networks silently drop `-p` host port mappings on this stack. Per the plan's fallback path, `Preview::PreviewManager.ensure_network!` creates `preview-internal` *without* `--internal`. Cost: preview containers can reach outbound internet. PoC laptop has no live API keys mounted into preview containers, so the residual risk is "container can `curl` arbitrary URLs". Phase 4 will reintroduce strict egress isolation via a dedicated subnet + iptables on the production host (Linux native iptables, no vpnkit/qemu intermediary).
 
 ## Implementation Approach
 
@@ -417,33 +418,22 @@ The internal Docker network is created lazily by `PreviewManager.ensure_network!
 ### Success Criteria
 
 #### Automated:
-- [ ] All three files (`Dockerfile`, `Dockerfile.base`, `bin/preview-rebuild-base`) checked in and `chmod +x` where applicable.
-- [ ] `bundle exec rails test` still green (no Ruby changes that affect tests).
+- [x] All three files (`Dockerfile`, `Dockerfile.base`, `bin/preview-rebuild-base`) checked in and `chmod +x` where applicable.
+- [x] `bundle exec rails test` still green (no Ruby changes that affect tests).
 
 #### Manual:
 
-- [ ] **`--internal` + port-publish smoke test (run FIRST)** — confirm that port-publish works on a Docker `--internal` network on YOUR setup. Docker Desktop on macOS/Windows uses vpnkit/qemu rather than native iptables and has occasionally had edge cases here.
-
-  ```bash
-  docker network create --internal test-internal-net 2>/dev/null || true
-  docker run --rm -d --name test-internal --network test-internal-net -p 4444:80 nginx:alpine
-  sleep 2
-  curl -fsS http://localhost:4444/ >/dev/null && echo OK || echo FAIL
-  docker rm -f test-internal
-  docker network rm test-internal-net
-  ```
-
-  Expect `OK`. If `FAIL`, apply the fallback below before continuing.
+- [x] **`--internal` + port-publish smoke test (run FIRST)** — Docker Desktop 28.4.0 on macOS silently dropped the `-p` host mapping when the network was `--internal` (container `STATUS=Up` but `PORTS=80/tcp` only, no `0.0.0.0:4444->...`). Fallback verified: `docker network create test-fallback-net` (no `--internal`) + same `-p 4444:80` → `curl localhost:4444` → HTTP 200. Fallback recorded in "What We're NOT Doing".
 
   **Fallback if `--internal` blocks `-p`**: drop `--internal` from network creation. In `Preview::PreviewManager.ensure_network!` (Step 4), change:
   - From: `runner.run("docker", "network", "create", "--internal", NETWORK)`
   - To:   `runner.run("docker", "network", "create", NETWORK)`
 
-  Cost: preview containers gain outbound internet access. For PoC on a single dev laptop with no live API keys mounted into the preview, this is acceptable. **Phase 4 will reintroduce strict egress isolation** via dedicated subnet + iptables. Add a note to "What We're NOT Doing" if the fallback is taken.
+  Cost: preview containers gain outbound internet access. For PoC on a single dev laptop with no live API keys mounted into the preview, this is acceptable. **Phase 4 will reintroduce strict egress isolation** via dedicated subnet + iptables.
 
-- [ ] `bin/preview-rebuild-base` succeeds locally; `docker images preview-base` shows the image; size < 1.5 GB.
-- [ ] Pick an existing workspace (`~/projects/rails-app-generator-workspaces/project_38/`) and manually build a per-project image: `docker build -t preview-test -f lib/preview/Dockerfile ~/projects/rails-app-generator-workspaces/project_38`. Verify success and that build time < 60 s.
-- [ ] `docker run --rm -p 3038:3000 preview-test` boots; `curl http://localhost:3038/up` returns 200. Stop with Ctrl-C.
+- [x] `bin/preview-rebuild-base` succeeds locally; `docker images preview-base` shows the image; size < 1.5 GB. **Result: 894 MB, ~25 s build (cold).**
+- [x] Pick an existing workspace (`~/projects/rails-app-generator-workspaces/project_38/`) and manually build a per-project image: `docker build -t preview-test -f lib/preview/Dockerfile ~/projects/rails-app-generator-workspaces/project_38`. **Result: 5.6 s warm build, bundle picked up bcrypt+puma on top of base image, tailwindcss:build succeeded. Pre-step required: copied `bin/preview-entrypoint` from overlay into project_38 (see Migration Notes).**
+- [x] `docker run --rm -p 3038:3000 preview-test` boots; `curl http://localhost:3038/up` returns 200. **Result: HTTP 200 after 1 s.**
 
 **Pause for manual confirmation. The base image build is the riskiest single step (gem versions, Ruby version, etc.). Confirm before continuing.**
 
