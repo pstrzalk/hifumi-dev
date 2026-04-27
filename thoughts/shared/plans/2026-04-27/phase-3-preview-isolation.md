@@ -812,12 +812,12 @@ default: &default
 ### Success Criteria
 
 #### Automated:
-- [ ] `bundle exec rails test test/jobs/start_preview_job_test.rb test/jobs/stop_preview_job_test.rb` green.
-- [ ] `bundle exec rails test` full suite green.
+- [x] `bundle exec rails test test/jobs/start_preview_job_test.rb test/jobs/stop_preview_job_test.rb` green.
+- [x] `bundle exec rails test` full suite green.
 
 #### Manual:
-- [ ] Start `bin/dev`. `StartPreviewJob.perform_later(38)`; observe Solid Queue worker log lines tagged `[ActiveJob] [StartPreviewJob]`. Wait, verify container.
-- [ ] `StopPreviewJob.perform_later(38)`; verify container stops.
+- [x] Start `bin/dev`. `StartPreviewJob.perform_later(38)`; observe Solid Queue worker log lines tagged `[ActiveJob] [StartPreviewJob]`. Wait, verify container. **Result: ran `bin/jobs` (worker only — pre-existing dev server already on :3000); supervisor spawned 3 workers across `default,mailers`, `preview`, `generation` per queue.yml. Enqueued `StartPreviewJob.perform_later(38)`; worker picked it up, container `preview-38` came up, `curl localhost:3038/up` → 200, DB state=running.**
+- [x] `StopPreviewJob.perform_later(38)`; verify container stops. **Result: enqueued; container disappeared from `docker ps`, DB flipped to stopped, all preview_* columns cleared.**
 
 ---
 
