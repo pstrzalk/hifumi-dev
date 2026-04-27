@@ -6,6 +6,7 @@ Generate a complete Rails application from a natural-language prompt. Output is 
 
 - Ruby 4.0.2 (pinned in `.ruby-version`; install with `frum install 4.0.2`)
 - SQLite
+- Docker (any recent Desktop or Engine; verify with `docker --version`) — required for the preview pane
 - Claude CLI logged in (`claude login`) — used by the per-revision implementation step on the subscription plan
 - Optional: `OPENROUTER_API_KEY` in env — needed only for the paid `bin/roast-openrouter` runner
 
@@ -51,6 +52,25 @@ Open <http://localhost:3000>:
 2. The chat assistant streams a reply. If it asks for clarification, answer briefly.
 3. Once it calls `start_generation`, three or more revision cards appear and run live (`pending → generating → completed`).
 4. Final `✅ Generation finished.` Output lives at `~/projects/rails-app-generator-workspaces/project_<id>/`.
+
+## Running previews locally
+
+Each project has a **▶ Start preview** button on its page. Clicking it launches the generated app in a hardened Docker container; the iframe loads at `http://localhost:#{3000 + project.id}` once the in-container Rails responds on `/up`.
+
+One-time setup:
+
+```sh
+bin/preview-rebuild-base   # builds preview-base:latest (~2-4 min on a clean Docker)
+```
+
+Re-run `bin/preview-rebuild-base` after any change to `lib/preview/skeleton/Gemfile`. Re-run `bin/preview-regen-skeleton` to bump Rails (rare).
+
+Notes:
+
+- Per-project build is fast on a warm cache (10-30 s); first build with cold base image is 2-4 min.
+- Idle previews auto-stop after 30 min (`CleanupIdlePreviewsJob`, every 5 min).
+- A new generation auto-stops the running preview first (containers don't autoload prod-mode code).
+- Troubleshooting: `docker logs preview-<project_id>` for in-container logs; `docker ps --filter name=preview-` to list active previews; `docker network inspect preview-internal` to inspect the shared network.
 
 ## Run via the CLI
 
@@ -130,11 +150,12 @@ Polls every 2s and prints status per revision. Equivalent to the live revision c
 ### Run the test suite
 
 ```sh
-bin/rails test                        # unit + integration; the E2E test below is skipped by default
+bin/rails test                        # unit + integration; gated tests below are skipped by default
 E2E_GENERATE=1 bin/rails test test/integration/generate_todo_list_test.rb
+E2E_PREVIEW=1  bin/rails test test/integration/preview_lifecycle_test.rb
 ```
 
-The E2E test runs the real `bin/roast` subprocess and burns Claude tokens (~15 min wall). It's gated so the default suite stays fast.
+`E2E_GENERATE=1` runs the real `bin/roast` subprocess and burns Claude tokens (~15 min wall). `E2E_PREVIEW=1` exercises the full Docker preview chain locally — no LLM calls, just `docker build`/`run`/`curl`/`rm` (~30-60 s on a warm base image; requires `bin/preview-rebuild-base` to have run once). Both are gated so the default suite stays fast.
 
 ## Inspect generated output
 
@@ -167,7 +188,8 @@ cat "$WS/docs/revision_notes.md"    # per-revision decision log
 |---------|---------|---------|
 | `RAILS_APP_GENERATOR_WORKSPACE_ROOT` | `~/projects/rails-app-generator-workspaces` | Where generated apps live. The test suite overrides to `Dir.tmpdir`. |
 | `RAILS_APP_GENERATOR_MODEL` | `sonnet` | Claude model for the per-revision Roast subprocess. |
-| `E2E_GENERATE` | unset | Set to `1` to opt the gated end-to-end integration test in. |
+| `E2E_GENERATE` | unset | Set to `1` to opt the gated end-to-end generation test in. |
+| `E2E_PREVIEW` | unset | Set to `1` to opt the gated preview-lifecycle Docker test in. |
 | `OPENROUTER_API_KEY` | unset | Required by `bin/roast-openrouter`. |
 
 ## Roast runner choice

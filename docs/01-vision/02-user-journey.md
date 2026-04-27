@@ -421,14 +421,18 @@ Split view: chat + iframe with the working application.
 Below the chat: suggestions for what's next.
 
 ### Server
-`StartPreviewJob` (auto after the last revision):
-1. `bundle install` (shared cache) → `rails db:prepare` → `rails server -p {port}`
-2. `{project_id}.preview.domain.com` → reverse proxy → `localhost:{port}`
+`StartPreviewJob` (button-driven in Phase 3, not auto):
+1. `docker build -f lib/preview/Dockerfile <workspace>` against a pre-baked `preview-base:latest` image
+2. `docker run -d` with hardened flags: `--cap-drop=ALL`, `--security-opt=no-new-privileges`, `--read-only` + tmpfs for `/tmp` `/app/tmp` `/app/log`, `--memory=512m`, `--cpus=0.5`, `--pids-limit=100`, `--network=preview-internal`
+3. Health-check via `curl /up`; once green, render the iframe
+4. **Phase 3 PoC**: iframe `src` is `http://localhost:#{3000 + project.id}`. **Phase 4**: `https://#{id}.preview.<domain>` via kamal-proxy + wildcard cert
+
+The iframe is `sandbox="allow-same-origin allow-scripts allow-forms"`.
 
 ### Potential problems
-- **Isolation** — active preview limit to start, containers in the future
-- **Security** — trusted users to start
-- **Seed data** — LLM generates seeds. Empty preview = bad UX
+- **Isolation** — ✅ solved in Phase 3 (hardened Docker container per preview)
+- **Security** — ✅ solved in Phase 3 (capability drops, read-only FS, internal network)
+- **Seed data** — LLM generates seeds. Empty preview = bad UX (deferred)
 
 ---
 

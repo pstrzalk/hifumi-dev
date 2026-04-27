@@ -186,6 +186,10 @@ Separate list — gems used in the generator itself, not in generated apps.
 | `tailwindcss-rails` | Generator UI |
 | `turbo-rails` + `stimulus-rails` | Hotwire |
 
+### Host requirements
+
+- **Docker** — required on the host for preview containers (Phase 3+). The generator shells `docker build`, `docker run`, `docker network` via `Preview::PreviewManager` (`lib/preview/preview_manager.rb`). Phase 4 will add `kamal-proxy` for routing previews behind a wildcard subdomain.
+
 ---
 
 ## Deferred decisions
