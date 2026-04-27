@@ -33,6 +33,12 @@
 # Ignore key files for decrypting credentials and more.
 /config/*.key
 
+# Skeleton template ships without crypto; init_rails_app writes a fresh
+# master.key per workspace. Belt-and-braces: never commit one if it
+# accidentally lands in the skeleton tree.
+/lib/preview/skeleton/config/master.key
+/lib/preview/skeleton/config/credentials.yml.enc
+
 
 /app/assets/builds/*
 !/app/assets/builds/.keep

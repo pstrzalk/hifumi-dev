@@ -88,7 +88,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
 
   # --- idempotent setup --------------------------------------------------
 
-  test "skips prepare_workspace + rails_new + init_docs_baseline when workspace already initialized" do
+  test "skips prepare_workspace + init_rails_app + init_docs_baseline when workspace already initialized" do
     ws = @project.workspace_path
     FileUtils.mkdir_p(File.join(ws, "docs"))
     File.write(File.join(ws, "Gemfile"), "")
@@ -100,8 +100,53 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     end
 
     assert_equal 0, spy_snapshot[:prepare_calls]
-    assert_equal 0, spy_snapshot[:rails_new_calls]
+    assert_equal 0, spy_snapshot[:init_rails_app_calls]
     assert_equal 0, spy_snapshot[:init_docs_calls]
+  end
+
+  # --- skeleton seed ----------------------------------------------------
+
+  test "init_rails_app seeds workspace from skeleton + overlay (RailsApplication module, executable preview-entrypoint)" do
+    Dir.mktmpdir("rails-app-generator-init-test-") do |root|
+      ws = File.join(root, "project_test")
+      ExecuteInstructionJob.new.send(:init_rails_app, ws)
+
+      app_rb = File.read(File.join(ws, "config", "application.rb"))
+      assert_match(/module RailsApplication\b/, app_rb,
+                   "skeleton must define module RailsApplication")
+
+      entrypoint = File.join(ws, "bin", "preview-entrypoint")
+      assert File.exist?(entrypoint),    "skeleton-overlay must drop bin/preview-entrypoint"
+      assert File.executable?(entrypoint), "bin/preview-entrypoint must be executable"
+    end
+  end
+
+  test "init_rails_app generates a fresh per-workspace master.key (mode 0600, not in skeleton)" do
+    skeleton_root = Rails.root.join("lib/preview/skeleton")
+    refute File.exist?(skeleton_root.join("config/master.key")),
+           "skeleton must NOT ship a master.key"
+    refute File.exist?(skeleton_root.join("config/credentials.yml.enc")),
+           "skeleton must NOT ship credentials.yml.enc"
+
+    Dir.mktmpdir("rails-app-generator-key-test-") do |root|
+      ws_a = File.join(root, "project_a")
+      ws_b = File.join(root, "project_b")
+      ExecuteInstructionJob.new.send(:init_rails_app, ws_a)
+      ExecuteInstructionJob.new.send(:init_rails_app, ws_b)
+
+      key_a_path = File.join(ws_a, "config/master.key")
+      key_b_path = File.join(ws_b, "config/master.key")
+      assert File.exist?(key_a_path), "master.key must be generated per workspace"
+      assert File.exist?(key_b_path)
+
+      key_a = File.read(key_a_path)
+      key_b = File.read(key_b_path)
+      assert_match(/\A[0-9a-f]{32}\z/, key_a, "master.key must be 32-char hex")
+      refute_equal key_a, key_b, "each workspace must get a unique master.key"
+
+      # 0600 — owner read/write only.
+      assert_equal 0o600, File.stat(key_a_path).mode & 0o777
+    end
   end
 
   # --- seam shape --------------------------------------------------------
@@ -223,7 +268,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     git_shas = git_shas.dup
     spy = {
       prepare_calls: 0,
-      rails_new_calls: 0,
+      init_rails_app_calls: 0,
       init_docs_calls: 0,
       subprocess_calls: [],
       git_head_calls: []
@@ -231,7 +276,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
 
     originals = {
       prepare_workspace:    ExecuteInstructionJob.instance_method(:prepare_workspace),
-      rails_new:            ExecuteInstructionJob.instance_method(:rails_new),
+      init_rails_app:       ExecuteInstructionJob.instance_method(:init_rails_app),
       init_docs_baseline:   ExecuteInstructionJob.instance_method(:init_docs_baseline),
       run_roast_subprocess: ExecuteInstructionJob.instance_method(:run_roast_subprocess),
       git_head:             ExecuteInstructionJob.instance_method(:git_head)
@@ -239,7 +284,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
 
     ExecuteInstructionJob.class_eval do
       define_method(:prepare_workspace)   { |_ws| spy[:prepare_calls]   += 1 }
-      define_method(:rails_new)           { |_ws| spy[:rails_new_calls] += 1 }
+      define_method(:init_rails_app)      { |_ws| spy[:init_rails_app_calls] += 1 }
       define_method(:init_docs_baseline)  { |_ws| spy[:init_docs_calls] += 1 }
       define_method(:run_roast_subprocess) do |env, args|
         spy[:subprocess_calls] << { env: env, args: args }

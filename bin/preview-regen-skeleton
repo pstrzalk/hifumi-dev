@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Regenerate lib/preview/skeleton/ from a fresh `rails new`.
+# Run when Rails ships a new minor and we want previews to inherit it.
+# The skeleton-overlay/ tree is independent — never touched by this script.
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+cd "$TMP"
+rails new rails_application \
+  --css tailwind --database sqlite3 \
+  --skip-jbuilder --skip-kamal --skip-ci --skip-git
+
+rsync -av --delete \
+  --exclude='.git' --exclude='tmp/' --exclude='log/' \
+  --exclude='node_modules/' --exclude='.bundle/' \
+  "$TMP/rails_application/" \
+  "$REPO_ROOT/lib/preview/skeleton/"
+
+# `rails new` produces a fresh random master.key + credentials.yml.enc.
+# Strip both — workspaces generate their own master.key at init time so we
+# don't bake a shared secret (or churn-on-regen) into git.
+rm -f "$REPO_ROOT/lib/preview/skeleton/config/master.key"
+rm -f "$REPO_ROOT/lib/preview/skeleton/config/credentials.yml.enc"
+
+# `rails new` produces a Gemfile.lock pinned to the host platform only
+# (arm64-darwin on dev macs). Dockerfile.base builds on linux and would fail
+# `bundle install` with "Your bundle only supports platforms [arm64-darwin]".
+# Add both linux platforms so the same lockfile works in the base image.
+( cd "$REPO_ROOT/lib/preview/skeleton" && \
+  bundle lock --add-platform x86_64-linux aarch64-linux )
+
+echo "Skeleton regenerated. Review with: git -C $REPO_ROOT diff lib/preview/skeleton/"
+echo "Overlay (lib/preview/skeleton-overlay/) is unchanged and applied at workspace-init."

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd /app
+bin/rails db:prepare
+exec bin/rails server -b 0.0.0.0 -p 3000

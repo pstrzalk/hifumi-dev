@@ -9,7 +9,7 @@ class ExecuteInstructionJob < ApplicationJob
     workspace = project.workspace_path
 
     prepare_workspace(workspace) unless project.workspace_initialized?
-    rails_new(workspace) unless File.exist?(File.join(workspace, "Gemfile"))
+    init_rails_app(workspace) unless File.exist?(File.join(workspace, "Gemfile"))
     init_docs_baseline(workspace) unless File.exist?(File.join(workspace, "docs"))
 
     instruction.revisions.order(:position).each do |revision|
@@ -31,18 +31,35 @@ class ExecuteInstructionJob < ApplicationJob
     FileUtils.mkdir_p(File.dirname(workspace))
   end
 
-  def rails_new(workspace)
-    parent = File.dirname(workspace)
-    app_name = File.basename(workspace)
+  def init_rails_app(workspace)
+    FileUtils.mkdir_p(File.dirname(workspace))
+    FileUtils.cp_r("#{Rails.root.join('lib/preview/skeleton')}/.",         workspace)
+    FileUtils.cp_r("#{Rails.root.join('lib/preview/skeleton-overlay')}/.", workspace)
+
+    # Skeleton ships without master.key / credentials.yml.enc to avoid baking
+    # a shared secret into git. Each workspace gets its own master.key here
+    # via Rails' own helper (the same one `rails credentials:edit` uses);
+    # credentials.yml.enc is created on demand if anyone runs `bin/rails
+    # credentials:edit` inside the workspace.
+    master_key_path = File.join(workspace, "config/master.key")
+    File.write(master_key_path, ActiveSupport::EncryptedFile.generate_key)
+    File.chmod(0o600, master_key_path)
 
     Bundler.with_unbundled_env do
       ok = system(
         subprocess_env,
-        "cd #{Shellwords.escape(parent)} && " \
-        "rails new #{Shellwords.escape(app_name)} " \
-        "--css tailwind --database sqlite3 --skip-jbuilder --skip-kamal --skip-ci"
+        "cd #{Shellwords.escape(workspace)} && bundle install --jobs 4"
       )
-      raise "rails new failed in #{parent} for #{app_name}" unless ok
+      raise "bundle install failed in #{workspace}" unless ok
+
+      ok = system(
+        subprocess_env,
+        "cd #{Shellwords.escape(workspace)} && " \
+        "git init -q && git add -A && " \
+        "git -c user.email=generator@local -c user.name='Rails App Generator' " \
+        "commit -q -m 'chore: skeleton baseline'"
+      )
+      raise "git init failed in #{workspace}" unless ok
     end
   end
 

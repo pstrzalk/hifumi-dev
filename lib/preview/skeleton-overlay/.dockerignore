@@ -1,0 +1,25 @@
+# Build context excludes — applied to every per-project `docker build`.
+# Keep narrow: anything that isn't safe to bake into an image layer.
+
+.git/
+.gitignore
+
+log/*
+!log/.keep
+
+tmp/*
+!tmp/.keep
+
+# SQLite runtime files. Schema/migrations live elsewhere; the running DB
+# itself is host state and gets re-mounted at runtime.
+db/*.sqlite3
+db/*.sqlite3-*
+
+node_modules/
+.bundle/
+vendor/bundle/
+
+# Editor/OS noise.
+.DS_Store
+.idea/
+.vscode/
