@@ -997,6 +997,20 @@ end
 </section>
 ```
 
+#### 6a. Skeleton-overlay initializer: strip X-Frame-Options
+
+**Discovered during Step 6 manual verification (2026-04-27).** Rails default sets `X-Frame-Options: SAMEORIGIN`. The generator at `localhost:3000` and the preview at `localhost:3038` are different origins (different ports), so the iframe loaded but rendered as a broken-image placeholder.
+
+**File**: `lib/preview/skeleton-overlay/config/initializers/preview_iframe.rb`
+
+```ruby
+# Allow this generated app to be embedded in the rails-app-generator preview
+# iframe. Different ports = different origins; default SAMEORIGIN blocks framing.
+Rails.application.config.action_dispatch.default_headers.delete("X-Frame-Options")
+```
+
+The overlay copies this into every workspace at init time. Existing workspaces (e.g. project_38) need a one-time `cp` from the overlay before their next `Start preview` cycle.
+
 #### 6. Event subscriber for auto-stop
 
 **File**: `config/initializers/event_subscribers.rb` — append:
@@ -1033,17 +1047,17 @@ end
 ### Success Criteria
 
 #### Automated:
-- [ ] `bundle exec rails test` full suite green.
-- [ ] `assert_enqueued_with(job: StartPreviewJob, args: [project.id])` passes from controller test.
-- [ ] All 4 partials present in `app/views/previews/`.
+- [x] `bundle exec rails test` full suite green. **144 runs, 0 failures, 1 (preexisting) skip.**
+- [x] `assert_enqueued_with(job: StartPreviewJob, args: [project.id])` passes from controller test.
+- [x] All 4 partials present in `app/views/previews/` (`_pane`, `_stopped`, `_starting`, `_running`, `_failed`).
 
 #### Manual:
-- [ ] Open project 38 in browser. Layout is split: chat left, preview pane right with "▶ Start preview" button.
-- [ ] Click Start. Pane flips to "⏳ Starting preview…". After 10-30 s, iframe appears with the todo-list app.
-- [ ] Click around inside the iframe — clicks work, forms submit, the app responds. (CSRF + cookies in `allow-same-origin` sandbox.)
-- [ ] Click Stop. Pane returns to "Start preview" state. `docker ps` shows no `preview-38`.
-- [ ] Trigger a new generation (chat message). Preview pane auto-flips to `:stopped` (StopPreviewJob fires from `instruction.requested`).
-- [ ] Force a failure: `docker rmi preview-base:latest` (so build will fail), click Start. Pane shows "❌ Preview failed" with stderr in `<pre>`. Click Retry — repeats and fails again. Restore base image, Retry succeeds.
+- [x] Open project 38 in browser. Layout is split: chat left, preview pane right with "▶ Start preview" button.
+- [x] Click Start. Pane flips to "⏳ Starting preview…". After 10-30 s, iframe appears with the todo-list app. **Required Step-6a fix (overlay initializer stripping `X-Frame-Options`) before the iframe rendered. Existing project_38 needed the file copied in manually; future workspaces inherit it from the overlay.**
+- [x] Click around inside the iframe — clicks work, forms submit, the app responds. (CSRF + cookies in `allow-same-origin` sandbox.) **Verified: navigated to flower#show inside the iframe.**
+- [x] Click Stop. Pane returns to "Start preview" state. `docker ps` shows no `preview-38`. **Verified.**
+- [x] Trigger a new generation (chat message). Preview pane auto-flips to `:stopped` (StopPreviewJob fires from `instruction.requested`). **Initial chat-driven attempt was a false negative — the LLM acknowledged the request ("I've queued up the fix") without actually invoking `start_generation`, so no instruction was created and `instruction.requested` never fired. This is the open Phase-2 deferred-request issue (see CLAUDE.md). The auto-stop wiring itself was verified by replaying `instruction.requested` from `rails runner`: live `preview-38` container was removed, DB flipped to stopped, `StopPreviewJob` ran in the `:preview` queue (visible in dev logs).**
+- [~] Force a failure: `docker rmi preview-base:latest` (so build will fail), click Start. Pane shows "❌ Preview failed" with stderr in `<pre>`. Click Retry — repeats and fails again. Restore base image, Retry succeeds. **Skipped during live session. Failure path is exercised by three Step-4 unit tests: build failure (state→failed, error stored), run failure (state→failed, image cleanup), healthcheck timeout (state→failed, container removed). The Step-6 _failed partial renders `project.preview_error` in a `<pre>` and offers "↻ Retry" — both wired and rendered correctly under Step-6 controller tests. Worth a 30-second sanity click in a future session.**
 
 **Pause for manual confirmation.**
 

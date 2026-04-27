@@ -1,0 +1,13 @@
+<div class="flex flex-col gap-2">
+  <div class="flex items-center justify-between">
+    <a href="<%= project.preview_url %>" target="_blank" class="text-sm text-blue-600 underline">
+      <%= project.preview_url %> ↗
+    </a>
+    <%= button_to "⏹ Stop", project_preview_path(project),
+          method: :delete, class: "px-3 py-1 text-sm bg-gray-200 rounded" %>
+  </div>
+  <iframe
+    src="<%= project.preview_url %>"
+    class="w-full h-[600px] border rounded"
+    sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
+</div>

@@ -18,6 +18,15 @@ ActiveSupport::Notifications.subscribe("instruction.requested") do |*, payload|
   )
 end
 
+# Auto-stop the preview as soon as a new instruction starts: production-mode
+# containers don't autoload, so a running preview shows stale code mid-
+# generation regardless of whether we'd kept it up. Stopping here also frees
+# the bind-mounted SQLite for migrations the agent may run during the build.
+ActiveSupport::Notifications.subscribe("instruction.requested") do |*, payload|
+  instruction = Instruction.find(payload[:instruction_id])
+  StopPreviewJob.perform_later(instruction.project.id)
+end
+
 %w[revision.started revision.completed revision.failed].each do |event|
   ActiveSupport::Notifications.subscribe(event) do |*, payload|
     revision = Revision.find(payload[:revision_id])

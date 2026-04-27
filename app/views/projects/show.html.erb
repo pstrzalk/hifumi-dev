@@ -1,21 +1,25 @@
-<section class="w-full max-w-3xl mx-auto">
+<section class="w-full max-w-7xl mx-auto px-4">
   <%= turbo_stream_from @project %>
 
   <h1 class="text-2xl font-semibold mb-4"><%= @project.name %></h1>
 
-  <div id="active_revisions">
-    <%= render "revisions/list", revisions: @active_revisions %>
+  <div class="grid lg:grid-cols-2 gap-6">
+    <div class="flex flex-col">
+      <div id="active_revisions">
+        <%= render "revisions/list", revisions: @active_revisions %>
+      </div>
+      <div id="messages" class="flex flex-col gap-3 mb-6">
+        <%= render partial: "messages/message", collection: @messages, as: :message %>
+      </div>
+      <%= render "suggestions/frame", prompts: [] %>
+      <% if flash[:alert] %>
+        <div class="mb-4 text-red-700"><%= flash[:alert] %></div>
+      <% end %>
+      <%= render "messages/form", project: @project %>
+    </div>
+
+    <div class="lg:sticky lg:top-4 lg:h-fit">
+      <%= render "previews/pane", project: @project %>
+    </div>
   </div>
-
-  <div id="messages" class="flex flex-col gap-3 mb-6">
-    <%= render partial: "messages/message", collection: @messages, as: :message %>
-  </div>
-
-  <%= render "suggestions/frame", prompts: [] %>
-
-  <% if flash[:alert] %>
-    <div class="mb-4 text-red-700"><%= flash[:alert] %></div>
-  <% end %>
-
-  <%= render "messages/form", project: @project %>
 </section>

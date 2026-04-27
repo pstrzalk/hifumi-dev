@@ -5,5 +5,6 @@ Rails.application.routes.draw do
 
   resources :projects, only: [ :new, :create, :show ] do
     resources :messages, only: [ :create ]
+    resource  :preview,  only: [ :create, :destroy ]
   end
 end
