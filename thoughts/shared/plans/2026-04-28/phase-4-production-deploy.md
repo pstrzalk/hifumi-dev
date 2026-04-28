@@ -1193,7 +1193,7 @@ registry:
 env:
   secret:
     - RAILS_MASTER_KEY
-    - RESEND_API_KEY
+    - SMTP_PASSWORD              # Resend SMTP key today; provider-neutral name keeps swap trivial
   clear:
     SOLID_QUEUE_IN_PUMA: true
     PREVIEW_DOMAIN: hifumi.dev
@@ -1224,10 +1224,10 @@ aliases:
 # Secrets are loaded into ENV during `kamal deploy`. Don't commit values.
 RAILS_MASTER_KEY=$(cat config/master.key)
 KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD       # local registry doesn't need it; placeholder
-RESEND_API_KEY=$RESEND_API_KEY                          # set via 1password / shell env when running kamal
+SMTP_PASSWORD=$SMTP_PASSWORD                            # Resend API key today; set via 1password / shell env when running kamal
 ```
 
-(The deployer exports `RESEND_API_KEY` in their shell before `kamal deploy`. Documented in the docs phase.)
+(The deployer exports `SMTP_PASSWORD` (Resend's `re_...` key value) in their shell before `kamal deploy`. To switch SMTP providers later: change `address` / `user_name` in `config/environments/production.rb` and the value of `SMTP_PASSWORD` in the deploy shell. No env var rename needed.)
 
 #### 4. Pre-create the workspace dir on the host
 
@@ -1642,12 +1642,16 @@ Configure Action Mailer for Resend SMTP in production, point Devise at the right
 Replace the commented `smtp_settings` block with:
 
 ```ruby
+# SMTP transport — currently bound to Resend, swappable to any SMTP-speaking
+# provider (Postmark, SendGrid, SES, etc.) by changing host/username and the
+# SMTP_PASSWORD env value. No provider-specific gem, no API client, no
+# webhooks — Action Mailer's stock SMTP only, per "zero vendor lock-in".
 config.action_mailer.delivery_method = :smtp
 config.action_mailer.smtp_settings = {
-  address:        "smtp.resend.com",
+  address:        "smtp.resend.com",   # provider host
   port:           587,
-  user_name:      "resend",
-  password:       ENV.fetch("RESEND_API_KEY"),
+  user_name:      "resend",            # provider username (Resend uses literal "resend")
+  password:       ENV.fetch("SMTP_PASSWORD"),
   authentication: :plain,
   enable_starttls_auto: true
 }
@@ -1667,7 +1671,7 @@ config.mailer_sender = "noreply@hifumi.dev"
 
 #### 3. Resend (sending domain provisioned 2026-04-28)
 
-`hifumi.dev` is registered as a Resend sending domain and verified. Sender identity ready for `noreply@hifumi.dev` via SMTP. Only remaining operator action before first deploy: **generate a Resend API key and export it as `RESEND_API_KEY`** in the shell where `kamal setup`/`kamal deploy` will be run (Resend dashboard → API Keys → Create).
+`hifumi.dev` is registered as a Resend sending domain and verified. Sender identity ready for `noreply@hifumi.dev` via SMTP. Only remaining operator action before first deploy: **generate a Resend API key and export it as `SMTP_PASSWORD`** in the shell where `kamal setup`/`kamal deploy` will be run (Resend dashboard → API Keys → Create; the `re_...` value is the SMTP password). The env var is named `SMTP_PASSWORD` (not `RESEND_API_KEY`) so swapping to Postmark/SendGrid/SES later is a values-only change — no var rename.
 
 #### 4. DNS (live at GoDaddy, propagated 2026-04-28)
 
@@ -1699,7 +1703,7 @@ done
 
 ```bash
 cd /Users/pawel/projects/rails-app-generator
-export RESEND_API_KEY="re_..."
+export SMTP_PASSWORD="re_..."   # Resend API key today; same env var name regardless of future SMTP provider
 bundle exec kamal setup    # first time only; subsequent: kamal deploy
 ```
 
