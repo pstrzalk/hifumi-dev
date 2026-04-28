@@ -751,7 +751,7 @@ def execute_revision(revision, workspace)
     "OPENROUTER_API_KEY" => api_key
   }
   args = [
-    Rails.root.join("bin/roast").to_s,                       # placeholder — Phase 6 swaps to bin/roast-openrouter / bin/roast-claudesubscription via env-branch helper
+    Rails.root.join("bin/roast").to_s,                       # placeholder — Phase 7 swaps to bin/roast-openrouter / bin/roast-claudesubscription via env-branch helper
     Rails.root.join("lib/roast/revision_workflow.rb").to_s,
     "--",
     "revision_id=#{revision.id}",
@@ -777,7 +777,7 @@ def execute_revision(revision, workspace)
 end
 ```
 
-(Phase 6 wraps the `bin/roast` line in an env-branched helper; for this phase the literal stays unchanged.)
+(Phase 7 wraps the `bin/roast` line in an env-branched helper; for this phase the literal stays unchanged.)
 
 #### 4. Log filter for the key (request params layer)
 
@@ -1261,7 +1261,9 @@ ssh root@77.42.95.154 'mkdir -p /var/lib/rails-app-generator/workspaces && chmod
 
 ### Overview
 
-A single idempotent shell script run on the host before each Kamal deploy. Three steps: ensure `--internal preview-internal` Docker network exists; ensure kamal-proxy container is attached to it; build/refresh the `preview-base:latest` image. All three are cheap no-ops when already done.
+A single idempotent shell script that bootstraps Hetzner state before each Kamal deploy. Three steps: ensure `--internal preview-internal` Docker network exists on the host; ensure kamal-proxy container is attached to it; build/refresh `preview-base:latest` on the host. All three are cheap no-ops when already done.
+
+**Critical execution-context note.** Kamal pre-deploy hooks run **locally** on the deploying machine (verified: `kamal-2.11.0/lib/kamal/cli/base.rb:158` wraps hook execution in SSHKit's `run_locally do execute ... end` — no DOCKER_HOST rewrite, no SSH wrapping). Naive `docker network create ...` / `docker build ...` lines in the hook would target the developer's local Docker engine, not Hetzner. The script below explicitly SSHes into `root@77.42.95.154` for every command that needs to affect host state, and rsyncs the `lib/preview/` build context for the image build.
 
 ### Changes Required
 
@@ -1272,35 +1274,52 @@ A single idempotent shell script run on the host before each Kamal deploy. Three
 ```bash
 #!/usr/bin/env bash
 # Phase 4 production bootstrap. Idempotent — safe to run on every deploy.
+#
+# Kamal hooks run LOCALLY (kamal-2.11.0/lib/kamal/cli/base.rb:158 → SSHKit
+# `run_locally`), so every host-state mutation here is wrapped in `ssh`.
+# Building preview-base needs the lib/preview/ directory on the host, so we
+# rsync it into a scratch path first.
 set -euo pipefail
 
-# 1. Strict-egress preview network. --internal blocks outbound traffic from
-#    containers attached only to this network.
-if ! docker network inspect preview-internal >/dev/null 2>&1; then
-  echo "[pre-deploy] Creating preview-internal network (--internal)"
-  docker network create --internal preview-internal
-fi
-
-# 2. Attach kamal-proxy to preview-internal so it can route to preview
-#    containers. kamal-proxy retains its kamal-network attachment for
-#    egress (Let's Encrypt, etc).
-if ! docker network inspect preview-internal -f '{{range .Containers}}{{.Name}} {{end}}' | grep -qw kamal-proxy; then
-  echo "[pre-deploy] Connecting kamal-proxy to preview-internal"
-  docker network connect preview-internal kamal-proxy
-fi
-
-# 3. Build/refresh preview-base image. ~25s warm if Gemfile.lock unchanged
-#    (cached layers); ~5min cold (first deploy, or when bundle invalidates).
-echo "[pre-deploy] Building preview-base:latest"
+HOST="${KAMAL_DEPLOY_HOST:-root@77.42.95.154}"
 RUBY_VERSION=$(sed 's/^ruby-//' .ruby-version)
-docker build \
+
+# 1+2. Ensure --internal preview-internal network on host; ensure kamal-proxy
+#      is attached to it. Both idempotent. --internal blocks outbound traffic
+#      from containers attached only to this network. kamal-proxy retains its
+#      kamal-network attachment for egress (LE etc).
+ssh "$HOST" 'set -e
+  if ! docker network inspect preview-internal >/dev/null 2>&1; then
+    echo "[pre-deploy] Creating preview-internal network (--internal) on host"
+    docker network create --internal preview-internal
+  fi
+  if ! docker network inspect preview-internal \
+        -f "{{range .Containers}}{{.Name}} {{end}}" \
+       | grep -qw kamal-proxy; then
+    echo "[pre-deploy] Connecting kamal-proxy to preview-internal on host"
+    docker network connect preview-internal kamal-proxy
+  fi
+'
+
+# 3. Build preview-base:latest on the host. ~25s warm (layer cache) when
+#    Gemfile.lock unchanged; ~5min cold (first deploy, or bundle invalidation).
+echo "[pre-deploy] Syncing lib/preview/ to host build context"
+ssh "$HOST" 'mkdir -p /var/lib/rails-app-generator/preview-base-context'
+rsync -az --delete \
+  lib/preview/ \
+  "$HOST:/var/lib/rails-app-generator/preview-base-context/"
+
+echo "[pre-deploy] Building preview-base:latest on host"
+ssh "$HOST" "docker build \
   -t preview-base:latest \
-  --build-arg RUBY_VERSION="$RUBY_VERSION" \
-  -f lib/preview/Dockerfile.base \
-  lib/preview/
+  --build-arg RUBY_VERSION='$RUBY_VERSION' \
+  -f /var/lib/rails-app-generator/preview-base-context/Dockerfile.base \
+  /var/lib/rails-app-generator/preview-base-context"
 
 echo "[pre-deploy] Bootstrap complete"
 ```
+
+**Prereq for the hook to work**: SSH key auth to `root@77.42.95.154` already configured (it is — Kamal itself relies on this). `rsync` available on both ends (standard on macOS + Debian). No other ambient state needed.
 
 #### 2. Document the hook in CLAUDE.md `Conventions` block
 
@@ -1311,10 +1330,12 @@ echo "[pre-deploy] Bootstrap complete"
 #### Automated Verification:
 - [ ] `shellcheck .kamal/hooks/pre-deploy` reports no errors
 - [ ] Script is executable (`stat -c '%a' .kamal/hooks/pre-deploy` is `755` or similar)
+- [ ] Hook is a no-op on dry-run (`bundle exec kamal config` does NOT invoke the hook — only `deploy`/`redeploy`/`rollback` do, per `kamal-2.11.0/lib/kamal/cli/main.rb:34,70,93`)
 
 #### Manual Verification (deferred to Phase 11 deploy):
-- [ ] On first deploy: hook runs, all three steps execute, all output as expected, deploy continues.
-- [ ] On second deploy: hook runs, all three steps are no-ops (networks/connections already in place; `docker build` cache hits all layers). Total hook runtime <5s.
+- [ ] On first deploy: hook runs locally, SSHes into Hetzner, all three steps complete, deploy continues. Verify on host: `ssh root@77.42.95.154 'docker network inspect preview-internal | grep -E "Internal|Containers" -A2'` shows `"Internal": true` AND `kamal-proxy` listed under Containers; `ssh root@77.42.95.154 'docker images preview-base:latest'` shows the image.
+- [ ] On second deploy: hook runs, network/connect steps are no-ops (idempotent grep guards short-circuit); `docker build` on host hits all layers from cache when Gemfile.lock unchanged. Total hook runtime <30s warm (rsync + cached build); local-side overhead is the rsync round-trip.
+- [ ] Negative check (defends against the "runs locally" footgun): `docker network inspect preview-internal` on the **developer's machine** returns no such network — proves the hook didn't accidentally mutate local Docker state.
 
 ---
 
@@ -1342,34 +1363,56 @@ In dev (`!Preview::Config.remote?`) the kamal-proxy commands are skipped; the re
 
 **File:** `lib/preview/preview_manager.rb` (around lines 77-83)
 
+Preserve the existing class+instance shim pattern (line 83 instance method delegates to class method). The class method retains its `runner:` keyword for tests / boot-time injection.
+
 ```ruby
-def ensure_network!
-  return if @runner.run("docker", "network", "inspect", NETWORK).success?
+def self.ensure_network!(runner: SystemRunner.new)
+  result = runner.run("docker", "network", "inspect", NETWORK, capture: true)
+  return if result.ok
 
   args = ["docker", "network", "create"]
   args << "--internal" if Preview::Config.remote?
   args << NETWORK
-  result = @runner.run(*args)
-  raise "docker network create #{NETWORK} failed: #{result.stderr}" unless result.success?
+  result = runner.run(*args, capture: true)
+  raise "docker network create #{NETWORK} failed: #{result.stderr}" unless result.ok
 end
+
+def ensure_network! = self.class.ensure_network!(runner: @runner)
 ```
 
-(The dev path stays without `--internal` so port-publish continues to work locally.)
+(The dev path stays without `--internal` so port-publish continues to work locally. `capture: true` matches the existing call at preview_manager.rb:78 — it keeps `docker network inspect`'s JSON output off the parent process's stdout, and on creation failure populates `result.stderr` for the raise message. The Result struct is `Struct.new(:ok, :stdout, :stderr, :exit_code, ...)` — `.ok`, not `.success?`.)
 
 #### 2. Container IP discovery + kamal-proxy registration after healthcheck
 
-**File:** `lib/preview/preview_manager.rb` — modify the `start` flow (around the `preview.ready` instrument):
+**File:** `lib/preview/preview_manager.rb` — modify the existing `start` (line 29) and `run_container` (line 141), and add two new private helpers. Two surgical changes to `start`: insert the `register_with_proxy!` call between `health_check!` and the `:running` update, nothing else.
+
+The `start` body is otherwise unchanged from existing — same `stop(project) if project.preview_container_id.present?` guard at the top, same early `:starting` state transition + broadcast (so the UI shows "Starting…" during the 30-90s build/run/healthcheck window), same `build_image` and `health_check!` method names.
 
 ```ruby
 def start(project)
-  ensure_network!
-  ensure_image!(project)
-  container_name = run_container(project)
-  wait_healthy!(project)
-  register_with_proxy!(project, container_name) if Preview::Config.remote?
+  stop(project) if project.preview_container_id.present?
 
-  project.update!(preview_state: :running, preview_started_at: Time.current, preview_error: nil)
-  ActiveSupport::Notifications.instrument("preview.ready", project_id: project.id, url: project.preview_url)
+  ensure_network!
+
+  project.update!(
+    preview_state: :starting,
+    preview_started_at: Time.current,
+    preview_error: nil
+  )
+  broadcast(project)
+
+  tag = build_image(project)
+  container_id = run_container(project, tag)
+  project.update!(preview_container_id: container_id)
+
+  health_check!(project)
+  register_with_proxy!(project) if Preview::Config.remote?
+
+  project.update!(preview_state: :running)
+  ActiveSupport::Notifications.instrument(
+    "preview.ready",
+    project_id: project.id, url: project.preview_url
+  )
   broadcast(project)
 rescue => e
   handle_failure(project, e)
@@ -1377,7 +1420,8 @@ end
 
 private
 
-def register_with_proxy!(project, container_name)
+def register_with_proxy!(project)
+  container_name = "preview-#{project.id}"
   ip = container_ip(container_name)
   raise "Could not resolve container IP for #{container_name}" if ip.blank?
 
@@ -1386,37 +1430,55 @@ def register_with_proxy!(project, container_name)
     "kamal-proxy", "deploy", "preview-#{project.id}",
     "--target", "#{ip}:3000",
     "--host", "#{project.id}.preview.#{Preview::Config.domain}",
-    "--tls"
+    "--tls",
+    capture: true
   )
-  raise "kamal-proxy deploy failed: #{result.stderr}" unless result.success?
+  raise "kamal-proxy deploy failed: #{result.stderr}" unless result.ok
 end
 
 def container_ip(container_name)
   result = @runner.run(
     "docker", "inspect",
     "-f", "{{(index .NetworkSettings.Networks \"#{NETWORK}\").IPAddress}}",
-    container_name
+    container_name,
+    capture: true
   )
-  return nil unless result.success?
+  return nil unless result.ok
   result.stdout.strip.presence
 end
 ```
 
+(`capture: true` is required on `container_ip` — without it `SystemRunner` uses `system(...)` and `result.stdout` is empty, so the IP can never be resolved and `register_with_proxy!` raises every time. `capture: true` on `register_with_proxy!` is for the error-path stderr so the raise message names what kamal-proxy actually rejected. Result struct uses `.ok`, not `.success?`.)
+
 #### 3. Deregister on stop
 
-**File:** `lib/preview/preview_manager.rb` — modify `stop`:
+**File:** `lib/preview/preview_manager.rb` — modify the existing `stop` (line 57). Surgical change: add the kamal-proxy remove call before the `docker rm` block, gated on `Preview::Config.remote?`. Keep the existing `image rm`, the `preview_error: nil` reset, and the always-run state update (so calling `stop` on a `:failed` project still resets state cleanly).
 
 ```ruby
 def stop(project)
-  return unless project.preview_container_id.present?
+  cid = project.preview_container_id
 
-  if Preview::Config.remote?
-    @runner.run("docker", "exec", "kamal-proxy", "kamal-proxy", "remove", "preview-#{project.id}")
-    # ignore errors — route may already be gone (e.g., kamal-proxy restarted, or never registered)
+  if Preview::Config.remote? && cid.present?
+    # Ignore errors — route may already be gone (kamal-proxy restarted, never
+    # registered, or stop called twice). Capture stderr only for the log.
+    @runner.run(
+      "docker", "exec", "kamal-proxy",
+      "kamal-proxy", "remove", "preview-#{project.id}",
+      capture: true
+    )
   end
 
-  @runner.run("docker", "rm", "-f", project.preview_container_id)
-  project.update!(preview_state: :stopped, preview_container_id: nil, preview_started_at: nil)
+  if cid.present?
+    @runner.run("docker", "rm", "-f", cid)
+    @runner.run("docker", "image", "rm", "-f", project_tag(project))
+  end
+
+  project.update!(
+    preview_state: :stopped,
+    preview_container_id: nil,
+    preview_started_at: nil,
+    preview_error: nil
+  )
   broadcast(project)
 end
 ```
@@ -1499,36 +1561,43 @@ end
 
 #### 5. Remove host port mapping in prod
 
-**File:** `lib/preview/preview_manager.rb` — `run_container` (around lines 141-172):
+**File:** `lib/preview/preview_manager.rb` — modify the existing `run_container(project, tag)` (line 141). Keep the existing `(project, tag)` signature and the existing return contract (returns `result.stdout.strip` — the container ID — for the caller to assign to `preview_container_id`). The only structural change is gating the host port-publish on `!Preview::Config.remote?`. The existing tmpfs / read-only / cap-drop / pids-limit / RAILS_LOG_TO_STDOUT / storage mount lines all stay.
 
 ```ruby
-def run_container(project)
+def run_container(project, tag)
   args = [
     "docker", "run", "-d",
     "--name", "preview-#{project.id}",
-    "--cap-drop=ALL",
-    "--security-opt=no-new-privileges",
-    "--read-only",
     "--memory=#{MEMORY_LIMIT}",
+    "--memory-swap=#{MEMORY_LIMIT}",
     "--cpus=#{CPU_LIMIT}",
     "--pids-limit=#{PIDS_LIMIT}",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
     "--network=#{NETWORK}",
-    "-v", "#{project.workspace_path}/storage:/app/storage"
+    "--read-only",
+    "--tmpfs", "/tmp:size=64m",
+    "--tmpfs", "/app/tmp:size=64m",
+    "--tmpfs", "/app/log:size=16m"
   ]
 
   unless Preview::Config.remote?
     args.push("-p", "#{project.preview_port}:3000")
   end
 
-  args.push("preview-#{project.id}:latest")
+  args.push(
+    "-v", "#{File.join(project.workspace_path, 'storage')}:/app/storage",
+    "-e", "RAILS_LOG_TO_STDOUT=1",
+    tag
+  )
 
-  result = @runner.run(*args)
-  raise "docker run failed: #{result.stderr}" unless result.success?
-
-  project.update!(preview_container_id: result.stdout.strip)
-  "preview-#{project.id}"
+  result = @runner.run(*args, capture: true)
+  raise RunError, result.stderr unless result.ok
+  result.stdout.strip
 end
 ```
+
+(`capture: true` is required — without it `result.stdout` is empty, so `start` would assign an empty string to `preview_container_id` and subsequent `docker rm -f ""` calls during `stop` fail silently, leaving the container orphaned. Result struct uses `.ok`, not `.success?`. `RunError` is the existing exception class at preview_manager.rb:212.)
 
 #### 6. Healthcheck adjustment
 
@@ -1537,25 +1606,33 @@ In prod the healthcheck cannot hit `localhost:#{preview_port}` (no port mapping)
 - **Option A:** healthcheck `docker exec preview-#{id} curl -fsS http://localhost:3000/up` (curl from inside container).
 - **Option B:** healthcheck `docker exec kamal-proxy curl -fsS http://#{ip}:3000/up` (from kamal-proxy's network position).
 
-**Choose A** — the preview container has `curl` (it's in the base image apt install). Modify `wait_healthy!`:
+**Choose A** — the preview container has `curl` (it's in the base image apt install). Modify the existing `health_check!` / `curl_ok?` pair (preview_manager.rb:174-187) — keep the existing method names, branch the URL+command on `Preview::Config.remote?`:
 
 ```ruby
-def wait_healthy!(project)
-  deadline = Time.current + HEALTH_TIMEOUT_SECONDS
-
-  if Preview::Config.remote?
-    cmd = ["docker", "exec", "preview-#{project.id}", "curl", "-fsS", "-o", "/dev/null", "-m", "2", "http://localhost:3000/up"]
-  else
-    cmd = ["curl", "-fsS", "-o", "/dev/null", "-m", "2", "http://localhost:#{project.preview_port}/up"]
-  end
-
+def health_check!(project)
+  deadline = Time.current + @health_timeout
   loop do
-    return if @runner.run(*cmd).success?
-    raise "Preview did not become healthy in #{HEALTH_TIMEOUT_SECONDS}s" if Time.current > deadline
-    sleep HEALTH_INTERVAL_SECONDS
+    return if curl_ok?(project)
+    raise HealthcheckTimeout, "no /up after #{@health_timeout}s" if Time.current > deadline
+    sleep @health_interval
   end
 end
+
+def curl_ok?(project)
+  cmd =
+    if Preview::Config.remote?
+      ["docker", "exec", "preview-#{project.id}",
+       "curl", "-fsS", "-o", "/dev/null", "-m", "2", "http://localhost:3000/up"]
+    else
+      ["curl", "-fsS", "-o", "/dev/null", "-m", "2",
+       "http://localhost:#{project.preview_port}/up"]
+    end
+
+  @runner.run(*cmd, capture: true).ok
+end
 ```
+
+(`capture: true` matches the existing call at preview_manager.rb:185 and keeps the per-poll curl/docker-exec output off the parent's stdout. `HealthcheckTimeout` is the existing exception class at preview_manager.rb:213. Result struct uses `.ok`, not `.success?`. The `curl_ok?` signature changes from `(url)` to `(project)` — the existing single caller is `health_check!` itself, so no external breakage.)
 
 #### 7. Content-Security-Policy for the cross-origin iframe
 
