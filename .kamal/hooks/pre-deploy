@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Phase 4 production bootstrap. Idempotent — safe to run on every deploy.
+#
+# Kamal hooks run LOCALLY (kamal-2.11.0/lib/kamal/cli/base.rb:158 → SSHKit
+# `run_locally`), so every host-state mutation here is wrapped in `ssh`.
+# Building preview-base needs the lib/preview/ directory on the host, so we
+# rsync it into a scratch path first.
+set -euo pipefail
+
+HOST="${KAMAL_DEPLOY_HOST:-root@77.42.95.154}"
+RUBY_VERSION=$(sed 's/^ruby-//' .ruby-version)
+
+# 1+2. Ensure --internal preview-internal network on host; ensure kamal-proxy
+#      is attached to it. Both idempotent. --internal blocks outbound traffic
+#      from containers attached only to this network. kamal-proxy retains its
+#      kamal-network attachment for egress (LE etc).
+ssh "$HOST" 'set -e
+  if ! docker network inspect preview-internal >/dev/null 2>&1; then
+    echo "[pre-deploy] Creating preview-internal network (--internal) on host"
+    docker network create --internal preview-internal
+  fi
+  if ! docker network inspect preview-internal \
+        -f "{{range .Containers}}{{.Name}} {{end}}" \
+       | grep -qw kamal-proxy; then
+    echo "[pre-deploy] Connecting kamal-proxy to preview-internal on host"
+    docker network connect preview-internal kamal-proxy
+  fi
+'
+
+# 3. Build preview-base:latest on the host. ~25s warm (layer cache) when
+#    Gemfile.lock unchanged; ~5min cold (first deploy, or bundle invalidation).
+echo "[pre-deploy] Syncing lib/preview/ to host build context"
+ssh "$HOST" 'mkdir -p /var/lib/rails-app-generator/preview-base-context'
+rsync -az --delete \
+  lib/preview/ \
+  "$HOST:/var/lib/rails-app-generator/preview-base-context/"
+
+echo "[pre-deploy] Building preview-base:latest on host"
+ssh "$HOST" "docker build \
+  -t preview-base:latest \
+  --build-arg RUBY_VERSION='$RUBY_VERSION' \
+  -f /var/lib/rails-app-generator/preview-base-context/Dockerfile.base \
+  /var/lib/rails-app-generator/preview-base-context"
+
+echo "[pre-deploy] Bootstrap complete"
