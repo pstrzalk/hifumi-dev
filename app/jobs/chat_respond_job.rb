@@ -26,9 +26,13 @@ class ChatRespondJob < ApplicationJob
   rescue StandardError => e
     Rails.logger.error("[ChatRespondJob] message_id=#{message_id} #{e.class}: #{LogScrub.call(e.message)}")
     Rails.logger.error(LogScrub.call(e.backtrace.first(20).join("\n"))) if e.backtrace
-    target = latest_streaming_assistant(chat) || chat.messages.create!(role: :assistant, content: "")
-    target.update!(content: "Error: #{LogScrub.call(e.message)}")
-    broadcast_replace(project, target)
+    # Append a fresh error bubble. RubyLLM's `cleanup_failed_messages`
+    # already destroyed the empty assistant placeholder before re-raising,
+    # so any "find latest assistant" fallback would either pick up a
+    # successful PRIOR-turn reply (and overwrite it) or be nil. Creating
+    # a new message is unambiguous; the Message model's after_create_commit
+    # broadcasts the append.
+    chat&.messages&.create!(role: :assistant, content: "Error: #{LogScrub.call(e.message)}")
   end
 
   private
