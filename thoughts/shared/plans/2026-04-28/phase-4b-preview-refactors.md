@@ -247,10 +247,10 @@ Search `grep -r "preview_url\|PREVIEW_DOMAIN" test/` and update any tests that h
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test` passes
-- [ ] `Preview::Config` unit test: with `Rails.configuration.preview.domain = nil` → `remote? == false`; with `"hifumi.dev"` → `remote? == true && domain == "hifumi.dev"`.
-- [ ] `Project#preview_url` test: stubbed `Preview::Config.remote?` true → returns `https://<id>.preview.hifumi.dev`; false → returns `http://localhost:<port>`.
-- [ ] Grep proves no `ENV[` reading in `app/models/`, `app/jobs/`, `app/lib/preview/preview_manager.rb` for `PREVIEW_DOMAIN` (the wrapper is the only reader).
+- [x] `bin/rails test` passes
+- [x] `Preview::Config` unit test: with `Rails.configuration.preview.domain = nil` → `remote? == false`; with `"hifumi.dev"` → `remote? == true && domain == "hifumi.dev"`.
+- [x] `Project#preview_url` test: stubbed `Preview::Config.remote?` true → returns `https://<id>.preview.hifumi.dev`; false → returns `http://localhost:<port>`.
+- [x] Grep proves no `ENV[` reading in `app/models/`, `app/jobs/`, `app/lib/preview/preview_manager.rb` for `PREVIEW_DOMAIN` (the wrapper is the only reader).
 
 #### Manual Verification:
 - [ ] In dev (no `PREVIEW_DOMAIN` set), start a preview → iframe / link target is `http://localhost:30XX`. Existing behavior unchanged.

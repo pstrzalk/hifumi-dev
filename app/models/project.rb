@@ -23,11 +23,16 @@ class Project < ApplicationRecord
   # function of another column).
   def preview_url
     return nil unless preview_running?
-    "http://localhost:#{preview_port}"
+
+    if Preview::Config.remote?
+      "https://#{id}.preview.#{Preview::Config.domain}"
+    else
+      "http://localhost:#{preview_port}"
+    end
   end
 
   def preview_port
-    3000 + id
+    Preview::Config.port_offset + id
   end
 
   def workspace_initialized?

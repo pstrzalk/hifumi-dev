@@ -81,4 +81,14 @@ class ProjectTest < ActiveSupport::TestCase
     project.update!(preview_state: :running)
     assert_equal "http://localhost:#{3000 + project.id}", project.preview_url
   end
+
+  test "preview_url returns https://<id>.preview.<domain> when Preview::Config.remote?" do
+    project = projects(:flowers)
+    project.update!(preview_state: :running)
+    original = Rails.configuration.preview.domain
+    Rails.configuration.preview.domain = "hifumi.dev"
+    assert_equal "https://#{project.id}.preview.hifumi.dev", project.preview_url
+  ensure
+    Rails.configuration.preview.domain = original
+  end
 end
