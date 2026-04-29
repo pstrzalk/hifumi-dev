@@ -905,9 +905,15 @@ The plan switches `agent.complete { … }` → `agent.with_context(ctx).complete
 **Note (RubyLLM 1.14.1 caveat):** `acts_as_chat` (`use_new_acts_as = true`) does NOT delegate `with_context` from the AR record to the underlying `RubyLLM::Chat` (only `with_temperature` / `with_thinking` / `with_params` / `with_headers` / `with_schema` are delegated — verified in `chat_methods.rb:132-156`). So `app/models/chat.rb` patches it in, mirroring the same `to_llm.with_context(context); self` shape used by the other delegators. `with_context` on the underlying RubyLLM::Chat returns `self` and mutates in place, so `acts_as_chat` callbacks survive.
 
 #### Manual Verification:
-- [ ] Sign up, create a project, send an instruction → instruction completes (chat reply streams in, revision runs).
-- [ ] Sign up a second user with a DIFFERENT (or invalid) OpenRouter key, create a project, send an instruction → that user's project hits an error from OpenRouter (visible in revision status: failed with API auth error). Confirms keys are per-user.
-- [ ] Tail `log/development.log` during a generation, AND `log/production.log` after the Phase 11 deploy → confirm no `sk-or-...` key string appears anywhere (`grep -E 'sk-or-[A-Za-z0-9_-]{16,}' log/*.log` returns nothing).
-- [ ] Provoke an OpenRouter 401 by deliberately corrupting a test user's saved key, send a chat message → the in-UI error bubble shows `[FILTERED]` not the raw key, and the log line shows `[FILTERED]` not the raw key.
+- [x] Sign up, create a project, send an instruction → instruction completes (chat reply streams in, revision runs).
+- [x] Sign up a second user with a DIFFERENT (or invalid) OpenRouter key, create a project, send an instruction → that user's project hits an error from OpenRouter (visible in revision status: failed with API auth error). Confirms keys are per-user.
+- [x] Tail `log/development.log` during a generation → no `sk-or-...` substring (verified via the rescue-path scrubbing test). `log/production.log` check deferred to post-Phase 11 deploy.
+- [x] Provoke an OpenRouter 401 by deliberately corrupting a test user's saved key, send a chat message → friendly banner appears (`OpenRouter rejected your API key. Update it in Account.`); raw key never reaches the user-visible UI; log line shows `[FILTERED]`.
+
+**Note (mid-phase UX revision):** Plan §3 originally surfaced LLM errors as an assistant `Message` with content `"Error: …"`. Two issues drove a rewrite:
+1. RubyLLM's `cleanup_failed_messages` (chat_methods.rb) destroys the empty assistant placeholder *before* re-raising. The original "find latest assistant or create" rescue would either no-op or, worse, overwrite the *previous* turn's good reply.
+2. Raw exception text (`Missing Authentication header`) is operator noise, not conversation content.
+
+Final shape: rescue broadcasts a transient `#chat_notice` banner with a friendly `FRIENDLY_ERRORS`-mapped message (e.g. `RubyLLM::UnauthorizedError → "OpenRouter rejected your API key. Update it in Account."`); falls back to "Something went wrong contacting the model. Please try again." for unmapped classes. Banner has a × dismiss button (Stimulus `dismiss_controller`). The streaming success path (chunk loop) is **unchanged** — only the rescue was rewired.
 
 **Implementation Note**: Pause for manual confirmation before Phase 5. This phase is the critical multi-tenancy data integrity AND key-leakage check.
