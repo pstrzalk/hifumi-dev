@@ -1,4 +1,5 @@
 require "shellwords"
+require "open3"
 
 class ExecuteInstructionJob < ApplicationJob
   queue_as :generation
@@ -96,9 +97,13 @@ class ExecuteInstructionJob < ApplicationJob
     revision.update!(status: :generating, started_at: Time.current)
     ActiveSupport::Notifications.instrument("revision.started", revision_id: revision.id)
 
+    api_key = revision.instruction.project.user.profile.openrouter_api_key
+    raise "Project owner has no OpenRouter API key" if api_key.blank?
+
     env = {
       "RAILS_APP_GENERATOR_WORKSPACE" => workspace,
-      "RAILS_APP_GENERATOR_MODEL" => ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet")
+      "RAILS_APP_GENERATOR_MODEL" => ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet"),
+      "OPENROUTER_API_KEY" => api_key
     }
     args = [
       Rails.root.join("bin/roast").to_s,
@@ -140,10 +145,23 @@ class ExecuteInstructionJob < ApplicationJob
   end
 
   # Test seam — stubbed in unit tests, real in Step 7's integration test.
+  # popen3 (vs system+inherited TTY) lets us scrub each output line before it
+  # hits Rails.logger, so a key echoed by the subprocess can't reach prod logs.
   def run_roast_subprocess(env, args)
     started = Time.current
-    ok = system(env, *args)
-    exit_code = $?.exitstatus
+    exit_code = nil
+
+    Open3.popen3(env, *args) do |stdin, stdout, stderr, wait_thread|
+      stdin.close
+      threads = [
+        Thread.new { stdout.each_line { |line| Rails.logger.info(LogScrub.call(line.chomp)) } },
+        Thread.new { stderr.each_line { |line| Rails.logger.error(LogScrub.call(line.chomp)) } }
+      ]
+      threads.each(&:join)
+      exit_code = wait_thread.value.exitstatus
+    end
+
+    ok = exit_code == 0
     wall = (Time.current - started).round(2)
     [ok, exit_code, wall]
   end

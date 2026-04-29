@@ -7,7 +7,8 @@ class ChatRespondJobTest < ActiveJob::TestCase
   AGENT_INSTRUCTIONS_TEMPLATE = Rails.root.join("app/prompts/generator_agent/instructions.txt.erb").read.freeze
 
   setup do
-    @project = Project.create!(name: "Test Project", user: users(:owner))
+    @user = create_user(openrouter_api_key: "sk-or-test-fixture-1234567890ab")
+    @project = @user.projects.create!(name: "Test Project")
     @chat = GeneratorAgent.create!(project: @project)
     @user_message = @chat.messages.create!(role: :user, content: "Hello")
     @stream_name = @project.to_gid_param
@@ -132,6 +133,55 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_equal @project, start_gen.instance_variable_get(:@project)
   end
 
+  test "calls with_context carrying the project owner's openrouter key" do
+    captured_ctxs = []
+    spy_with_context(captured_ctxs) do
+      stub_complete(chunks: [ "ok" ]) do
+        perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+      end
+    end
+    assert_equal 1, captured_ctxs.size
+    ctx = captured_ctxs.first
+    assert_kind_of RubyLLM::Context, ctx
+    assert_equal "sk-or-test-fixture-1234567890ab", ctx.config.openrouter_api_key
+  end
+
+  test "raises (and surfaces Error: ...) when project owner has no openrouter key" do
+    @user.profile.update_columns(openrouter_api_key: nil)
+    perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+    assert_match(/has no OpenRouter API key/, latest_assistant.content)
+  end
+
+  test "with_context preserves acts_as_chat persistence callbacks (assistant message persisted)" do
+    # The plan §Phase 4 step 6 paranoia: switching agent.complete →
+    # agent.with_context(ctx).complete must not strip the on_new_message /
+    # on_end_message callbacks that acts_as_chat installs.
+    stub_complete(chunks: [ "callback survived" ]) do
+      perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+    end
+    assistants = @chat.messages.where(role: :assistant)
+    assert_equal 1, assistants.count
+    assert_equal "callback survived", assistants.first.content
+  end
+
+  test "scrubs sk-or-* secrets from rescue log line + user-facing error content" do
+    leaked_key = "sk-or-leaked123456789abcdef"
+    io = StringIO.new
+    original_logger = Rails.logger
+    Rails.logger = Logger.new(io)
+    begin
+      stub_complete(chunks: [], raise_immediately: true, raise_message: "auth failed for #{leaked_key}") do
+        perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+      end
+    ensure
+      Rails.logger = original_logger
+    end
+    refute_includes io.string, leaked_key, "expected log output to be scrubbed"
+    assert_includes io.string, "[FILTERED]"
+    refute_includes latest_assistant.content, leaked_key
+    assert_includes latest_assistant.content, "[FILTERED]"
+  end
+
   test "registers a SuggestPrompts tool bound to the project before completing" do
     captured_tools = []
     spy_with_tools(captured_tools) do
@@ -152,18 +202,19 @@ class ChatRespondJobTest < ActiveJob::TestCase
     @chat.messages.where(role: :assistant).order(:id).last
   end
 
-  def stub_complete(chunks:, raise_at: nil, raise_immediately: false)
+  def stub_complete(chunks:, raise_at: nil, raise_immediately: false, raise_message: "boom")
     ChatCompleteStub.chunks = chunks
     ChatCompleteStub.raise_at = raise_at
     ChatCompleteStub.raise_immediately = raise_immediately
+    ChatCompleteStub.raise_message = raise_message
 
     Chat.class_eval do
       alias_method :_original_complete, :complete if method_defined?(:complete) && !method_defined?(:_original_complete)
       define_method(:complete) do |**_kwargs, &block|
-        raise StandardError, "boom" if ChatCompleteStub.raise_immediately
+        raise StandardError, ChatCompleteStub.raise_message if ChatCompleteStub.raise_immediately
         messages.create!(role: :assistant, content: "")
         ChatCompleteStub.chunks.each_with_index do |content, i|
-          raise StandardError, "boom" if ChatCompleteStub.raise_at == i
+          raise StandardError, ChatCompleteStub.raise_message if ChatCompleteStub.raise_at == i
           block&.call(OpenStruct.new(content: content))
         end
       end
@@ -177,7 +228,22 @@ class ChatRespondJobTest < ActiveJob::TestCase
 
   module ChatCompleteStub
     class << self
-      attr_accessor :chunks, :raise_at, :raise_immediately
+      attr_accessor :chunks, :raise_at, :raise_immediately, :raise_message
+    end
+  end
+
+  def spy_with_context(captured)
+    Chat.class_eval do
+      alias_method :_original_with_context, :with_context
+      define_method(:with_context) do |context|
+        captured << context
+        _original_with_context(context)
+      end
+    end
+    yield
+  ensure
+    Chat.class_eval do
+      alias_method :with_context, :_original_with_context if method_defined?(:_original_with_context)
     end
   end
 

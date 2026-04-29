@@ -664,9 +664,9 @@ root "home#index"
 - [x] `ProjectsControllerTest#index`: anon → redirected; logged-in with 0 projects → empty-state copy present; logged-in with 2 projects → both names rendered, in `created_at desc` order.
 
 #### Manual Verification:
-- [ ] Anon at `/` → see welcome with two CTAs; click Sign up → registration form.
-- [ ] Logged-in at `/` → redirected to `/projects`; create 2 projects → both listed newest-first.
-- [ ] Click Delete on a project → confirm dialog → project gone from list.
+- [x] Anon at `/` → see welcome with two CTAs; click Sign up → registration form.
+- [x] Logged-in at `/` → redirected to `/projects`; create 2 projects → both listed newest-first.
+- [x] Click Delete on a project → confirm dialog → project gone from list.
 
 **Implementation Note**: Pause for manual confirmation before Phase 4.
 
@@ -894,13 +894,15 @@ The plan switches `agent.complete { … }` → `agent.with_context(ctx).complete
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test` passes
-- [ ] `ChatRespondJobTest`: with a fixture user whose profile.openrouter_api_key = "sk-or-test...", asserts the RubyLLM call receives that key. Stub network calls via WebMock or RubyLLM's testing facilities.
-- [ ] `ChatRespondJobTest`: callback-preservation case (step 6 above) — `with_context(ctx).complete { }` still creates the assistant Message row.
-- [ ] `ExecuteInstructionJobTest`: stubs `run_roast_subprocess` and asserts it received `{"OPENROUTER_API_KEY" => "sk-or-test..."}` in the env hash.
-- [ ] Test asserts `Rails.application.config.filter_parameters` includes `:openrouter_api_key`.
-- [ ] `LogScrub` unit test: scrubs `sk-or-abc1234567890123` → `[FILTERED]`; passes through unrelated text unchanged.
-- [ ] `ChatRespondJob` rescue test: stub the LLM call to raise `StandardError.new("auth failed for sk-or-leaked123456789")`; assert that no `sk-or-*` substring appears in `Rails.logger`'s captured output AND that the broadcasted user-facing Message content also contains `[FILTERED]` not the raw key.
+- [x] `bin/rails test` passes
+- [x] `ChatRespondJobTest`: with a fixture user whose profile.openrouter_api_key = "sk-or-test...", asserts the RubyLLM call receives that key. Stub network calls via WebMock or RubyLLM's testing facilities.
+- [x] `ChatRespondJobTest`: callback-preservation case (step 6 above) — `with_context(ctx).complete { }` still creates the assistant Message row.
+- [x] `ExecuteInstructionJobTest`: stubs `run_roast_subprocess` and asserts it received `{"OPENROUTER_API_KEY" => "sk-or-test..."}` in the env hash.
+- [x] Test asserts `Rails.application.config.filter_parameters` includes `:openrouter_api_key`.
+- [x] `LogScrub` unit test: scrubs `sk-or-abc1234567890123` → `[FILTERED]`; passes through unrelated text unchanged.
+- [x] `ChatRespondJob` rescue test: stub the LLM call to raise `StandardError.new("auth failed for sk-or-leaked123456789")`; assert that no `sk-or-*` substring appears in `Rails.logger`'s captured output AND that the broadcasted user-facing Message content also contains `[FILTERED]` not the raw key.
+
+**Note (RubyLLM 1.14.1 caveat):** `acts_as_chat` (`use_new_acts_as = true`) does NOT delegate `with_context` from the AR record to the underlying `RubyLLM::Chat` (only `with_temperature` / `with_thinking` / `with_params` / `with_headers` / `with_schema` are delegated — verified in `chat_methods.rb:132-156`). So `app/models/chat.rb` patches it in, mirroring the same `to_llm.with_context(context); self` shape used by the other delegators. `with_context` on the underlying RubyLLM::Chat returns `self` and mutates in place, so `acts_as_chat` callbacks survive.
 
 #### Manual Verification:
 - [ ] Sign up, create a project, send an instruction → instruction completes (chat reply streams in, revision runs).

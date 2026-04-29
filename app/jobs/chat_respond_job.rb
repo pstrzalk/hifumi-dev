@@ -5,9 +5,15 @@ class ChatRespondJob < ApplicationJob
     user_message = Message.find(message_id)
     chat = user_message.chat
     project = chat.project
-    agent = GeneratorAgent.find(user_message.chat_id)
+    api_key = project.user.profile.openrouter_api_key
+    raise "Project owner has no OpenRouter API key" if api_key.blank?
 
-    agent.complete do |chunk|
+    ctx = RubyLLM.context do |c|
+      c.openrouter_api_key = api_key
+    end
+
+    agent = GeneratorAgent.find(user_message.chat_id)
+    agent.with_context(ctx).complete do |chunk|
       delta = chunk.content.to_s
       next if delta.empty?
 
@@ -18,10 +24,10 @@ class ChatRespondJob < ApplicationJob
       broadcast_replace(project, assistant)
     end
   rescue StandardError => e
-    # TODO(later): typed error event + proper UX
-    Rails.logger.error(e.full_message)
+    Rails.logger.error("[ChatRespondJob] message_id=#{message_id} #{e.class}: #{LogScrub.call(e.message)}")
+    Rails.logger.error(LogScrub.call(e.backtrace.first(20).join("\n"))) if e.backtrace
     target = latest_streaming_assistant(chat) || chat.messages.create!(role: :assistant, content: "")
-    target.update!(content: "Error: #{e.message}")
+    target.update!(content: "Error: #{LogScrub.call(e.message)}")
     broadcast_replace(project, target)
   end
 

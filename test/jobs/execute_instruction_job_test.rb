@@ -2,7 +2,8 @@ require "test_helper"
 
 class ExecuteInstructionJobTest < ActiveJob::TestCase
   setup do
-    @project = Project.create!(name: "Test Project", user: users(:owner))
+    @user = create_user(openrouter_api_key: "sk-or-test-fixture-1234567890ab")
+    @project = @user.projects.create!(name: "Test Project")
     @chat = @project.create_chat!
     @msg = @chat.messages.create!(role: :user, content: "hi")
     @instruction = @project.instructions.create!(
@@ -169,6 +170,27 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal "revision_id=#{@rev1.id}",                           first_call[:args][3]
     assert_equal "revision_summary=summary 1",                        first_call[:args][4]
     assert_equal "revision_prompt=prompt 1",                          first_call[:args][5]
+  end
+
+  test "run_roast_subprocess env carries the project owner's openrouter key" do
+    first_call = nil
+    with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
+      ExecuteInstructionJob.perform_now(@instruction.id)
+      first_call = spy[:subprocess_calls].first
+    end
+
+    assert_equal "sk-or-test-fixture-1234567890ab",
+                 first_call[:env]["OPENROUTER_API_KEY"]
+  end
+
+  test "raises when project owner has no openrouter key (subprocess never invoked)" do
+    @user.profile.update_columns(openrouter_api_key: nil)
+    with_stubs(subprocess: [ [ true, 0, 0.1 ] ]) do |spy|
+      assert_raises(RuntimeError) { ExecuteInstructionJob.perform_now(@instruction.id) }
+      assert_empty spy[:subprocess_calls],
+        "subprocess must NOT be invoked when the owner has no API key"
+    end
+    assert_equal "pending", @rev2.reload.status
   end
 
   # --- subprocess_env normalization -------------------------------------
