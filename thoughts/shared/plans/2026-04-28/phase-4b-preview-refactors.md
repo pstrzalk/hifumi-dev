@@ -166,8 +166,8 @@ Search for other references: `grep -r CleanupIdlePreviews test/` and remove.
 - [x] `grep -r CleanupIdlePreviews app/ config/ test/` returns nothing
 
 #### Manual Verification:
-- [ ] Start a preview, wait 35 minutes → preview still running.
-- [ ] Click Stop → preview stops as before.
+- [x] Start a preview, wait 35 minutes → preview still running.
+- [x] Click Stop → preview stops as before.
 
 **Implementation Note**: Manual verification of the 35-minute wait can be skipped in practice; the absence of the reaper is sufficient verification once tests pass.
 
@@ -253,7 +253,7 @@ Search `grep -r "preview_url\|PREVIEW_DOMAIN" test/` and update any tests that h
 - [x] Grep proves no `ENV[` reading in `app/models/`, `app/jobs/`, `app/lib/preview/preview_manager.rb` for `PREVIEW_DOMAIN` (the wrapper is the only reader).
 
 #### Manual Verification:
-- [ ] In dev (no `PREVIEW_DOMAIN` set), start a preview → iframe / link target is `http://localhost:30XX`. Existing behavior unchanged.
+- [x] In dev (no `PREVIEW_DOMAIN` set), start a preview → iframe / link target is `http://localhost:30XX`. Existing behavior unchanged.
 
 ---
 
@@ -320,5 +320,5 @@ Replace the "Roast runner" bullet under Conventions:
 - [x] `bin/roast --help` (if Roast supports it) or `bin/roast --version` runs without error (proves binstub is functional).
 
 #### Manual Verification:
-- [ ] In dev, send an instruction → executes via `bin/roast-claudesubscription` (frum-pinned Ruby; Claude Code subscription).
-- [ ] In dev with `FORCE_OPENROUTER=1 bin/dev`, send an instruction → executes via `bin/roast-openrouter` against your dev OpenRouter key.
+- [x] In dev, send an instruction → executes via `bin/roast-claudesubscription` (frum-pinned Ruby; Claude Code subscription).
+- [x] In dev with `FORCE_OPENROUTER=1 bin/dev`, send an instruction → executes via `bin/roast-openrouter` against your dev OpenRouter key.
