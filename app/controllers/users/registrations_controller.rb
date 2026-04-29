@@ -18,6 +18,27 @@ class Users::RegistrationsController < Devise::RegistrationsController
 
   private
 
+  # Only require current_password when changing the password or email —
+  # rotating the OpenRouter key or fixing a typo in your name shouldn't
+  # block on it.
+  def update_resource(resource, params)
+    if password_or_email_change?(resource, params)
+      resource.update_with_password(params)
+    else
+      params.delete(:current_password)
+      params.delete(:password)
+      params.delete(:password_confirmation)
+      resource.update_without_password(params)
+    end
+  end
+
+  def password_or_email_change?(resource, params)
+    params[:password].present? ||
+      params[:password_confirmation].present? ||
+      (params[:email].present? && params[:email] != resource.email)
+  end
+
+
   def configure_sign_up_params
     devise_parameter_sanitizer.permit(:sign_up,
       keys: [profile_attributes: [:first_name, :last_name, :openrouter_api_key]])

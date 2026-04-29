@@ -71,7 +71,7 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "PUT /users (update) with blank key + valid current_password keeps existing key" do
+  test "PUT /users (update) profile-only without current_password succeeds (rotates key, updates name)" do
     user = User.create!(
       email: "rotate@example.com",
       password: "password123",
@@ -84,7 +84,6 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
     put user_registration_path, params: {
       user: {
-        current_password: "password123",
         profile_attributes: {
           id: user.profile.id,
           first_name: "Patricia",
@@ -99,7 +98,7 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "sk-or-existing-key-abc12345", user.profile.openrouter_api_key
   end
 
-  test "PUT /users (update) with new key + valid current_password rotates the key" do
+  test "PUT /users (update) with new key (no current_password) rotates the key" do
     user = User.create!(
       email: "rotate2@example.com",
       password: "password123",
@@ -112,7 +111,6 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
     put user_registration_path, params: {
       user: {
-        current_password: "password123",
         profile_attributes: {
           id: user.profile.id,
           first_name: "Pat",
@@ -124,5 +122,51 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
     user.profile.reload
     assert_equal "sk-or-rotated-newkeyzzzz", user.profile.openrouter_api_key
+  end
+
+  test "PUT /users password change without current_password is rejected" do
+    user = User.create!(
+      email: "pwchange@example.com",
+      password: "password123",
+      profile_attributes: {
+        first_name: "Pat", last_name: "Smith",
+        openrouter_api_key: "sk-or-pwchange-key-12345678"
+      }
+    )
+    sign_in user
+    old_encrypted = user.encrypted_password
+
+    put user_registration_path, params: {
+      user: {
+        password: "newpassword456",
+        password_confirmation: "newpassword456",
+        profile_attributes: { id: user.profile.id, first_name: "Pat", last_name: "Smith" }
+      }
+    }
+    assert_response :unprocessable_entity
+    assert_equal old_encrypted, user.reload.encrypted_password
+  end
+
+  test "PUT /users password change with valid current_password succeeds" do
+    user = User.create!(
+      email: "pwok@example.com",
+      password: "password123",
+      profile_attributes: {
+        first_name: "Pat", last_name: "Smith",
+        openrouter_api_key: "sk-or-pwok-key-1234567890"
+      }
+    )
+    sign_in user
+    old_encrypted = user.encrypted_password
+
+    put user_registration_path, params: {
+      user: {
+        current_password: "password123",
+        password: "newpassword456",
+        password_confirmation: "newpassword456",
+        profile_attributes: { id: user.profile.id, first_name: "Pat", last_name: "Smith" }
+      }
+    }
+    assert_not_equal old_encrypted, user.reload.encrypted_password
   end
 end

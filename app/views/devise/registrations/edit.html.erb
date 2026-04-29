@@ -42,10 +42,10 @@
     <p><%= f.password_field :password_confirmation, autocomplete: "new-password" %></p>
   </div>
 
-  <h3>Confirm changes</h3>
+  <h3>Current password</h3>
 
   <div class="field">
-    <p><%= f.label :current_password %> <i>(we need your current password to confirm your changes)</i></p>
+    <p><%= f.label :current_password %> <i>(only required if changing email or password)</i></p>
     <p><%= f.password_field :current_password, autocomplete: "current-password" %></p>
   </div>
 
