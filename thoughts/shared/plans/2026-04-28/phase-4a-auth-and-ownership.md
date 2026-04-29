@@ -565,10 +565,10 @@ end
 - [x] `PreviewsControllerTest` covers same three branches for both `create` and `destroy`.
 
 #### Manual Verification:
-- [ ] Sign up, create a project → succeed, project listed under that user.
-- [ ] Sign out, hit `/projects/<id>` → redirected to login.
-- [ ] Sign up as a second user, hit first user's project URL → redirected with "Not your project".
-- [ ] Sign back in as owner, hit `/projects/<id>` → see studio.
+- [x] Sign up, create a project → succeed, project listed under that user.
+- [x] Sign out, hit `/projects/<id>` → redirected to login.
+- [x] Sign up as a second user, hit first user's project URL → redirected with "Not your project".
+- [x] Sign back in as owner, hit `/projects/<id>` → see studio.
 
 **Implementation Note**: Pause for manual confirmation before Phase 3.
 
@@ -659,9 +659,9 @@ root "home#index"
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test` passes
-- [ ] `HomeControllerTest`: anon → renders welcome; logged-in → redirects to `/projects`.
-- [ ] `ProjectsControllerTest#index`: anon → redirected; logged-in with 0 projects → empty-state copy present; logged-in with 2 projects → both names rendered, in `created_at desc` order.
+- [x] `bin/rails test` passes
+- [x] `HomeControllerTest`: anon → renders welcome; logged-in → redirects to `/projects`.
+- [x] `ProjectsControllerTest#index`: anon → redirected; logged-in with 0 projects → empty-state copy present; logged-in with 2 projects → both names rendered, in `created_at desc` order.
 
 #### Manual Verification:
 - [ ] Anon at `/` → see welcome with two CTAs; click Sign up → registration form.

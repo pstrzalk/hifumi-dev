@@ -8,6 +8,38 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     sign_in @user
   end
 
+  test "GET /projects without auth redirects to login" do
+    sign_out @user
+    get projects_path
+    assert_redirected_to new_user_session_path
+  end
+
+  test "GET /projects (signed in, 0 projects) renders empty-state copy" do
+    get projects_path
+    assert_response :success
+    assert_select "p", /No projects yet/
+  end
+
+  test "GET /projects (signed in, 2 projects) renders both names newest-first" do
+    older = @user.projects.create!(name: "Older", created_at: 2.hours.ago)
+    newer = @user.projects.create!(name: "Newer", created_at: 1.minute.ago)
+
+    get projects_path
+    assert_response :success
+    body = @response.body
+    assert_includes body, "Older"
+    assert_includes body, "Newer"
+    assert body.index("Newer") < body.index("Older"), "Newer should render before Older"
+  end
+
+  test "GET /projects only lists current user's projects" do
+    @user.projects.create!(name: "Mine")
+    Project.create!(name: "Theirs", user: users(:other))
+    get projects_path
+    assert_includes @response.body, "Mine"
+    assert_not_includes @response.body, "Theirs"
+  end
+
   test "GET /projects/new (signed in) renders new with placeholder text" do
     get new_project_path
     assert_response :success

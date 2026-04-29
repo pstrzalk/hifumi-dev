@@ -2,6 +2,10 @@ class ProjectsController < ApplicationController
   before_action :authenticate_user!
   before_action :load_project_and_authorize!, only: [:show, :destroy]
 
+  def index
+    @projects = current_user.projects.order(created_at: :desc)
+  end
+
   def new
     @project = Project.new
   end

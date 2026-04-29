@@ -26,6 +26,7 @@
   <body>
     <% if user_signed_in? %>
       <nav class="container mx-auto px-5 mt-4 text-sm">
+        <%= link_to "Projects", projects_path %> ·
         <%= link_to "Account", edit_user_registration_path %> ·
         <%= button_to "Sign out", destroy_user_session_path, method: :delete, form: { class: "inline" }, class: "underline" %>
       </nav>

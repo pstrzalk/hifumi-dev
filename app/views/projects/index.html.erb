@@ -1,0 +1,31 @@
+<section class="w-full max-w-2xl mx-auto">
+  <div class="flex items-baseline justify-between mb-6">
+    <h1 class="text-3xl font-semibold">Your projects</h1>
+    <%= link_to "+ New project", new_project_path,
+        class: "bg-black text-white rounded px-4 py-2 text-sm" %>
+  </div>
+
+  <% if @projects.any? %>
+    <ul class="flex flex-col gap-3">
+      <% @projects.each do |project| %>
+        <li class="flex items-center justify-between border rounded px-4 py-3">
+          <div>
+            <%= link_to project.name, project, class: "font-medium hover:underline" %>
+            <div class="text-sm text-gray-500">
+              <%= project.preview_state %> ·
+              created <%= time_ago_in_words(project.created_at) %> ago
+            </div>
+          </div>
+          <%= button_to "Delete", project, method: :delete,
+              form: { data: { turbo_confirm: "Delete \"#{project.name}\"?" } },
+              class: "text-sm text-red-700 hover:underline" %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-gray-600">
+      No projects yet.
+      <%= link_to "Create your first one", new_project_path, class: "underline" %>.
+    </p>
+  <% end %>
+</section>
