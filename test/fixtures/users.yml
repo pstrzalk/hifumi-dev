@@ -1,0 +1,2 @@
+# Tests build users via the signup flow or User.create with profile_attributes;
+# leaving fixtures empty avoids encrypted-column round-trip pitfalls.

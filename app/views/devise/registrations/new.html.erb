@@ -1,0 +1,47 @@
+<h2>Sign up</h2>
+
+<%= form_for(resource, as: resource_name, url: registration_path(resource_name)) do |f| %>
+  <%= render "devise/shared/error_messages", resource: resource %>
+
+  <div class="field">
+    <p><%= f.label :email %></p>
+    <p><%= f.email_field :email, autofocus: true, autocomplete: "email" %></p>
+  </div>
+
+  <div class="field">
+    <p><%= f.label :password %></p>
+    <% if @minimum_password_length %>
+      <p><em>(<%= @minimum_password_length %> characters minimum)</em></p>
+    <% end %>
+    <p><%= f.password_field :password, autocomplete: "new-password" %></p>
+  </div>
+
+  <div class="field">
+    <p><%= f.label :password_confirmation %></p>
+    <p><%= f.password_field :password_confirmation, autocomplete: "new-password" %></p>
+  </div>
+
+  <%= f.fields_for :profile do |pf| %>
+    <div class="field">
+      <p><%= pf.label :first_name %></p>
+      <p><%= pf.text_field :first_name %></p>
+    </div>
+
+    <div class="field">
+      <p><%= pf.label :last_name %></p>
+      <p><%= pf.text_field :last_name %></p>
+    </div>
+
+    <div class="field">
+      <p><%= pf.label :openrouter_api_key, "OpenRouter API key" %></p>
+      <p><%= pf.password_field :openrouter_api_key, autocomplete: "off" %></p>
+      <p><small>Get one at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>. Required — your key powers your projects.</small></p>
+    </div>
+  <% end %>
+
+  <div class="actions">
+    <%= f.submit "Sign up" %>
+  </div>
+<% end %>
+
+<%= render "devise/shared/links" %>

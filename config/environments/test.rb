@@ -50,4 +50,10 @@ Rails.application.configure do
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true
+
+  # Deterministic, non-secret encryption keys so Profile#encrypts is loadable
+  # during the test boot. credentials.yml.enc isn't read in :test.
+  config.active_record.encryption.primary_key             = "test_primary_key_at_least_32_bytes"
+  config.active_record.encryption.deterministic_key       = "test_deterministic_key_32_bytes_l"
+  config.active_record.encryption.key_derivation_salt     = "test_key_derivation_salt_32_bytes"
 end

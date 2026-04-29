@@ -24,6 +24,16 @@
   </head>
 
   <body>
+    <% if user_signed_in? %>
+      <nav class="container mx-auto px-5 mt-4 text-sm">
+        <%= link_to "Account", edit_user_registration_path %> ·
+        <%= button_to "Sign out", destroy_user_session_path, method: :delete, form: { class: "inline" }, class: "underline" %>
+      </nav>
+    <% end %>
+
+    <% if notice %><p class="container mx-auto px-5 mt-2 text-green-700"><%= notice %></p><% end %>
+    <% if alert  %><p class="container mx-auto px-5 mt-2 text-red-700"><%= alert  %></p><% end %>
+
     <main class="container mx-auto mt-28 px-5 flex">
       <%= yield %>
     </main>

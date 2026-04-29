@@ -1,0 +1,2 @@
+# Tests build profiles via the signup flow (encrypted column round-trips
+# through the model callbacks, not raw fixture insert).

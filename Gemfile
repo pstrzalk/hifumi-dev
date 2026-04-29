@@ -46,6 +46,9 @@ gem "ruby_llm"
 # Orchestration of generation workflows (per-revision Roast subprocess)
 gem "roast-ai", "~> 1.1"
 
+# Authentication
+gem "devise"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"

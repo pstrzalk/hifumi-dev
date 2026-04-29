@@ -1,0 +1,61 @@
+<h2>Edit <%= resource_name.to_s.humanize %></h2>
+
+<%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put }) do |f| %>
+  <%= render "devise/shared/error_messages", resource: resource %>
+
+  <div class="field">
+    <p><%= f.label :email %></p>
+    <p><%= f.email_field :email, autofocus: true, autocomplete: "email" %></p>
+  </div>
+
+  <%= f.fields_for :profile do |pf| %>
+    <div class="field">
+      <p><%= pf.label :first_name %></p>
+      <p><%= pf.text_field :first_name %></p>
+    </div>
+
+    <div class="field">
+      <p><%= pf.label :last_name %></p>
+      <p><%= pf.text_field :last_name %></p>
+    </div>
+
+    <div class="field">
+      <p><%= pf.label :openrouter_api_key, "OpenRouter API key" %></p>
+      <p><%= pf.password_field :openrouter_api_key, autocomplete: "off",
+              placeholder: "(unchanged — leave blank to keep current key)" %></p>
+      <p><small>Rotate at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>.</small></p>
+    </div>
+  <% end %>
+
+  <h3>Change password (optional)</h3>
+
+  <div class="field">
+    <p><%= f.label :password, "New password" %></p>
+    <p><%= f.password_field :password, autocomplete: "new-password" %></p>
+    <% if @minimum_password_length %>
+      <p><em><%= @minimum_password_length %> characters minimum</em></p>
+    <% end %>
+  </div>
+
+  <div class="field">
+    <p><%= f.label :password_confirmation %></p>
+    <p><%= f.password_field :password_confirmation, autocomplete: "new-password" %></p>
+  </div>
+
+  <h3>Confirm changes</h3>
+
+  <div class="field">
+    <p><%= f.label :current_password %> <i>(we need your current password to confirm your changes)</i></p>
+    <p><%= f.password_field :current_password, autocomplete: "current-password" %></p>
+  </div>
+
+  <div class="actions">
+    <%= f.submit "Update" %>
+  </div>
+<% end %>
+
+<h3>Cancel my account</h3>
+
+<div>Unhappy? <%= button_to "Cancel my account", registration_path(resource_name), data: { confirm: "Are you sure?", turbo_confirm: "Are you sure?" }, method: :delete %></div>
+
+<%= link_to "Back", :back %>
