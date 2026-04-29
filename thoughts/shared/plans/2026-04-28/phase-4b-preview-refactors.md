@@ -162,8 +162,8 @@ Search for other references: `grep -r CleanupIdlePreviews test/` and remove.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test` passes
-- [ ] `grep -r CleanupIdlePreviews app/ config/ test/` returns nothing
+- [x] `bin/rails test` passes
+- [x] `grep -r CleanupIdlePreviews app/ config/ test/` returns nothing
 
 #### Manual Verification:
 - [ ] Start a preview, wait 35 minutes → preview still running.
