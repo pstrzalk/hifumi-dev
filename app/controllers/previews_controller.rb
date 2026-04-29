@@ -1,5 +1,5 @@
 class PreviewsController < ApplicationController
-  before_action :load_project
+  include ProjectOwnerRequired
 
   def create
     # Guard: only allow start from terminal states. Prevents double-click /
@@ -35,9 +35,4 @@ class PreviewsController < ApplicationController
     end
   end
 
-  private
-
-  def load_project
-    @project = Project.find(params[:project_id])
-  end
 end

@@ -5,7 +5,7 @@ class EventSubscribersTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   setup do
-    @project = Project.create!(name: "Shop")
+    @project = Project.create!(name: "Shop", user: users(:owner))
     @chat = @project.create_chat!
     @user_message = @chat.messages.create!(role: :user, content: "flower shop")
     @instruction = @project.instructions.create!(

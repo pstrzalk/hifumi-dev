@@ -1,2 +1,13 @@
-# Tests build profiles via the signup flow (encrypted column round-trips
-# through the model callbacks, not raw fixture insert).
+# NOTE: openrouter_api_key is encrypted via Rails 8 attribute encryption.
+# Fixtures bypass model callbacks (raw INSERT), so we leave the column NULL
+# here; tests that depend on a real key build users via the model directly.
+
+owner:
+  user: owner
+  first_name: Owner
+  last_name: User
+
+other:
+  user: other
+  first_name: Other
+  last_name: User

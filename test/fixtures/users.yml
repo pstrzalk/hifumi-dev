@@ -1,2 +1,8 @@
-# Tests build users via the signup flow or User.create with profile_attributes;
-# leaving fixtures empty avoids encrypted-column round-trip pitfalls.
+<% encrypted = Devise::Encryptor.digest(User, "password123") %>
+owner:
+  email: owner@example.com
+  encrypted_password: <%= encrypted %>
+
+other:
+  email: other@example.com
+  encrypted_password: <%= encrypted %>

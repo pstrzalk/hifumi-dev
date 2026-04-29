@@ -4,7 +4,9 @@ class PreviewsControllerTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestCase if false  # placeholder; ActiveJob assertions come from rails/test_help
 
   setup do
-    @project = Project.create!(name: "Preview Controller Test")
+    @user = create_user
+    sign_in @user
+    @project = @user.projects.create!(name: "Preview Controller Test")
   end
 
   # --- create (POST /projects/:id/preview) ------------------------------
@@ -88,5 +90,45 @@ class PreviewsControllerTest < ActionDispatch::IntegrationTest
   test "404 for unknown project_id" do
     post "/projects/0/preview"
     assert_response :not_found
+  end
+
+  # --- ownership --------------------------------------------------------
+
+  test "POST without auth redirects to login" do
+    sign_out @user
+    @project.update!(preview_state: :stopped)
+    assert_no_enqueued_jobs(only: StartPreviewJob) do
+      post project_preview_path(@project)
+    end
+    assert_redirected_to new_user_session_path
+  end
+
+  test "POST as non-owner redirects to root with 'Not your project'" do
+    sign_out @user
+    sign_in users(:other)
+    @project.update!(preview_state: :stopped)
+    assert_no_enqueued_jobs(only: StartPreviewJob) do
+      post project_preview_path(@project)
+    end
+    assert_redirected_to root_path
+    assert_equal "Not your project", flash[:alert]
+  end
+
+  test "DELETE without auth redirects to login" do
+    sign_out @user
+    assert_no_enqueued_jobs(only: StopPreviewJob) do
+      delete project_preview_path(@project)
+    end
+    assert_redirected_to new_user_session_path
+  end
+
+  test "DELETE as non-owner redirects to root with 'Not your project'" do
+    sign_out @user
+    sign_in users(:other)
+    assert_no_enqueued_jobs(only: StopPreviewJob) do
+      delete project_preview_path(@project)
+    end
+    assert_redirected_to root_path
+    assert_equal "Not your project", flash[:alert]
   end
 end

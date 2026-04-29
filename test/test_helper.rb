@@ -30,6 +30,23 @@ module ActiveSupport
     # Setup all fixtures in test/fixtures/*.yml for all tests in alphabetical order.
     fixtures :all
 
-    # Add more helper methods to be used by all tests here...
+    # Build a user via the model so the encrypted openrouter_api_key
+    # round-trips through the `encrypts` callback. Fixtures can't do this
+    # (raw INSERT bypasses callbacks).
+    def create_user(email: nil, openrouter_api_key: nil)
+      email ||= "u-#{SecureRandom.hex(4)}@example.com"
+      User.create!(
+        email: email,
+        password: "password123",
+        profile_attributes: {
+          first_name: "Test", last_name: "User",
+          openrouter_api_key: openrouter_api_key || "sk-or-test-#{SecureRandom.hex(8)}"
+        }
+      )
+    end
   end
+end
+
+class ActionDispatch::IntegrationTest
+  include Devise::Test::IntegrationHelpers
 end

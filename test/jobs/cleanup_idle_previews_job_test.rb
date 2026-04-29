@@ -8,7 +8,7 @@ class CleanupIdlePreviewsJobTest < ActiveJob::TestCase
   end
 
   test "enqueues StopPreviewJob for previews running longer than IDLE_TIMEOUT" do
-    project = Project.create!(name: "Idle Preview")
+    project = Project.create!(name: "Idle Preview", user: users(:owner))
     project.update!(preview_state: :running, preview_started_at: 31.minutes.ago)
 
     assert_enqueued_with(job: StopPreviewJob, args: [project.id], queue: "preview") do
@@ -17,7 +17,7 @@ class CleanupIdlePreviewsJobTest < ActiveJob::TestCase
   end
 
   test "does not enqueue StopPreviewJob for previews started within IDLE_TIMEOUT" do
-    project = Project.create!(name: "Fresh Preview")
+    project = Project.create!(name: "Fresh Preview", user: users(:owner))
     project.update!(preview_state: :running, preview_started_at: 1.minute.ago)
 
     assert_no_enqueued_jobs(only: StopPreviewJob) do
@@ -26,7 +26,7 @@ class CleanupIdlePreviewsJobTest < ActiveJob::TestCase
   end
 
   test "does not enqueue StopPreviewJob for stopped previews regardless of age" do
-    project = Project.create!(name: "Stopped Preview")
+    project = Project.create!(name: "Stopped Preview", user: users(:owner))
     project.update!(preview_state: :stopped, preview_started_at: 2.hours.ago)
 
     assert_no_enqueued_jobs(only: StopPreviewJob) do

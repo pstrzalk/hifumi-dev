@@ -17,12 +17,12 @@ class ProjectTest < ActiveSupport::TestCase
   end
 
   test "workspace_initialized? returns false when no Gemfile in workspace" do
-    project = Project.create!(name: "Uninitialized")
+    project = Project.create!(name: "Uninitialized", user: users(:owner))
     assert_not project.workspace_initialized?
   end
 
   test "workspace_initialized? returns true when Gemfile exists in workspace" do
-    project = Project.create!(name: "Initialized")
+    project = Project.create!(name: "Initialized", user: users(:owner))
     ws = project.workspace_path
     FileUtils.mkdir_p(ws)
     File.write(File.join(ws, "Gemfile"), "source 'https://rubygems.org'\n")
@@ -58,7 +58,7 @@ class ProjectTest < ActiveSupport::TestCase
   # --- preview state ----------------------------------------------------
 
   test "preview_state defaults to :stopped" do
-    project = Project.create!(name: "fresh")
+    project = Project.create!(name: "fresh", user: users(:owner))
     assert_equal "stopped", project.preview_state
     assert project.preview_stopped?
   end

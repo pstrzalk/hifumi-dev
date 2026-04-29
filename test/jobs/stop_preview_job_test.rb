@@ -2,7 +2,7 @@ require "test_helper"
 
 class StopPreviewJobTest < ActiveJob::TestCase
   setup do
-    @project = Project.create!(name: "Preview Stop Job Test")
+    @project = Project.create!(name: "Preview Stop Job Test", user: users(:owner))
   end
 
   test "uses :preview queue" do

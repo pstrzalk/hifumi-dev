@@ -1,4 +1,6 @@
 class Project < ApplicationRecord
+  belongs_to :user
+
   has_one :chat, dependent: :destroy
   has_many :instructions, dependent: :destroy
   has_many :revisions, dependent: :destroy

@@ -2,7 +2,7 @@ require "test_helper"
 
 class StartGenerationTest < ActiveSupport::TestCase
   setup do
-    @project = Project.create!(name: "Todo")
+    @project = Project.create!(name: "Todo", user: users(:owner))
     @chat = @project.create_chat!
     @user_message = @chat.messages.create!(role: :user, content: "simple todo list")
     @tool = StartGeneration.new(project: @project)

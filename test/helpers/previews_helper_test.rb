@@ -2,7 +2,7 @@ require "test_helper"
 
 class PreviewsHelperTest < ActionView::TestCase
   setup do
-    @project = Project.create!(name: "Helper Test")
+    @project = Project.create!(name: "Helper Test", user: users(:owner))
   end
 
   test "stopped → previews/stopped" do

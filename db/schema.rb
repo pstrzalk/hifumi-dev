@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_29_092209) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_29_102931) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -121,6 +121,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_29_092209) do
     t.datetime "preview_started_at"
     t.integer "preview_state", default: 0, null: false
     t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["user_id"], name: "index_projects_on_user_id"
   end
 
   create_table "revisions", force: :cascade do |t|
@@ -178,6 +180,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_29_092209) do
   add_foreign_key "messages", "models"
   add_foreign_key "messages", "tool_calls"
   add_foreign_key "profiles", "users"
+  add_foreign_key "projects", "users"
   add_foreign_key "revisions", "instructions", on_delete: :cascade
   add_foreign_key "revisions", "projects", on_delete: :cascade
   add_foreign_key "revisions", "revisions", column: "parent_id", on_delete: :nullify

@@ -1,6 +1,7 @@
 class MessagesController < ApplicationController
+  include ProjectOwnerRequired
+
   def create
-    @project = Project.find(params[:project_id])
     content = message_params[:content].to_s.strip
 
     if content.blank?

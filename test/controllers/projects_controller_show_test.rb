@@ -2,7 +2,9 @@ require "test_helper"
 
 class ProjectsControllerShowTest < ActionDispatch::IntegrationTest
   setup do
-    @project = Project.create!(name: "Shop")
+    @user = create_user
+    sign_in @user
+    @project = @user.projects.create!(name: "Shop")
     @chat = @project.create_chat!
     @user_message = @chat.messages.create!(role: :user, content: "flower shop")
   end

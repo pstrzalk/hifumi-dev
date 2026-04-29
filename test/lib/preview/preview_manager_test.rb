@@ -47,7 +47,7 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
   Result = Preview::PreviewManager::Result
 
   setup do
-    @project = Project.create!(name: "PreviewTest")
+    @project = Project.create!(name: "PreviewTest", user: users(:owner))
     @runner  = FakePreviewRunner.new
     @manager = Preview::PreviewManager.new(
       runner: @runner,

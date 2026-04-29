@@ -2,7 +2,7 @@ require "test_helper"
 
 class ExecuteInstructionJobTest < ActiveJob::TestCase
   setup do
-    @project = Project.create!(name: "Test Project")
+    @project = Project.create!(name: "Test Project", user: users(:owner))
     @chat = @project.create_chat!
     @msg = @chat.messages.create!(role: :user, content: "hi")
     @instruction = @project.instructions.create!(

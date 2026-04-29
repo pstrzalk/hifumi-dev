@@ -5,6 +5,7 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
 
   setup do
     @project = projects(:flowers)
+    sign_in users(:owner)
   end
 
   test "POST with valid content creates a user message on the project's chat" do
@@ -59,6 +60,24 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
   test "POST with unknown project_id returns 404" do
     post project_messages_path(project_id: 999999), params: { message: { content: "hello" } }
     assert_response :not_found
+  end
+
+  test "POST without auth redirects to login" do
+    sign_out users(:owner)
+    assert_no_difference -> { @project.chat.messages.count } do
+      post project_messages_path(@project), params: { message: { content: "hi" } }
+    end
+    assert_redirected_to new_user_session_path
+  end
+
+  test "POST as non-owner redirects to root with 'Not your project'" do
+    sign_out users(:owner)
+    sign_in users(:other)
+    assert_no_difference -> { @project.chat.messages.count } do
+      post project_messages_path(@project), params: { message: { content: "hi" } }
+    end
+    assert_redirected_to root_path
+    assert_equal "Not your project", flash[:alert]
   end
 
   test "POST (valid) enqueues ChatRespondJob with the new message id" do

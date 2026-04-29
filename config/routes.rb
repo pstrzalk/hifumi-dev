@@ -4,7 +4,7 @@ Rails.application.routes.draw do
 
   root "projects#new"
 
-  resources :projects, only: [ :new, :create, :show ] do
+  resources :projects, only: [ :index, :new, :create, :show, :destroy ] do
     resources :messages, only: [ :create ]
     resource  :preview,  only: [ :create, :destroy ]
   end

@@ -4,7 +4,7 @@ class SuggestPromptsTest < ActiveSupport::TestCase
   include ActionCable::TestHelper
 
   setup do
-    @project = Project.create!(name: "Todo")
+    @project = Project.create!(name: "Todo", user: users(:owner))
     @stream_name = @project.to_gid_param
     @tool = SuggestPrompts.new(project: @project)
   end

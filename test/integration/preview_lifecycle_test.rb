@@ -20,7 +20,7 @@ class PreviewLifecycleTest < ActionDispatch::IntegrationTest
     @prev_workspace_root = ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"]
     ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] = @workspace_root
 
-    @project = Project.create!(name: "preview_test_#{Time.now.to_i}")
+    @project = Project.create!(name: "preview_test_#{Time.now.to_i}", user: users(:owner))
     # `fixtures :all` (test_helper.rb) seeds the projects table with hashed
     # huge IDs, which makes Project#preview_port (= 3000 + id) overflow the
     # valid TCP port range. Pick a small free port for the test run.

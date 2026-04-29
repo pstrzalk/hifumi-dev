@@ -7,7 +7,7 @@ class ChatRespondJobTest < ActiveJob::TestCase
   AGENT_INSTRUCTIONS_TEMPLATE = Rails.root.join("app/prompts/generator_agent/instructions.txt.erb").read.freeze
 
   setup do
-    @project = Project.create!(name: "Test Project")
+    @project = Project.create!(name: "Test Project", user: users(:owner))
     @chat = GeneratorAgent.create!(project: @project)
     @user_message = @chat.messages.create!(role: :user, content: "Hello")
     @stream_name = @project.to_gid_param

@@ -379,12 +379,14 @@ end
 - [x] Registration controller `#update` test: POST with NEW `openrouter_api_key` + valid `current_password` → profile.openrouter_api_key updates to new value (decrypted-readable check)
 
 #### Manual Verification:
-- [ ] `bin/dev`, browse `/users/sign_up`, fill in all fields → land on `/` with a flash; `User.last.profile.first_name` matches form input; `User.last.profile.openrouter_api_key` is decrypted-readable.
-- [ ] Submit signup with blank `openrouter_api_key` → form re-renders with validation error.
-- [ ] Sign out, sign in with same credentials → succeed.
-- [ ] As signed-in user, click Account link → land on `/users/edit` with profile fields prefilled (key field blank).
-- [ ] Submit edit with new key + current_password → `User.last.profile.openrouter_api_key` reflects the new value.
-- [ ] Submit edit with blank key field + new first_name + current_password → key UNCHANGED, first_name updated.
+- [x] `bin/dev`, browse `/users/sign_up`, fill in all fields → land on `/` with a flash; `User.last.profile.first_name` matches form input; `User.last.profile.openrouter_api_key` is decrypted-readable.
+- [x] Submit signup with blank `openrouter_api_key` → form re-renders with validation error.
+- [x] Sign out, sign in with same credentials → succeed.
+- [x] As signed-in user, click Account link → land on `/users/edit` with profile fields prefilled (key field blank).
+- [x] Submit edit with new key + current_password → `User.last.profile.openrouter_api_key` reflects the new value.
+- [x] Submit edit with blank key field + new first_name + current_password → key UNCHANGED, first_name updated.
+
+**Note (mid-phase tweak):** plan originally required `current_password` for any account update. Reality: that blocked rotating the OpenRouter key. Followup commit overrides `update_resource` so `current_password` is only required when password or email actually change.
 
 **Implementation Note**: After this phase passes automated checks, pause for manual confirmation before Phase 2.
 
@@ -557,10 +559,10 @@ end
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test` passes
-- [ ] `ProjectsControllerTest` covers: anon visiting `new` → redirect to login; logged-in user creating project → `project.user == user`; logged-in user viewing other user's project → redirect with alert; logged-in owner viewing their project → 200.
-- [ ] `MessagesControllerTest` covers: anon → redirect; non-owner → redirect; owner → success.
-- [ ] `PreviewsControllerTest` covers same three branches for both `create` and `destroy`.
+- [x] `bin/rails test` passes
+- [x] `ProjectsControllerTest` covers: anon visiting `new` → redirect to login; logged-in user creating project → `project.user == user`; logged-in user viewing other user's project → redirect with alert; logged-in owner viewing their project → 200.
+- [x] `MessagesControllerTest` covers: anon → redirect; non-owner → redirect; owner → success.
+- [x] `PreviewsControllerTest` covers same three branches for both `create` and `destroy`.
 
 #### Manual Verification:
 - [ ] Sign up, create a project → succeed, project listed under that user.

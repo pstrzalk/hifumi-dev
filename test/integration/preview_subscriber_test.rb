@@ -4,7 +4,7 @@ class PreviewSubscriberTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
   setup do
-    @project = Project.create!(name: "Preview Sub Test")
+    @project = Project.create!(name: "Preview Sub Test", user: users(:owner))
     @chat = @project.create_chat!
     @msg = @chat.messages.create!(role: :user, content: "hi")
     @instruction = @project.instructions.create!(
