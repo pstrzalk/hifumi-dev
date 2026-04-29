@@ -14,9 +14,17 @@ FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
 # Rails app lives here
 WORKDIR /rails
 
-# Install base packages
+# Install base packages (incl. docker-ce-cli so the generator can talk to the
+# host Docker daemon over the bind-mounted socket).
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 libvips sqlite3 && \
+    apt-get install --no-install-recommends -y curl libjemalloc2 libvips sqlite3 ca-certificates gnupg lsb-release && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    chmod a+r /etc/apt/keyrings/docker.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
+        > /etc/apt/sources.list.d/docker.list && \
+    apt-get update -qq && \
+    apt-get install --no-install-recommends -y docker-ce-cli && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
@@ -60,14 +68,13 @@ RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
 # Final stage for app image
 FROM base
 
-# Run and own only the runtime files as a non-root user for security
-RUN groupadd --system --gid 1000 rails && \
-    useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash
-USER 1000:1000
+# Generator runs as root inside the container — bind-mounted Docker socket is
+# effective root on the host anyway, and root simplifies workspace permissions
+# (UID alignment with the host bind mount path).
 
 # Copy built artifacts: gems, application
-COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
-COPY --chown=rails:rails --from=build /rails /rails
+COPY --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
+COPY --from=build /rails /rails
 
 # Entrypoint prepares the database.
 ENTRYPOINT ["/rails/bin/docker-entrypoint"]

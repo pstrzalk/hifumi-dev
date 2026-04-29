@@ -246,13 +246,13 @@ ssh root@77.42.95.154 'mkdir -p /var/lib/rails-app-generator/workspaces && chmod
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `kamal config` parses without error (`bundle exec kamal config`)
-- [ ] `hadolint Dockerfile` reports no errors (warnings OK)
-- [ ] `docker build -t hifumi-generator-test .` succeeds locally (just verifies the Dockerfile is syntactically valid; this is `--builder.arch amd64` so on Apple Silicon it'll cross-build via QEMU — slow but works)
+- [x] `kamal config` parses without error (`bundle exec kamal config`)
+- [ ] `hadolint Dockerfile` reports no errors (warnings OK) — *skipped: hadolint not installed; substituted `docker buildx build --check .` which reports "no warnings found".*
+- [ ] `docker build -t hifumi-generator-test .` succeeds locally (just verifies the Dockerfile is syntactically valid; this is `--builder.arch amd64` so on Apple Silicon it'll cross-build via QEMU — slow but works) — *deferred to Phase 11 first deploy; `docker buildx build --check .` already validates syntax without the full QEMU build.*
 
 #### Manual Verification:
 - [ ] In a built image: `docker run --rm hifumi-generator-test docker --version` prints a docker CLI version (proves CLI installed).
-- [ ] `bundle exec kamal config | grep image:` shows `hifumi-generator`.
+- [ ] `bundle exec kamal config | grep image:` shows `hifumi-generator` — *self-verified during implementation; `:absolute_image: localhost:5555/hifumi-generator:...` returned. Awaiting your confirmation.*
 
 **Note:** This phase doesn't deploy. Deploy happens in Phase 11. This phase only stages the config.
 
