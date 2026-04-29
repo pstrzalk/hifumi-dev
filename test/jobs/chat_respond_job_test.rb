@@ -60,20 +60,23 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_equal "", latest_assistant.content
   end
 
-  test "exception mid-stream: assistant content becomes Error: ..." do
+  test "exception mid-stream: broadcasts a chat_notice banner with friendly text" do
     stub_complete(chunks: [ "partial ", "more" ], raise_at: 1) do
       perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
     end
-    assert_match(/\AError: /, latest_assistant.content)
+    notice = last_chat_notice_broadcast
+    assert notice, "expected a chat_notice broadcast"
+    assert_match(/Something went wrong/, notice)
   end
 
-  test "exception before first chunk: assistant message created with Error: ..." do
+  test "exception before first chunk: broadcasts a chat_notice (no assistant Message persisted by us)" do
+    before = @chat.messages.where(role: :assistant).count
     stub_complete(chunks: [], raise_immediately: true) do
       perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
     end
-    assistant = latest_assistant
-    assert assistant.present?, "expected an assistant message to exist"
-    assert_match(/\AError: /, assistant.content)
+    after  = @chat.messages.where(role: :assistant).count
+    assert_equal before, after, "rescue must not append an assistant message"
+    assert last_chat_notice_broadcast, "expected a chat_notice broadcast"
   end
 
   test "applies the GeneratorAgent instructions via with_instructions on each perform" do
@@ -146,10 +149,10 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_equal "sk-or-test-fixture-1234567890ab", ctx.config.openrouter_api_key
   end
 
-  test "raises (and surfaces Error: ...) when project owner has no openrouter key" do
+  test "broadcasts a friendly chat_notice when project owner has no openrouter key" do
     @user.profile.update_columns(openrouter_api_key: nil)
     perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
-    assert_match(/has no OpenRouter API key/, latest_assistant.content)
+    assert_match(/Add your OpenRouter API key in Account/, last_chat_notice_broadcast)
   end
 
   test "with_context preserves acts_as_chat persistence callbacks (assistant message persisted)" do
@@ -164,7 +167,7 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_equal "callback survived", assistants.first.content
   end
 
-  test "scrubs sk-or-* secrets from rescue log line + user-facing error content" do
+  test "scrubs sk-or-* secrets from rescue log lines (banner shows friendly text only)" do
     leaked_key = "sk-or-leaked123456789abcdef"
     io = StringIO.new
     original_logger = Rails.logger
@@ -178,8 +181,9 @@ class ChatRespondJobTest < ActiveJob::TestCase
     end
     refute_includes io.string, leaked_key, "expected log output to be scrubbed"
     assert_includes io.string, "[FILTERED]"
-    refute_includes latest_assistant.content, leaked_key
-    assert_includes latest_assistant.content, "[FILTERED]"
+    notice = last_chat_notice_broadcast
+    refute_includes notice.to_s, leaked_key,
+      "banner must not echo the raw exception message (and thus the key)"
   end
 
   test "registers a SuggestPrompts tool bound to the project before completing" do
@@ -197,6 +201,10 @@ class ChatRespondJobTest < ActiveJob::TestCase
   end
 
   private
+
+  def last_chat_notice_broadcast
+    broadcasts(@stream_name).reverse.find { |b| b.to_s.match?(/target=\\?"chat_notice\\?"/) }
+  end
 
   def latest_assistant
     @chat.messages.where(role: :assistant).order(:id).last
