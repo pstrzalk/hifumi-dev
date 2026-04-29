@@ -164,7 +164,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet"),
                  first_call[:env]["RAILS_APP_GENERATOR_MODEL"]
 
-    assert_equal Rails.root.join("bin/roast").to_s,                   first_call[:args][0]
+    assert_equal Rails.root.join("bin/roast-claudesubscription").to_s, first_call[:args][0]
     assert_equal Rails.root.join("lib/roast/revision_workflow.rb").to_s, first_call[:args][1]
     assert_equal "--",                                                first_call[:args][2]
     assert_equal "revision_id=#{@rev1.id}",                           first_call[:args][3]
@@ -253,6 +253,36 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
       end.first.last
     end
     assert_equal({ instruction_id: other_instruction.id }, failed_payload)
+  end
+
+  # --- roast wrapper selection ------------------------------------------
+
+  test "roast_executable is bin/roast-claudesubscription in dev (no FORCE_OPENROUTER)" do
+    original = ENV.delete("FORCE_OPENROUTER")
+    assert_equal Rails.root.join("bin/roast-claudesubscription").to_s,
+                 ExecuteInstructionJob.new.send(:roast_executable)
+  ensure
+    ENV["FORCE_OPENROUTER"] = original if original
+  end
+
+  test "roast_executable is bin/roast-openrouter in production" do
+    original_force = ENV.delete("FORCE_OPENROUTER")
+    original_env = Rails.env
+    Rails.env = "production"
+    assert_equal Rails.root.join("bin/roast-openrouter").to_s,
+                 ExecuteInstructionJob.new.send(:roast_executable)
+  ensure
+    Rails.env = original_env if original_env
+    ENV["FORCE_OPENROUTER"] = original_force if original_force
+  end
+
+  test "roast_executable is bin/roast-openrouter when FORCE_OPENROUTER is set in dev" do
+    original = ENV["FORCE_OPENROUTER"]
+    ENV["FORCE_OPENROUTER"] = "1"
+    assert_equal Rails.root.join("bin/roast-openrouter").to_s,
+                 ExecuteInstructionJob.new.send(:roast_executable)
+  ensure
+    ENV["FORCE_OPENROUTER"] = original
   end
 
   # --- subscriber wiring (initializer-driven) ---------------------------

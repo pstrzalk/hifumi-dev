@@ -106,7 +106,7 @@ class ExecuteInstructionJob < ApplicationJob
       "OPENROUTER_API_KEY" => api_key
     }
     args = [
-      Rails.root.join("bin/roast").to_s,
+      roast_executable,
       Rails.root.join("lib/roast/revision_workflow.rb").to_s,
       "--",
       "revision_id=#{revision.id}",
@@ -168,5 +168,13 @@ class ExecuteInstructionJob < ApplicationJob
 
   def git_head(workspace)
     `cd #{Shellwords.escape(workspace)} && git rev-parse HEAD 2>/dev/null`.strip
+  end
+
+  def roast_executable
+    if Rails.env.production? || ENV["FORCE_OPENROUTER"].present?
+      Rails.root.join("bin/roast-openrouter").to_s
+    else
+      Rails.root.join("bin/roast-claudesubscription").to_s
+    end
   end
 end

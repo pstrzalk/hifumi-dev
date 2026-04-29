@@ -315,9 +315,9 @@ Replace the "Roast runner" bullet under Conventions:
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test` passes
-- [ ] `ExecuteInstructionJobTest`: stub `Rails.env.production?` → asserts `roast_executable` ends in `bin/roast-openrouter`; non-prod with `FORCE_OPENROUTER` set → same; non-prod without → ends in `bin/roast-claudesubscription`.
-- [ ] `bin/roast --help` (if Roast supports it) or `bin/roast --version` runs without error (proves binstub is functional).
+- [x] `bin/rails test` passes
+- [x] `ExecuteInstructionJobTest`: stub `Rails.env.production?` → asserts `roast_executable` ends in `bin/roast-openrouter`; non-prod with `FORCE_OPENROUTER` set → same; non-prod without → ends in `bin/roast-claudesubscription`.
+- [x] `bin/roast --help` (if Roast supports it) or `bin/roast --version` runs without error (proves binstub is functional).
 
 #### Manual Verification:
 - [ ] In dev, send an instruction → executes via `bin/roast-claudesubscription` (frum-pinned Ruby; Claude Code subscription).
