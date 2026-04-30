@@ -14,10 +14,12 @@ FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
 # Rails app lives here
 WORKDIR /rails
 
-# Install base packages (incl. docker-ce-cli so the generator can talk to the
-# host Docker daemon over the bind-mounted socket).
+# Install base packages. Includes docker-ce-cli (the generator talks to the
+# host Docker daemon over the bind-mounted socket) and build-essential
+# (workspaces' bundle install compiles native extensions for bigdecimal/json,
+# which RubyGems doesn't ship precompiled — see ExecuteInstructionJob#init_rails_app).
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 libvips sqlite3 ca-certificates gnupg lsb-release && \
+    apt-get install --no-install-recommends -y curl libjemalloc2 libvips sqlite3 ca-certificates gnupg lsb-release build-essential git libyaml-dev pkg-config && \
     install -m 0755 -d /etc/apt/keyrings && \
     curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
     chmod a+r /etc/apt/keyrings/docker.gpg && \
@@ -38,10 +40,9 @@ ENV RAILS_ENV="production" \
 # Throw-away build stage to reduce size of final image
 FROM base AS build
 
-# Install packages needed to build gems
-RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential git libvips libyaml-dev pkg-config && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+# All build-time apt packages (build-essential, git, libvips, libyaml-dev,
+# pkg-config) are now in the base layer so the runtime stage can compile
+# workspace gems too — nothing extra needed here.
 
 # Install application gems
 COPY vendor/* ./vendor/
