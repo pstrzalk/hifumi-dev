@@ -43,6 +43,7 @@ module Preview
       project.update!(preview_container_id: container_id)
 
       health_check!(project)
+      register_with_proxy!(project) if Preview::Config.remote?
 
       project.update!(preview_state: :running)
       ActiveSupport::Notifications.instrument(
@@ -56,10 +57,23 @@ module Preview
 
     def stop(project)
       cid = project.preview_container_id
+
+      if Preview::Config.remote? && cid.present?
+        # Ignore errors — route may already be gone (kamal-proxy restarted,
+        # never registered, or stop called twice). Capture stderr only for
+        # the log; failure here must not block the docker rm below.
+        @runner.run(
+          "docker", "exec", "kamal-proxy",
+          "kamal-proxy", "remove", "preview-#{project.id}",
+          capture: true
+        )
+      end
+
       if cid.present?
         @runner.run("docker", "rm", "-f", cid)
         @runner.run("docker", "image", "rm", "-f", project_tag(project))
       end
+
       project.update!(
         preview_state: :stopped,
         preview_container_id: nil,
@@ -69,47 +83,86 @@ module Preview
       broadcast(project)
     end
 
-    # Step 3 smoke test on Docker Desktop / macOS confirmed `--internal` networks
-    # silently drop `-p` host port mappings (vpnkit limitation). Plan's fallback:
-    # create a non-internal network. Cost: containers reach outbound internet.
-    # Phase 4 will reintroduce strict egress isolation on a Linux production
-    # host where `--internal` actually works with port-publish.
+    # In prod (`Preview::Config.remote?`) the network is `--internal`, which
+    # blocks all outbound traffic from attached containers — gem dependencies
+    # are baked at build time, so runtime egress is unnecessary. In dev we
+    # skip `--internal` because Docker Desktop's vpnkit silently drops `-p`
+    # host port mappings on internal networks (verified Phase 3 step 3).
     def self.ensure_network!(runner: SystemRunner.new)
       result = runner.run("docker", "network", "inspect", NETWORK, capture: true)
       return if result.ok
-      runner.run("docker", "network", "create", NETWORK)
+
+      args = ["docker", "network", "create"]
+      args << "--internal" if Preview::Config.remote?
+      args << NETWORK
+      result = runner.run(*args, capture: true)
+      raise "docker network create #{NETWORK} failed: #{result.stderr}" unless result.ok
     end
 
     def ensure_network! = self.class.ensure_network!(runner: @runner)
 
-    # Boot-time recovery. The Rails process may have been killed while a
-    # preview was running; the DB row says :running but the container is
-    # detached from any Ruby supervisor. Force-stop any preview-* containers
-    # and reset rows so the UI shows truth.
+    # Boot-time reconciliation. The Rails process may have restarted (Kamal
+    # deploy, manual `kamal app boot`, host reboot, OOM kill) while user
+    # previews were running. Containers are managed by the host Docker
+    # daemon, not the Rails process — they survive the restart and we must
+    # NOT kill them just because the generator booted.
+    #
+    # Three categories:
+    #   A) container live AND DB row :running with matching id  → leave alone
+    #   B) container live but no DB row claims it (stale row was reset, or
+    #      container started by some out-of-band path)          → kill, and
+    #      remove the kamal-proxy route if remote
+    #   C) DB row :starting/:running but no live container       → mark stopped
     #
     # Wrapped in rescue so a missing Docker (CI, fresh machine) does not
     # crash boot for non-preview workflows.
-    #
-    # Filter strategy: `docker ps --filter name=...` does substring matching
-    # by default, and regex-anchor support varies across engine versions —
-    # `name=^preview-` is unreliable. Instead list everything and prefix-match
-    # in Ruby against `{{.Names}}` output (one name per line).
     PREVIEW_CONTAINER_PREFIX = "preview-"
     private_constant :PREVIEW_CONTAINER_PREFIX
 
     def self.reset_orphans!(runner: SystemRunner.new)
-      list = runner.run("docker", "ps", "-a", "--format", "{{.Names}}", capture: true)
-      names = list.ok ? list.stdout.split("\n").map(&:strip).reject(&:empty?) : []
-      orphans = names.select { |n| n.start_with?(PREVIEW_CONTAINER_PREFIX) }
-      orphans.each { |name| runner.run("docker", "rm", "-f", name) }
+      list = runner.run("docker", "ps", "--format", "{{.Names}}", capture: true)
+      live_names = list.ok ? list.stdout.split("\n").map(&:strip).reject(&:empty?) : []
+      live_preview_names = live_names.select { |n| n.start_with?(PREVIEW_CONTAINER_PREFIX) }
+      live_ids = live_preview_names
+        .map { |n| n.sub(/^#{PREVIEW_CONTAINER_PREFIX}/, "").to_i }
+        .reject(&:zero?)
+        .to_set
 
-      Project.where(preview_state: %i[starting running]).find_each do |project|
+      db_running_ids = Project.where(preview_state: %i[starting running]).pluck(:id).to_set
+
+      # Category B: live container, no live DB row → orphan, kill it.
+      orphan_ids = live_ids - db_running_ids
+      orphan_ids.each do |id|
+        name = "#{PREVIEW_CONTAINER_PREFIX}#{id}"
+        runner.run("docker", "rm", "-f", name)
+        if Preview::Config.remote?
+          runner.run("docker", "exec", "kamal-proxy", "kamal-proxy", "remove", name)
+        end
+      end
+
+      # Category C: DB row claims running but no live container → mark stopped.
+      stale_ids = db_running_ids - live_ids
+      Project.where(id: stale_ids.to_a).find_each do |project|
         project.update!(
           preview_state: :stopped,
           preview_container_id: nil,
           preview_started_at: nil,
-          preview_error: "Reset on boot — process restarted while preview was running"
+          preview_error: "Container missing on boot — marked stopped"
         )
+      end
+
+      # Category A is a no-op: the live container keeps serving and the
+      # kamal-proxy route persists in the proxy's process state across the
+      # generator's restart.
+
+      # Belt-and-braces: stopped/exited preview-* containers also reaped so
+      # disk does not accumulate. They serve no traffic; safe to remove.
+      stopped = runner.run("docker", "ps", "-a", "--filter", "status=exited", "--format", "{{.Names}}", capture: true)
+      if stopped.ok
+        stopped.stdout.split("\n").map(&:strip).each do |name|
+          next unless name.start_with?(PREVIEW_CONTAINER_PREFIX)
+          runner.run("docker", "rm", "-f", name)
+        end
       end
     rescue => e
       Rails.logger.error("[PreviewManager.reset_orphans!] #{e.class}: #{e.message}")
@@ -139,8 +192,7 @@ module Preview
     end
 
     def run_container(project, tag)
-      port = project.preview_port
-      result = @runner.run(
+      args = [
         "docker", "run", "-d",
         "--name", "preview-#{project.id}",
         "--memory=#{MEMORY_LIMIT}",
@@ -156,34 +208,80 @@ module Preview
         # /app/log must be writable for Rails to open development.log even
         # though we also set RAILS_LOG_TO_STDOUT — the logger probes/touches
         # the file at boot before honoring the env var.
-        "--tmpfs", "/app/log:size=16m",
-        "-p", "#{port}:3000",
+        "--tmpfs", "/app/log:size=16m"
+      ]
+
+      # In prod the container is reached via kamal-proxy on the internal
+      # network (no host port mapping). In dev we publish so the iframe can
+      # load `localhost:#{port}`.
+      unless Preview::Config.remote?
+        args.push("-p", "#{project.preview_port}:3000")
+      end
+
+      args.push(
         # Rails 8's default sqlite path is `storage/development.sqlite3`, not
         # `db/`. Mounting storage/ keeps the database (and any uploaded files
         # that Active Storage might write here) persistent across container
         # rebuilds.
         "-v", "#{File.join(project.workspace_path, 'storage')}:/app/storage",
         "-e", "RAILS_LOG_TO_STDOUT=1",
-        tag,
-        capture: true
+        tag
       )
+
+      result = @runner.run(*args, capture: true)
       raise RunError, result.stderr unless result.ok
       result.stdout.strip
     end
 
     def health_check!(project)
-      url = "http://localhost:#{project.preview_port}/up"
       deadline = Time.current + @health_timeout
       loop do
-        return if curl_ok?(url)
+        return if curl_ok?(project)
         raise HealthcheckTimeout, "no /up after #{@health_timeout}s" if Time.current > deadline
         sleep @health_interval
       end
     end
 
-    def curl_ok?(url)
-      result = @runner.run("curl", "-fsS", "-o", "/dev/null", "-m", "2", url, capture: true)
-      result.ok
+    def curl_ok?(project)
+      cmd =
+        if Preview::Config.remote?
+          # No host port mapping in prod — curl from inside the container.
+          # The base image already includes curl in its apt install.
+          ["docker", "exec", "preview-#{project.id}",
+           "curl", "-fsS", "-o", "/dev/null", "-m", "2", "http://localhost:3000/up"]
+        else
+          ["curl", "-fsS", "-o", "/dev/null", "-m", "2",
+           "http://localhost:#{project.preview_port}/up"]
+        end
+
+      @runner.run(*cmd, capture: true).ok
+    end
+
+    def register_with_proxy!(project)
+      container_name = "preview-#{project.id}"
+      ip = container_ip(container_name)
+      raise "Could not resolve container IP for #{container_name}" if ip.blank?
+
+      result = @runner.run(
+        "docker", "exec", "kamal-proxy",
+        "kamal-proxy", "deploy", "preview-#{project.id}",
+        "--target", "#{ip}:3000",
+        "--host", "#{project.id}.preview.#{Preview::Config.domain}",
+        "--tls",
+        capture: true
+      )
+      raise "kamal-proxy deploy failed: #{result.stderr}" unless result.ok
+    end
+
+    def container_ip(container_name)
+      result = @runner.run(
+        "docker", "inspect",
+        "-f", "{{(index .NetworkSettings.Networks \"#{NETWORK}\").IPAddress}}",
+        container_name,
+        capture: true
+      )
+      return nil unless result.ok
+      result.stdout.strip.presence
     end
 
     def handle_failure(project, error)

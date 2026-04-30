@@ -679,16 +679,18 @@ If a CSP violation surfaces in the browser console during the Phase 11 smoke (e.
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test` passes
-- [ ] `PreviewManagerTest`: with `Preview::Config.remote?` stubbed `true`, asserts `register_with_proxy!` runs after healthcheck; with `false`, asserts no kamal-proxy commands invoked. Use the existing `SystemRunner` injection seam.
-- [ ] `PreviewManagerTest#stop`: with `remote?` stubbed `true`, asserts `kamal-proxy remove` invoked before `docker rm`.
-- [ ] `PreviewManagerTest.reset_orphans!`:
+- [x] `bin/rails test` passes — *210 runs, 667 assertions, 0 failures, 0 errors, 2 pre-existing E2E skips.*
+- [x] `PreviewManagerTest`: with `Preview::Config.remote?` stubbed `true`, asserts `register_with_proxy!` runs after healthcheck; with `false`, asserts no kamal-proxy commands invoked. Use the existing `SystemRunner` injection seam. — *added `start (remote)` + `start (dev)` tests using a `with_remote { ... }` helper that flips `Rails.configuration.preview.domain`.*
+- [x] `PreviewManagerTest#stop`: with `remote?` stubbed `true`, asserts `kamal-proxy remove` invoked before `docker rm`. — *added `stop (remote): kamal-proxy remove invoked before docker rm` asserting the call ordering by `@runner.calls.index`.*
+- [x] `PreviewManagerTest.reset_orphans!`:
   - **Category A** (live container + matching DB row): live container is NOT killed; DB row is NOT touched. ← critical regression guard for the "deploy doesn't nuke previews" property.
   - **Category B** (live container, no DB row): container is killed; with `remote?` stubbed true, `kamal-proxy remove preview-<id>` is invoked too.
   - **Category C** (DB row, no live container): row is updated to `:stopped` with the "Container missing on boot — marked stopped" error message.
   - **Stopped-container reap**: a stopped `preview-N` container with no DB row gets `docker rm -f`'d.
-- [ ] CSP test: with `ENV["PREVIEW_DOMAIN"] = "hifumi.dev"`, `Rails.application.config.content_security_policy.directives["frame-src"]` contains `https://*.preview.hifumi.dev`. With `PREVIEW_DOMAIN` blank, contains `http://localhost:*`.
-- [ ] Existing `E2E_PREVIEW=1 bin/rails test test/integration/preview_lifecycle_test.rb` still passes in dev (no kamal-proxy on dev machine; `Preview::Config.remote?` is false → kamal-proxy code paths skipped).
+
+  *All four tests added (Category A, B-dev, B-remote, C, stopped-reap) and passing. Old single-test `kills preview-* + flips DB rows` deleted — its expectation was the old nuke-everything behavior that the rewrite intentionally changes.*
+- [x] CSP test: with `ENV["PREVIEW_DOMAIN"] = "hifumi.dev"`, `Rails.application.config.content_security_policy.directives["frame-src"]` contains `https://*.preview.hifumi.dev`. With `PREVIEW_DOMAIN` blank, contains `http://localhost:*`. — *added `test/config/content_security_policy_test.rb`; both branches assert via `load CSP_INITIALIZER` after toggling ENV; teardown reloads under original ENV.*
+- [ ] Existing `E2E_PREVIEW=1 bin/rails test test/integration/preview_lifecycle_test.rb` still passes in dev (no kamal-proxy on dev machine; `Preview::Config.remote?` is false → kamal-proxy code paths skipped). — *not run automatically; please run when ready.*
 
 #### Manual Verification (deferred to Phase 11 deploy):
 - [ ] After deploy, start a preview. Inspect `docker exec kamal-proxy kamal-proxy list` → see `preview-<id>` route.

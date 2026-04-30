@@ -191,15 +191,20 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
     assert_equal 1, @runner.call_count("docker", "network", "create")
   end
 
-  # --- reset_orphans! ---------------------------------------------------
+  # --- reset_orphans! (three-category reconciliation) -------------------
+  #
+  # Containers are managed by the host Docker daemon, not the Rails process.
+  # A `kamal deploy` of the generator must NOT kill running user previews.
+  # `reset_orphans!` reconciles, it does not nuke. See the comment block
+  # above the method definition for the category map.
 
-  test "reset_orphans!: kills preview-* containers + flips DB rows to :stopped with marker" do
+  test "reset_orphans! Category A: live container with matching DB row is left alone" do
     runner = FakePreviewRunner.new
-    runner.script("docker", "ps", returns: Result.new(
-      ok: true,
-      stdout: "preview-#{@project.id}\nsome-other-container\npreview-99\n",
-      stderr: "",
-      exit_code: 0
+    runner.script("docker", "ps", "--format", returns: Result.new(
+      ok: true, stdout: "preview-#{@project.id}\n", stderr: "", exit_code: 0
+    ))
+    runner.script("docker", "ps", "-a", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
     ))
     @project.update!(
       preview_state: :running,
@@ -209,16 +214,81 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
 
     Preview::PreviewManager.reset_orphans!(runner: runner)
 
-    # Both preview-* containers were rm'd; the unrelated container was not.
-    assert runner.called?("docker", "rm", "-f", "preview-#{@project.id}")
-    assert runner.called?("docker", "rm", "-f", "preview-99")
+    refute runner.called?("docker", "rm", "-f", "preview-#{@project.id}")
+    @project.reload
+    assert_equal "running", @project.preview_state
+    assert_equal "abc", @project.preview_container_id
+  end
+
+  test "reset_orphans! Category B (dev): live container without DB row is killed; no kamal-proxy call when not remote" do
+    runner = FakePreviewRunner.new
+    runner.script("docker", "ps", "--format", returns: Result.new(
+      ok: true, stdout: "preview-99999\nsome-other-container\n", stderr: "", exit_code: 0
+    ))
+    runner.script("docker", "ps", "-a", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+
+    Preview::PreviewManager.reset_orphans!(runner: runner)
+
+    assert runner.called?("docker", "rm", "-f", "preview-99999")
     refute runner.called?("docker", "rm", "-f", "some-other-container")
+    refute runner.called?("docker", "exec", "kamal-proxy")
+  end
+
+  test "reset_orphans! Category B (remote): also runs kamal-proxy remove" do
+    runner = FakePreviewRunner.new
+    runner.script("docker", "ps", "--format", returns: Result.new(
+      ok: true, stdout: "preview-99999\n", stderr: "", exit_code: 0
+    ))
+    runner.script("docker", "ps", "-a", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+
+    with_remote do
+      Preview::PreviewManager.reset_orphans!(runner: runner)
+    end
+
+    assert runner.called?("docker", "rm", "-f", "preview-99999")
+    assert runner.called?("docker", "exec", "kamal-proxy", "kamal-proxy", "remove", "preview-99999")
+  end
+
+  test "reset_orphans! Category C: DB row with no live container is marked :stopped with marker" do
+    runner = FakePreviewRunner.new
+    runner.script("docker", "ps", "--format", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+    runner.script("docker", "ps", "-a", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+    @project.update!(
+      preview_state: :running,
+      preview_container_id: "ghost",
+      preview_started_at: 1.minute.ago
+    )
+
+    Preview::PreviewManager.reset_orphans!(runner: runner)
 
     @project.reload
     assert_equal "stopped", @project.preview_state
-    assert_match(/Reset on boot/, @project.preview_error)
+    assert_match(/Container missing on boot/, @project.preview_error)
     assert_nil @project.preview_container_id
     assert_nil @project.preview_started_at
+  end
+
+  test "reset_orphans!: stopped/exited preview-* containers are reaped" do
+    runner = FakePreviewRunner.new
+    runner.script("docker", "ps", "--format", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+    runner.script("docker", "ps", "-a", returns: Result.new(
+      ok: true, stdout: "preview-77\nsome-other-stopped\n", stderr: "", exit_code: 0
+    ))
+
+    Preview::PreviewManager.reset_orphans!(runner: runner)
+
+    assert runner.called?("docker", "rm", "-f", "preview-77")
+    refute runner.called?("docker", "rm", "-f", "some-other-stopped")
   end
 
   test "reset_orphans!: when docker is unavailable, rescues + logs (does NOT raise)" do
@@ -230,5 +300,114 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
     assert_nothing_raised do
       Preview::PreviewManager.reset_orphans!(runner: runner)
     end
+  end
+
+  # --- remote? gating: kamal-proxy register/remove + healthcheck ---------
+
+  test "start (remote): registers kamal-proxy route after healthcheck" do
+    @runner.script("docker", "inspect", returns: Result.new(
+      ok: true, stdout: "172.99.0.5\n", stderr: "", exit_code: 0
+    ))
+    @runner.script("docker", "exec", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+
+    with_remote do
+      @manager.start(@project)
+    end
+
+    @project.reload
+    assert_equal "running", @project.preview_state
+    assert @runner.called?("docker", "exec", "kamal-proxy", "kamal-proxy", "deploy", "preview-#{@project.id}")
+  end
+
+  test "start (dev): no kamal-proxy commands invoked" do
+    @manager.start(@project)
+
+    refute @runner.called?("docker", "exec", "kamal-proxy")
+  end
+
+  test "stop (remote): kamal-proxy remove invoked before docker rm" do
+    @project.update!(preview_state: :running, preview_container_id: "abc")
+
+    with_remote do
+      @manager.stop(@project)
+    end
+
+    proxy_idx = @runner.calls.index { |c| c[:cmd].first(2) == ["docker", "exec"] && c[:cmd].include?("kamal-proxy") }
+    rm_idx    = @runner.calls.index { |c| c[:cmd].first(3) == ["docker", "rm", "-f"] }
+    assert proxy_idx, "kamal-proxy remove was not invoked"
+    assert rm_idx,    "docker rm was not invoked"
+    assert proxy_idx < rm_idx, "kamal-proxy remove must precede docker rm"
+  end
+
+  test "ensure_network! (remote): passes --internal flag" do
+    with_remote do
+      @manager.send(:ensure_network!)
+    end
+
+    create_call = @runner.calls.find { |c| c[:cmd].first(3) == ["docker", "network", "create"] }
+    assert create_call
+    assert_includes create_call[:cmd], "--internal"
+  end
+
+  test "ensure_network! (dev): omits --internal flag" do
+    @manager.send(:ensure_network!)
+
+    create_call = @runner.calls.find { |c| c[:cmd].first(3) == ["docker", "network", "create"] }
+    assert create_call
+    refute_includes create_call[:cmd], "--internal"
+  end
+
+  test "run_container (remote): omits host port mapping" do
+    @runner.script("docker", "inspect", returns: Result.new(
+      ok: true, stdout: "172.99.0.5\n", stderr: "", exit_code: 0
+    ))
+    @runner.script("docker", "exec", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+
+    with_remote do
+      @manager.start(@project)
+    end
+
+    run_call = @runner.calls.find { |c| c[:cmd].first(2) == ["docker", "run"] }
+    assert run_call
+    refute_includes run_call[:cmd], "-p"
+  end
+
+  test "run_container (dev): includes -p host port mapping" do
+    @manager.start(@project)
+
+    run_call = @runner.calls.find { |c| c[:cmd].first(2) == ["docker", "run"] }
+    assert run_call
+    assert_includes run_call[:cmd], "-p"
+    assert_includes run_call[:cmd], "#{@project.preview_port}:3000"
+  end
+
+  test "curl_ok? (remote): execs curl inside the preview container" do
+    with_remote do
+      @manager.send(:curl_ok?, @project)
+    end
+
+    assert @runner.called?("docker", "exec", "preview-#{@project.id}", "curl")
+  end
+
+  test "curl_ok? (dev): runs curl on host against published port" do
+    @manager.send(:curl_ok?, @project)
+
+    curl_call = @runner.calls.find { |c| c[:cmd].first == "curl" }
+    assert curl_call
+    assert_includes curl_call[:cmd].join(" "), "localhost:#{@project.preview_port}/up"
+  end
+
+  private
+
+  def with_remote
+    original = Rails.configuration.preview.domain
+    Rails.configuration.preview.domain = "hifumi.dev"
+    yield
+  ensure
+    Rails.configuration.preview.domain = original
   end
 end
