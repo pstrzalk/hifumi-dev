@@ -35,18 +35,43 @@ RUN apt-get update -qq && \
 # Open3. bin/roast-openrouter sets ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN so
 # the CLI sends every request to OpenRouter — no traffic hits Anthropic, no
 # subscription is involved; the CLI is just an HTTP client speaking the
-# Anthropic Messages API which OpenRouter implements. Replacing this with a
-# direct-API Roast provider is a Phase 5 candidate. The CLI is only used at
-# *generation* time inside this container — it never ships with users' apps.
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Anthropic Messages API which OpenRouter implements. The CLI is only used
+# at *generation* time inside this container — it never ships with users'
+# apps. Replacing this with a direct-API Roast provider is a Phase 5
+# candidate.
+#
+# The CLI refuses --dangerously-skip-permissions as root, so we:
+#   1. install the binary as root (default install path is /root/.local/...)
+#   2. relocate it to a world-readable path
+#   3. create a `generator` non-root user
+#   4. wrap `claude` so root invocations re-exec it as `generator` via runuser
+#
+# Runtime callers (ExecuteInstructionJob → bin/roast-openrouter → roast →
+# Open3.popen3 "claude") still run as root, but the CLI binary itself runs
+# as `generator`, which the CLI accepts.
+RUN useradd -m -u 1000 -s /bin/bash generator && \
+    curl -fsSL https://claude.ai/install.sh | bash && \
+    mv /root/.local/share/claude /opt/claude && \
+    chmod -R a+rX /opt/claude && \
+    rm /root/.local/bin/claude && \
+    printf '%s\n' \
+      '#!/bin/sh' \
+      'real=/opt/claude/versions/$(ls -1 /opt/claude/versions | sort -V | tail -1)' \
+      'if [ "$(id -u)" -eq 0 ]; then' \
+      '  HOME=/home/generator exec runuser -p -u generator -- "$real" "$@"' \
+      'else' \
+      '  exec "$real" "$@"' \
+      'fi' \
+      > /usr/local/bin/claude && \
+    chmod +x /usr/local/bin/claude && \
+    git config --system --add safe.directory '*'
 
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
 ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development" \
-    LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
-    PATH="/root/.local/bin:${PATH}"
+    LD_PRELOAD="/usr/local/lib/libjemalloc.so"
 
 # Throw-away build stage to reduce size of final image
 FROM base AS build

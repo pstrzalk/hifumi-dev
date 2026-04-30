@@ -62,6 +62,19 @@ class ExecuteInstructionJob < ApplicationJob
       )
       raise "git init failed in #{workspace}" unless ok
     end
+
+    # Roast spawns the `claude` CLI as the `generator` user (the binary refuses
+    # to run --dangerously-skip-permissions as root). bundle install + git init
+    # above ran as root and left workspace files root-owned; open up writes so
+    # the generator user can edit them. New files claude creates will be
+    # generator-owned, which is fine — root reads/writes them anyway, and
+    # `git config --system --add safe.directory '*'` (set in the Dockerfile)
+    # silences ownership warnings for subsequent root-side git ops.
+    #
+    # master.key stays 0600 (root-only) — generator never needs to decrypt
+    # credentials, only the preview container does, and that runs separately.
+    FileUtils.chmod_R("a+rwX", workspace)
+    File.chmod(0o600, master_key_path)
   end
 
   # Cwd for rails new / git / bundle is outside this repo (Project.workspace_root),
