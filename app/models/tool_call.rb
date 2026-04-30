@@ -5,7 +5,12 @@ class ToolCall < ApplicationRecord
   # message's own after_update_commit re-broadcasts before tool_calls exist.
   # Touch the parent here to trigger another replace once the call is persisted
   # — the re-render then sees message.tool_calls.any? and renders the pill.
-  after_commit :touch_message
+  #
+  # Skip on :destroy. RubyLLM's cleanup_failed_messages destroys the parent
+  # message on API failure; the cascading ToolCall destroy would otherwise
+  # try to touch an already-destroyed record and raise ActiveRecordError,
+  # masking the original API error.
+  after_commit :touch_message, on: [:create, :update]
 
   private
 
