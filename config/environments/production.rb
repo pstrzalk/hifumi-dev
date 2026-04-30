@@ -62,7 +62,7 @@ Rails.application.configure do
     address:        "smtp.resend.com",
     port:           587,
     user_name:      "resend",
-    password:       ENV.fetch("SMTP_PASSWORD"),
+    password:       ENV["SMTP_PASSWORD"],
     authentication: :plain,
     enable_starttls_auto: true
   }
