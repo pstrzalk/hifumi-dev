@@ -27,10 +27,15 @@ class CreatePlanTest < ActiveSupport::TestCase
     end
 
     CreatePlan.implementation = fake
-    CreatePlan.call(intent: "todo list", clarifications: { "x" => "y" }, context: { project_id: 1 })
+    CreatePlan.call(
+      intent: "todo list",
+      clarifications: { "x" => "y" },
+      context: { project_id: 1 },
+      openrouter_api_key: "sk-or-test"
+    )
 
     assert_equal(
-      { intent: "todo list", clarifications: { "x" => "y" }, context: { project_id: 1 } },
+      { intent: "todo list", clarifications: { "x" => "y" }, context: { project_id: 1 }, openrouter_api_key: "sk-or-test" },
       fake.received
     )
   end
@@ -43,7 +48,7 @@ class CreatePlanTest < ActiveSupport::TestCase
     end
 
     CreatePlan.implementation = other
-    result = CreatePlan.call(intent: "x")
+    result = CreatePlan.call(intent: "x", openrouter_api_key: "sk-or-test")
     assert_equal "other", result.instruction_description
   end
 end

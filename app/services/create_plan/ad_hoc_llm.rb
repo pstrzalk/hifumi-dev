@@ -5,14 +5,15 @@ module CreatePlan
 
     class InvalidResponse < StandardError; end
 
-    def self.call(intent:, clarifications:, context:)
+    def self.call(intent:, clarifications:, context:, openrouter_api_key:)
       user_prompt = build_user_prompt(intent, clarifications, context)
-      content = invoke_llm(system: SYSTEM_PROMPT, user: user_prompt)
+      content = invoke_llm(system: SYSTEM_PROMPT, user: user_prompt, openrouter_api_key: openrouter_api_key)
       build_result(content)
     end
 
-    def self.invoke_llm(system:, user:)
-      chat = RubyLLM.chat(model: MODEL)
+    def self.invoke_llm(system:, user:, openrouter_api_key:)
+      ctx = RubyLLM.context { |c| c.openrouter_api_key = openrouter_api_key }
+      chat = ctx.chat(model: MODEL)
       chat.with_instructions(system)
       chat.with_schema(PlanSchema).ask(user).content
     end

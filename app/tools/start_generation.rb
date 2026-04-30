@@ -26,7 +26,8 @@ class StartGeneration < RubyLLM::Tool
     result = CreatePlan.call(
       intent: intent,
       clarifications: clarifications,
-      context: { project_id: @project.id }
+      context: { project_id: @project.id },
+      openrouter_api_key: @project.user.profile.openrouter_api_key
     )
 
     instruction = nil
