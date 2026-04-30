@@ -30,12 +30,23 @@ RUN apt-get update -qq && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
+# Install the Claude Code CLI binary. Roast 1.1.0's only agent providers are
+# :claude and :pi, and the :claude provider spawns a `claude` binary via
+# Open3. bin/roast-openrouter sets ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN so
+# the CLI sends every request to OpenRouter — no traffic hits Anthropic, no
+# subscription is involved; the CLI is just an HTTP client speaking the
+# Anthropic Messages API which OpenRouter implements. Replacing this with a
+# direct-API Roast provider is a Phase 5 candidate. The CLI is only used at
+# *generation* time inside this container — it never ships with users' apps.
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
 ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development" \
-    LD_PRELOAD="/usr/local/lib/libjemalloc.so"
+    LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
+    PATH="/root/.local/bin:${PATH}"
 
 # Throw-away build stage to reduce size of final image
 FROM base AS build
