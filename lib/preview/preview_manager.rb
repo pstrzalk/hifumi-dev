@@ -39,6 +39,7 @@ module Preview
       broadcast(project)
 
       tag = build_image(project)
+      ensure_storage_writable!(project)
       container_id = run_container(project, tag)
       project.update!(preview_container_id: container_id)
 
@@ -174,6 +175,19 @@ module Preview
     # hash, so a stable tag is fine. `:latest` is overwritten on each rebuild.
     def project_tag(project)
       "preview-#{project.id}:latest"
+    end
+
+    # The preview container runs as root with --cap-drop=ALL, which strips
+    # CAP_DAC_OVERRIDE — so root inside the container follows ordinary file
+    # permission rules instead of bypassing them. The agent creates the SQLite
+    # DB during a revision via the claude CLI (runuser'd to UID 1000), leaving
+    # storage/development.sqlite3 mode 644 owned by 1000:1000. Without this
+    # chmod, the preview container's UID-0 process can read but not write the
+    # file, and the first INSERT fails with SQLITE_READONLY. ExecuteInstruction
+    # Job#relax_workspace_permissions only runs at init, not after revisions,
+    # so re-relax here right before each container boot.
+    def ensure_storage_writable!(project)
+      FileUtils.chmod_R("a+rwX", File.join(project.workspace_path, "storage"))
     end
 
     def build_image(project)
