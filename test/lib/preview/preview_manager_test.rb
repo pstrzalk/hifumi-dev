@@ -385,6 +385,31 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
     assert_includes run_call[:cmd], "#{@project.preview_port}:3000"
   end
 
+  test "run_container (remote): passes PREVIEW_HOST so the generated app's HostAuthorization allows the kamal-proxy hostname" do
+    @runner.script("docker", "inspect", returns: Result.new(
+      ok: true, stdout: "172.99.0.5\n", stderr: "", exit_code: 0
+    ))
+    @runner.script("docker", "exec", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+
+    with_remote do
+      @manager.start(@project)
+    end
+
+    run_call = @runner.calls.find { |c| c[:cmd].first(2) == ["docker", "run"] }
+    assert run_call
+    assert_includes run_call[:cmd], "PREVIEW_HOST=#{@project.id}.preview.hifumi.dev"
+  end
+
+  test "run_container (dev): does not set PREVIEW_HOST" do
+    @manager.start(@project)
+
+    run_call = @runner.calls.find { |c| c[:cmd].first(2) == ["docker", "run"] }
+    assert run_call
+    refute run_call[:cmd].any? { |a| a.to_s.start_with?("PREVIEW_HOST=") }
+  end
+
   test "curl_ok? (remote): execs curl inside the preview container" do
     with_remote do
       @manager.send(:curl_ok?, @project)

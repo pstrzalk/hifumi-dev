@@ -224,9 +224,18 @@ module Preview
         # that Active Storage might write here) persistent across container
         # rebuilds.
         "-v", "#{File.join(project.workspace_path, 'storage')}:/app/storage",
-        "-e", "RAILS_LOG_TO_STDOUT=1",
-        tag
+        "-e", "RAILS_LOG_TO_STDOUT=1"
       )
+
+      # Whitelist the kamal-proxy hostname in the generated app's
+      # config.hosts (preview_iframe.rb initializer reads this). Only set in
+      # remote mode; in dev the iframe loads via localhost:port which is
+      # already on Rails' default allowlist.
+      if Preview::Config.remote?
+        args.push("-e", "PREVIEW_HOST=#{project.id}.preview.#{Preview::Config.domain}")
+      end
+
+      args.push(tag)
 
       result = @runner.run(*args, capture: true)
       raise RunError, result.stderr unless result.ok
