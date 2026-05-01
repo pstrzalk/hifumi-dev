@@ -9,9 +9,15 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 cd "$TMP"
+# We do NOT pass --skip-git: that flag suppresses the .gitignore template too,
+# and a missing workspace .gitignore is what causes per-revision workspace
+# commits to drag in tmp/cache/bootsnap/**, log/*, storage/*.sqlite3 (hundreds
+# of files of noise that also pollute the docs agent's diff budget). The .git
+# dir `rails new` creates is excluded from rsync below; only the .gitignore
+# file transfers into the skeleton.
 rails new rails_application \
   --css tailwind --database sqlite3 \
-  --skip-jbuilder --skip-kamal --skip-ci --skip-git
+  --skip-jbuilder --skip-kamal --skip-ci
 
 rsync -av --delete \
   --exclude='.git' --exclude='tmp/' --exclude='log/' \

@@ -122,6 +122,19 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     end
   end
 
+  test "init_rails_app pre-touches log/{development,test}.log so `rails generate` doesn't emit 'Unable to access log file' WARN" do
+    Dir.mktmpdir("rails-app-generator-log-touch-") do |root|
+      ws = File.join(root, "project_log_touch")
+      ExecuteInstructionJob.new.send(:init_rails_app, ws)
+
+      %w[development.log test.log].each do |name|
+        path = File.join(ws, "log", name)
+        assert File.exist?(path),
+               "init_rails_app must create log/#{name} so Rails doesn't WARN-then-create it on first generate"
+      end
+    end
+  end
+
   test "init_rails_app generates a fresh per-workspace master.key (mode 0600, not in skeleton)" do
     skeleton_root = Rails.root.join("lib/preview/skeleton")
     refute File.exist?(skeleton_root.join("config/master.key")),
@@ -155,6 +168,22 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert File.exist?(config_path), "skeleton must ship .bundle/config"
     assert_match(/BUNDLE_FROZEN:\s*"true"/, File.read(config_path),
                  ".bundle/config must pin BUNDLE_FROZEN=true (eliminates per-revision bundle-version-skew remediation)")
+  end
+
+  test "skeleton ships .gitignore so workspace commits don't drag in tmp/log/storage/master.key noise" do
+    gitignore_path = Rails.root.join("lib/preview/skeleton/.gitignore")
+    assert File.exist?(gitignore_path),
+           "skeleton must ship .gitignore — without it every workspace commit pulls in 600+ bootsnap cache files"
+    body = File.read(gitignore_path)
+    {
+      "/log/*"            => "log files (rails generate writes log/development.log every run)",
+      "/tmp/*"            => "tmp/cache/bootsnap/** is the dominant noise source per workspace commit",
+      "/storage/*"        => "sqlite databases written by bin/rails db:prepare during verify",
+      "/config/master.key" => "per-workspace secret, regenerated on init_rails_app — must never enter git"
+    }.each do |pattern, why|
+      assert_match(/^#{Regexp.escape(pattern)}$/, body,
+                   ".gitignore must list `#{pattern}` (#{why})")
+    end
   end
 
   test "init_docs_baseline leaves docs/ world-writable so the agent (running as generator) can edit them" do

@@ -37,6 +37,19 @@ class ExecuteInstructionJob < ApplicationJob
     FileUtils.cp_r("#{Rails.root.join('lib/preview/skeleton')}/.",         workspace)
     FileUtils.cp_r("#{Rails.root.join('lib/preview/skeleton-overlay')}/.", workspace)
 
+    # Pre-create log files so the first `rails generate` an agent runs doesn't
+    # spit "Rails Error: Unable to access log file ... log/development.log".
+    # bin/preview-regen-skeleton's rsync excludes log/, so the dir itself isn't
+    # in the skeleton — mkdir_p is required, not just touch. Rails would create
+    # the files on first use, but does so under a noisy WARN-level error before
+    # falling back. relax_workspace_permissions at the bottom of this method
+    # makes them world-writable.
+    log_dir = File.join(workspace, "log")
+    FileUtils.mkdir_p(log_dir)
+    %w[development.log test.log].each do |name|
+      FileUtils.touch(File.join(log_dir, name))
+    end
+
     # Skeleton ships without master.key / credentials.yml.enc to avoid baking
     # a shared secret into git. Each workspace gets its own master.key here
     # via Rails' own helper (the same one `rails credentials:edit` uses);
