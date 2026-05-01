@@ -1,9 +1,10 @@
 <div id="chat_notice">
   <% if local_assigns[:message].present? %>
-    <div class="mb-4 p-3 rounded border bg-red-50 border-red-200 text-red-800 flex items-start justify-between gap-2"
-         data-controller="dismiss">
-      <span><%= local_assigns[:message] %></span>
-      <button type="button" data-action="dismiss#close" class="text-red-700 hover:text-red-900 leading-none">×</button>
+    <div class="notice-strip notice-strip--err" data-controller="dismiss">
+      <div class="notice-strip__stripe"></div>
+      <div class="notice-strip__tag">error</div>
+      <div class="notice-strip__body"><%= local_assigns[:message] %></div>
+      <button type="button" data-action="dismiss#close" class="notice-strip__close" aria-label="dismiss">×</button>
     </div>
   <% end %>
 </div>

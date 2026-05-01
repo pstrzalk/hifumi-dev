@@ -1,5 +1,11 @@
-<div class="flex flex-col items-center justify-center h-full text-gray-500">
-  <p class="mb-4">No preview running.</p>
-  <%= button_to "▶ Start preview", project_preview_path(project),
-        method: :post, class: "px-4 py-2 bg-blue-600 text-white rounded" %>
+<div class="preview-pane__header">
+  <span class="eyebrow" style="margin: 0;">preview</span>
+  <span class="tag tag--stopped">stopped</span>
+</div>
+<div class="preview-pane__body">
+  <div class="preview-pane__empty">
+    <p style="margin: 0;">No preview running.</p>
+    <%= button_to "Start preview", project_preview_path(project),
+          method: :post, class: "btn btn--accent" %>
+  </div>
 </div>

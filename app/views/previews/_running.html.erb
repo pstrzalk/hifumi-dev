@@ -1,13 +1,14 @@
-<div class="flex flex-col gap-2">
-  <div class="flex items-center justify-between">
-    <a href="<%= project.preview_url %>" target="_blank" class="text-sm text-blue-600 underline">
-      <%= project.preview_url %> ↗
-    </a>
-    <%= button_to "⏹ Stop", project_preview_path(project),
-          method: :delete, class: "px-3 py-1 text-sm bg-gray-200 rounded" %>
+<div class="preview-pane__header">
+  <a href="<%= project.preview_url %>" target="_blank" class="preview-pane__url">
+    <%= project.preview_url %><span class="arrow">↗</span>
+  </a>
+  <div class="flex items-center" style="gap: 8px;">
+    <span class="tag tag--running"><span class="tag-dot"></span>running</span>
+    <%= button_to "Stop", project_preview_path(project),
+          method: :delete, class: "btn btn--outline btn--sm" %>
   </div>
-  <iframe
-    src="<%= project.preview_url %>"
-    class="w-full h-[600px] border rounded"
-    sandbox="allow-same-origin allow-scripts allow-forms"></iframe>
 </div>
+<iframe
+  src="<%= project.preview_url %>"
+  class="preview-frame"
+  sandbox="allow-same-origin allow-scripts allow-forms"></iframe>

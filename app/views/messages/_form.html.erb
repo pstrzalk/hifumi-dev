@@ -1,9 +1,9 @@
-<%= form_with url: project_messages_path(project), id: dom_id(project, :message_form), class: "flex gap-2" do |f| %>
+<%= form_with url: project_messages_path(project), id: dom_id(project, :message_form), class: "composer" do |f| %>
   <%= f.text_field :content,
       id: "message_content_input",
       name: "message[content]",
       placeholder: "Continue the conversation…",
-      class: "flex-1 border rounded px-3 py-2",
+      class: "field-input",
       autofocus: true %>
-  <%= f.submit "Send", class: "bg-black text-white rounded px-4" %>
+  <%= f.submit "Send", class: "btn btn--primary" %>
 <% end %>

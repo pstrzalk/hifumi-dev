@@ -1,26 +1,31 @@
-<h2>Log in</h2>
+<section style="max-width: 420px; margin: 0 auto;">
+  <div class="eyebrow">auth · log in</div>
+  <h2 class="h-section" style="margin: 4px 0 24px;">Log in</h2>
 
-<%= form_for(resource, as: resource_name, url: session_path(resource_name)) do |f| %>
-  <div class="field">
-    <p><%= f.label :email %></p>
-    <p><%= f.email_field :email, autofocus: true, autocomplete: "email" %></p>
-  </div>
-
-  <div class="field">
-    <p><%= f.label :password %></p>
-    <p><%= f.password_field :password, autocomplete: "current-password" %></p>
-  </div>
-
-  <% if devise_mapping.rememberable? %>
-    <div class="field">
-      <p><%= f.check_box :remember_me %></p>
-      <p><%= f.label :remember_me %></p>
+  <%= form_for(resource, as: resource_name, url: session_path(resource_name), html: { class: "flex flex-col", style: "gap: 16px;" }) do |f| %>
+    <div>
+      <%= f.label :email, class: "field-label" %>
+      <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "field-input" %>
     </div>
+
+    <div>
+      <%= f.label :password, class: "field-label" %>
+      <%= f.password_field :password, autocomplete: "current-password", class: "field-input" %>
+    </div>
+
+    <% if devise_mapping.rememberable? %>
+      <label class="flex items-center" style="gap: 8px; font-size: 13px; color: var(--fg-muted);">
+        <%= f.check_box :remember_me %>
+        Remember me
+      </label>
+    <% end %>
+
+    <%= f.submit "Log in", class: "btn btn--primary", style: "align-self: flex-start;" %>
   <% end %>
 
-  <div class="actions">
-    <%= f.submit "Log in" %>
-  </div>
-<% end %>
+  <hr class="section-rule" style="margin: 24px 0;">
 
-<%= render "devise/shared/links" %>
+  <div class="flex flex-col" style="gap: 6px; font-size: 13px;">
+    <%= render "devise/shared/links" %>
+  </div>
+</section>

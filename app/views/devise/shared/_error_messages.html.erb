@@ -1,15 +1,19 @@
 <% if resource.errors.any? %>
-  <div id="error_explanation" data-turbo-temporary>
-    <h2>
-      <%= I18n.t("errors.messages.not_saved",
-                 count: resource.errors.count,
-                 resource: resource.class.model_name.human.downcase)
-       %>
-    </h2>
-    <ul>
-      <% resource.errors.full_messages.each do |message| %>
-        <li><%= message %></li>
-      <% end %>
-    </ul>
+  <div id="error_explanation" data-turbo-temporary class="notice-strip notice-strip--err">
+    <div class="notice-strip__stripe"></div>
+    <div class="notice-strip__tag">errors</div>
+    <div class="notice-strip__body">
+      <strong style="display: block; margin-bottom: 4px;">
+        <%= I18n.t("errors.messages.not_saved",
+                   count: resource.errors.count,
+                   resource: resource.class.model_name.human.downcase) %>
+      </strong>
+      <ul style="margin: 0; padding-left: 18px;">
+        <% resource.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+    <div></div>
   </div>
 <% end %>

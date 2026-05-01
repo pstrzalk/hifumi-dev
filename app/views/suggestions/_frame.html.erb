@@ -1,9 +1,9 @@
 <%= turbo_frame_tag "suggestions" do %>
   <% if prompts.present? %>
-    <div class="mt-4 flex gap-2 flex-wrap" data-controller="suggestions">
+    <div class="composer-suggestions" data-controller="suggestions">
       <% prompts.each do |prompt| %>
         <button type="button"
-                class="px-3 py-1 rounded border text-sm hover:bg-gray-100"
+                class="suggestion-chip"
                 data-action="click->suggestions#prefillMessage"
                 data-suggestions-value-param="<%= prompt %>">
           <%= prompt %>

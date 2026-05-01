@@ -1,6 +1,9 @@
 <% if revisions.any? %>
-  <div class="mb-6 p-4 border border-gray-200 rounded">
-    <h2 class="text-sm font-semibold text-gray-600 mb-2">Current instruction</h2>
+  <div class="revisions">
+    <div class="revisions__head">
+      <span>current instruction · <%= pluralize(revisions.size, "revision") %></span>
+      <span><%= revisions.count(&:completed?) %>/<%= revisions.size %> ok</span>
+    </div>
     <%= render partial: "revisions/revision", collection: revisions, as: :revision %>
   </div>
 <% end %>

@@ -1,8 +1,12 @@
-<div class="flex flex-col gap-2">
-  <p class="text-red-700">❌ Preview failed.</p>
+<div class="preview-pane__header">
+  <span class="eyebrow" style="margin: 0;">preview</span>
+  <span class="tag tag--failed">failed</span>
+</div>
+<div class="preview-pane__body" style="gap: 12px;">
+  <p style="margin: 0; color: var(--err-fg);">Preview failed.</p>
   <% if project.preview_error.present? %>
-    <pre class="text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40"><%= project.preview_error %></pre>
+    <pre class="preview-pane__error"><%= project.preview_error %></pre>
   <% end %>
-  <%= button_to "↻ Retry", project_preview_path(project),
-        method: :post, class: "px-4 py-2 bg-blue-600 text-white rounded self-start" %>
+  <%= button_to "Retry", project_preview_path(project),
+        method: :post, class: "btn btn--accent", form: { style: "align-self: flex-start;" } %>
 </div>

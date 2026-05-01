@@ -105,7 +105,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
       post projects_path, params: { project: { description: "" } }
     end
     assert_response :unprocessable_entity
-    assert_select "div.text-red-700", text: "Please describe what you want to build."
+    assert_select "div.notice-strip--err .notice-strip__body", text: "Please describe what you want to build."
   end
 
   test "POST /projects with whitespace-only description is treated as blank" do

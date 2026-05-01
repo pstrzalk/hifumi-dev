@@ -1,31 +1,43 @@
-<section class="w-full max-w-2xl mx-auto">
-  <div class="flex items-baseline justify-between mb-6">
-    <h1 class="text-3xl font-semibold">Your projects</h1>
-    <%= link_to "+ New project", new_project_path,
-        class: "bg-black text-white rounded px-4 py-2 text-sm" %>
+<section style="max-width: 720px; margin: 0 auto;">
+  <div class="flex items-baseline justify-between" style="margin-bottom: 24px;">
+    <div>
+      <div class="eyebrow">projects · index</div>
+      <h1 class="h-section" style="margin-top: 4px;">Your projects</h1>
+    </div>
+    <%= link_to "+ New project", new_project_path, class: "btn btn--primary btn--sm" %>
   </div>
 
   <% if @projects.any? %>
-    <ul class="flex flex-col gap-3">
+    <ul class="flex flex-col" style="gap: 10px; padding: 0; margin: 0; list-style: none;">
       <% @projects.each do |project| %>
-        <li class="flex items-center justify-between border rounded px-4 py-3">
-          <div>
-            <%= link_to project.name, project, class: "font-medium hover:underline" %>
-            <div class="text-sm text-gray-500">
-              <%= project.preview_state %> ·
-              created <%= time_ago_in_words(project.created_at) %> ago
+        <li class="project-card project-card--<%= project.preview_state %>">
+          <div class="project-card__stripe"></div>
+          <div class="project-card__body">
+            <%= link_to project.name, project, class: "project-card__name" %>
+            <div class="project-card__meta">
+              <span class="tag tag--<%= project.preview_state %>"><%= project.preview_state %></span>
+              <span class="dot">·</span>
+              <span>created <%= time_ago_in_words(project.created_at) %> ago</span>
             </div>
           </div>
-          <%= button_to "Delete", project, method: :delete,
-              form: { data: { turbo_confirm: "Delete \"#{project.name}\"?" } },
-              class: "text-sm text-red-700 hover:underline" %>
+          <div class="project-card__actions">
+            <%= button_to "delete", project, method: :delete,
+                  form: { data: { turbo_confirm: "Delete \"#{project.name}\"?" } } %>
+          </div>
         </li>
       <% end %>
     </ul>
   <% else %>
-    <p class="text-gray-600">
-      No projects yet.
-      <%= link_to "Create your first one", new_project_path, class: "underline" %>.
-    </p>
+    <div class="project-card" style="padding: 0;">
+      <div class="project-card__stripe"></div>
+      <div class="project-card__body" style="padding: 24px;">
+        <p style="margin: 0; color: var(--fg-muted);">
+          No projects yet.
+          <%= link_to "Create your first one", new_project_path,
+              style: "color: var(--accent); text-decoration: underline; text-underline-offset: 2px;" %>.
+        </p>
+      </div>
+      <div></div>
+    </div>
   <% end %>
 </section>

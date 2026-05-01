@@ -28,7 +28,7 @@ class ProjectsControllerShowTest < ActionDispatch::IntegrationTest
 
     get project_url(@project)
     assert_response :success
-    assert_select "div#active_revisions h2", "Current instruction"
+    assert_select "div#active_revisions .revisions__head", /current instruction/
     assert_select "div#active_revisions", /Add Task model/
     assert_select "div#active_revisions", /pending/
   end

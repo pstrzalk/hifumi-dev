@@ -1,12 +1,12 @@
 <div id="<%= dom_id(message) %>" class="<%= message_row_class(message) %>">
   <% if message.visible_in_chat? %>
-    <div class="max-w-[80%] rounded px-3 py-2 <%= message.role == "user" ? "bg-blue-100" : "bg-gray-100" %>">
-      <div class="text-xs text-gray-500 mb-1"><%= message.role %></div>
+    <div class="msg-bubble">
+      <div class="msg-role"><%= message.role %></div>
 
       <% if render_as_pill?(message) %>
-        <div class="text-sm italic text-gray-600"><%= tool_call_pill_text(message) %></div>
+        <div class="msg-pill"><%= tool_call_pill_text(message) %></div>
       <% else %>
-        <div class="whitespace-pre-wrap"><%= message.content %></div>
+        <div class="msg-body"><%= message.content %></div>
       <% end %>
     </div>
   <% end %>

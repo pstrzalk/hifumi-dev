@@ -1,7 +1,10 @@
-<section class="w-full max-w-7xl mx-auto px-4">
+<section style="max-width: 1120px; margin: 0 auto;">
   <%= turbo_stream_from @project %>
 
-  <h1 class="text-2xl font-semibold mb-4"><%= @project.name %></h1>
+  <div class="flex items-baseline" style="gap: 12px; margin-bottom: 16px;">
+    <div class="eyebrow">studio · <span class="mono">project_<%= @project.id %></span></div>
+  </div>
+  <h1 class="h-section" style="margin: 0 0 24px;"><%= @project.name %></h1>
 
   <%= render "shared/chat_notice" %>
 
@@ -10,14 +13,21 @@
       <div id="active_revisions">
         <%= render "revisions/list", revisions: @active_revisions %>
       </div>
-      <div id="messages" class="flex flex-col gap-3 mb-6">
+      <div id="messages" class="flex flex-col" style="gap: 12px; margin-bottom: 16px;">
         <%= render partial: "messages/message", collection: @messages, as: :message %>
       </div>
       <%= render "suggestions/frame", prompts: [] %>
       <% if flash[:alert] %>
-        <div class="mb-4 text-red-700"><%= flash[:alert] %></div>
+        <div class="notice-strip notice-strip--err">
+          <div class="notice-strip__stripe"></div>
+          <div class="notice-strip__tag">error</div>
+          <div class="notice-strip__body"><%= flash[:alert] %></div>
+          <div></div>
+        </div>
       <% end %>
-      <%= render "messages/form", project: @project %>
+      <div style="margin-top: 16px;">
+        <%= render "messages/form", project: @project %>
+      </div>
     </div>
 
     <div class="lg:sticky lg:top-4 lg:h-fit">
