@@ -18,22 +18,14 @@
 require "shellwords"
 require_relative "verify_revision"
 require_relative "auto_remediate"
+require_relative "workflow_env"
 
-WORKSPACE = ENV.fetch("RAILS_APP_GENERATOR_WORKSPACE") do
-  abort("RAILS_APP_GENERATOR_WORKSPACE env var is required (path to Rails workspace).")
-end
-CLAUDE_MODEL = ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet")
-# update_docs is a summarization step, not a reasoning step — runs on haiku to
-# cut ~$0.5/revision off the dominant cost line. Override via env if needed.
-DOCS_MODEL = ENV.fetch("RAILS_APP_GENERATOR_DOCS_MODEL", "haiku")
-
-# Hard ceiling on per-iteration agent(:fix) spend. The W2.R loop allows up
-# to 2 iterations, so total worst-case is 2x this. Default $0.50 is generous
-# vs historical legitimate fixes (bundle install: $0.05, master.key: $0.31)
-# but tight enough to kill runaway flails (e.g. the 49-turn / $0.99 chase
-# in tmp/simple_application_run_kamal.log rev 14). Bump via env if a real
-# case needs more than $1.00 across both iterations.
-FIX_BUDGET_USD = ENV.fetch("RAILS_APP_GENERATOR_FIX_BUDGET_USD", "0.50")
+# Defaults, overrides, and validation live in Roast::WorkflowEnv so they're
+# unit-testable without loading the workflow file.
+WORKSPACE      = Roast::WorkflowEnv.workspace
+CLAUDE_MODEL   = Roast::WorkflowEnv.claude_model
+DOCS_MODEL     = Roast::WorkflowEnv.docs_model
+FIX_BUDGET_USD = Roast::WorkflowEnv.fix_budget_usd
 
 # Shared state between workflow steps (Roast DSL blocks do not share `metadata`
 # or instance variables). Used to pass verify errors from W2.4 verify
