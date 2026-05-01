@@ -150,6 +150,47 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     end
   end
 
+  test "skeleton ships .bundle/config with BUNDLE_FROZEN=true so bundle check stops trying to rewrite Gemfile.lock" do
+    config_path = Rails.root.join("lib/preview/skeleton/.bundle/config")
+    assert File.exist?(config_path), "skeleton must ship .bundle/config"
+    assert_match(/BUNDLE_FROZEN:\s*"true"/, File.read(config_path),
+                 ".bundle/config must pin BUNDLE_FROZEN=true (eliminates per-revision bundle-version-skew remediation)")
+  end
+
+  test "init_docs_baseline leaves docs/ world-writable so the agent (running as generator) can edit them" do
+    Dir.mktmpdir("rails-app-generator-docs-perm-") do |root|
+      ws = File.join(root, "project_docs_perm")
+      FileUtils.mkdir_p(ws)
+      Dir.chdir(ws) { system("git init -q && git commit -q --allow-empty -m bootstrap") }
+
+      ExecuteInstructionJob.new.send(:init_docs_baseline, ws)
+
+      %w[architecture.md conventions.md domain.md revision_notes.md].each do |name|
+        path = File.join(ws, "docs", name)
+        mode = File.stat(path).mode & 0o777
+        assert_equal 0o666, mode,
+                     "#{name} must be world-writable (got #{mode.to_s(8)}) so the generator-side agent can edit it"
+      end
+    end
+  end
+
+  test "relax_workspace_permissions keeps master.key locked at 0600 even though the rest goes world-writable" do
+    Dir.mktmpdir("rails-app-generator-relax-perm-") do |root|
+      ws = File.join(root, "project_relax_perm")
+      FileUtils.mkdir_p(File.join(ws, "config"))
+      master_key = File.join(ws, "config/master.key")
+      File.write(master_key, "deadbeef" * 4)
+      File.write(File.join(ws, "Gemfile.lock"), "GEM\n")
+      FileUtils.chmod(0o600, master_key)
+
+      ExecuteInstructionJob.new.send(:relax_workspace_permissions, ws)
+
+      assert_equal 0o600, File.stat(master_key).mode & 0o777, "master.key must stay 0600"
+      assert_equal 0o666, File.stat(File.join(ws, "Gemfile.lock")).mode & 0o777,
+                   "non-secret files must be world-writable after relax"
+    end
+  end
+
   # --- seam shape --------------------------------------------------------
 
   test "run_roast_subprocess receives RAILS_APP_GENERATOR_* env and bin/roast workflow args" do
@@ -170,6 +211,17 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal "revision_id=#{@rev1.id}",                           first_call[:args][3]
     assert_equal "revision_summary=summary 1",                        first_call[:args][4]
     assert_equal "revision_prompt=prompt 1",                          first_call[:args][5]
+  end
+
+  test "run_roast_subprocess env forces RAILS_ENV=development for workspace rails commands" do
+    first_call = nil
+    with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
+      ExecuteInstructionJob.perform_now(@instruction.id)
+      first_call = spy[:subprocess_calls].first
+    end
+
+    assert_equal "development", first_call[:env]["RAILS_ENV"],
+                 "the generator container is RAILS_ENV=production, but the workspace must boot in development"
   end
 
   test "run_roast_subprocess env carries the project owner's openrouter key" do

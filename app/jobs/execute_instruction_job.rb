@@ -63,18 +63,25 @@ class ExecuteInstructionJob < ApplicationJob
       raise "git init failed in #{workspace}" unless ok
     end
 
-    # Roast spawns the `claude` CLI as the `generator` user (the binary refuses
-    # to run --dangerously-skip-permissions as root). bundle install + git init
-    # above ran as root and left workspace files root-owned; open up writes so
-    # the generator user can edit them. New files claude creates will be
-    # generator-owned, which is fine — root reads/writes them anyway, and
-    # `git config --system --add safe.directory '*'` (set in the Dockerfile)
-    # silences ownership warnings for subsequent root-side git ops.
-    #
-    # master.key stays 0600 (root-only) — generator never needs to decrypt
-    # credentials, only the preview container does, and that runs separately.
+    relax_workspace_permissions(workspace)
+  end
+
+  # Roast spawns the `claude` CLI as the `generator` user (the binary refuses
+  # to run --dangerously-skip-permissions as root). Anything Rails writes from
+  # this job runs as root and would otherwise leave files root-owned 0644 —
+  # which the generator-side agent can't edit, costing remediation turns when
+  # it discovers it can't write to docs/ or Gemfile.lock. Open up writes after
+  # every root-side mutation; new files claude creates will be generator-owned,
+  # which is fine — root can still read/write them, and
+  # `git config --system --add safe.directory '*'` (set in the Dockerfile)
+  # silences ownership warnings for subsequent root-side git ops.
+  #
+  # master.key stays 0600 (root-only) — generator never needs to decrypt
+  # credentials, only the preview container does, and that runs separately.
+  def relax_workspace_permissions(workspace)
     FileUtils.chmod_R("a+rwX", workspace)
-    File.chmod(0o600, master_key_path)
+    master_key_path = File.join(workspace, "config/master.key")
+    File.chmod(0o600, master_key_path) if File.exist?(master_key_path)
   end
 
   # Cwd for rails new / git / bundle is outside this repo (Project.workspace_root),
@@ -104,6 +111,8 @@ class ExecuteInstructionJob < ApplicationJob
       "cd #{Shellwords.escape(workspace)} && git add -A && " \
       "git commit -m 'docs: scaffolding baseline' --allow-empty"
     )
+
+    relax_workspace_permissions(workspace)
   end
 
   def execute_revision(revision, workspace)
@@ -113,10 +122,17 @@ class ExecuteInstructionJob < ApplicationJob
     api_key = revision.instruction.project.user.profile.openrouter_api_key
     raise "Project owner has no OpenRouter API key" if api_key.blank?
 
+    # The generator container itself runs RAILS_ENV=production, but the
+    # *workspace* is a fresh, unconfigured Rails app — booting in production
+    # blows up on a missing secret_key_base before the agent can do anything.
+    # Override RAILS_ENV for the entire roast subprocess tree (verify steps,
+    # the claude CLI, and any rails-generate the agent invokes) so workspace
+    # commands land in development.
     env = {
       "RAILS_APP_GENERATOR_WORKSPACE" => workspace,
       "RAILS_APP_GENERATOR_MODEL" => ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet"),
-      "OPENROUTER_API_KEY" => api_key
+      "OPENROUTER_API_KEY" => api_key,
+      "RAILS_ENV" => "development"
     }
     args = [
       roast_executable,
