@@ -221,3 +221,5 @@ cat "$WS/docs/revision_notes.md"    # per-revision decision log
 ## Development of the generator itself
 
 The generator is a Rails 8 app with RubyLLM + Solid Queue. Phase notes and the active plan live under `docs/`; start at `docs/03-plans/` for what's in flight. See `CLAUDE.md` for status, conventions, and the canonical reading order.
+
+The visible UI follows the **Hifumi design system** — warm paper background, IBM Plex stack, Rails-red accent, rectangular outlined status tags. Tokens and component classes live in `app/assets/tailwind/application.css`; the full reference (token map, component-to-view inventory, voice rules, anti-patterns) is at `docs/02-architecture/04-design-system.md`. Read it before redesigning any chrome.
