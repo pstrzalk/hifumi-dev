@@ -1,0 +1,72 @@
+#!/usr/bin/env ruby
+# Dump the chat history for a project so we can spot why Anthropic rejects
+# the conversation with "tool_use_id without matching tool_use" errors.
+#
+# Usage (locally):     bin/rails runner bin/inspect-chat <project_id>
+# Usage (on Kamal):    kamal app exec --primary "bin/rails runner bin/inspect-chat <project_id>"
+
+project_id = ARGV.first || abort("usage: bin/inspect-chat <project_id>")
+project = Project.find(project_id)
+chat = project.chat
+messages = chat.messages.includes(:tool_calls).order(:id).to_a
+tcs_by_id = ToolCall.where(id: messages.map(&:tool_call_id).compact).index_by(&:id)
+
+puts "Project ##{project.id} (#{project.name}) — chat ##{chat.id} — #{messages.size} messages"
+puts "=" * 80
+
+messages.each_with_index do |m, i|
+  preview = m.content.to_s.gsub(/\s+/, " ").strip[0, 80]
+  puts "[#{i}] msg_id=#{m.id} role=#{m.role.ljust(9)} content=#{preview.inspect}"
+
+  if m.tool_calls.any?
+    m.tool_calls.each do |tc|
+      puts "      tool_use:    name=#{tc.name} provider_id=#{tc.tool_call_id} (tc_row=#{tc.id})"
+    end
+  end
+
+  if m.tool_call_id
+    tc = tcs_by_id[m.tool_call_id]
+    if tc
+      puts "      tool_result: tc_row=#{tc.id} provider_id=#{tc.tool_call_id} parent_msg=#{tc.message_id}"
+    else
+      puts "      tool_result: tc_row=#{m.tool_call_id} ← MISSING tool_calls row (orphan)"
+    end
+  end
+end
+
+puts
+puts "Pairing analysis (Anthropic requires every tool_result.id ∈ previous-message tool_use ids):"
+puts "-" * 80
+
+issues = []
+messages.each_with_index do |m, i|
+  next unless m.role == "tool"
+  prev = messages[i - 1]
+  tc = tcs_by_id[m.tool_call_id]
+  unless tc
+    issues << "[#{i}] msg #{m.id}: tool_result references missing tool_calls.id=#{m.tool_call_id}"
+    next
+  end
+  parent_msg_id = tc.message_id
+  if prev.nil? || prev.id != parent_msg_id
+    issues << "[#{i}] msg #{m.id}: tool_result for tc #{tc.tool_call_id} expects parent msg=#{parent_msg_id}, but previous is msg=#{prev&.id}"
+  end
+end
+
+# Assistant tool_calls with no following tool message
+messages.each_with_index do |m, i|
+  next unless m.role == "assistant" && m.tool_calls.any?
+  next_msgs = messages[i + 1..(i + m.tool_calls.size)] || []
+  m.tool_calls.each do |tc|
+    matched = next_msgs.any? { |n| n.role == "tool" && n.tool_call_id == tc.id }
+    unless matched
+      issues << "[#{i}] msg #{m.id}: assistant tool_use #{tc.tool_call_id} (#{tc.name}) has no following tool result"
+    end
+  end
+end
+
+if issues.empty?
+  puts "✓ No structural issues detected."
+else
+  issues.each { |line| puts "✗ #{line}" }
+end

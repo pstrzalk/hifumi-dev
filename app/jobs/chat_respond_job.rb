@@ -45,7 +45,11 @@ class ChatRespondJob < ApplicationJob
     "RubyLLM::ServerError"            => "OpenRouter returned a server error. Try again shortly.",
     "RubyLLM::ServiceUnavailableError" => "OpenRouter is temporarily unavailable. Try again shortly.",
     "RubyLLM::ContextLengthExceededError" => "This conversation is too long for the model. Start a new project.",
-    "RubyLLM::ModelNotFoundError"     => "The configured model is unavailable. Contact the operator."
+    "RubyLLM::ModelNotFoundError"     => "The configured model is unavailable. Contact the operator.",
+    # The model returned 400 — almost always a structural problem with the
+    # conversation history (e.g. tool_use without a matching tool_result).
+    # Once written, the chat is unrecoverable; the user can only start over.
+    "RubyLLM::BadRequestError"        => "This conversation can't be continued by the model. Please start a new project."
   }.freeze
 
   def friendly_message_for(exception)

@@ -186,6 +186,23 @@ class ChatRespondJobTest < ActiveJob::TestCase
       "banner must not echo the raw exception message (and thus the key)"
   end
 
+  test "RubyLLM::BadRequestError: maps to a 'start a new project' banner, not the generic 'something went wrong'" do
+    Chat.class_eval do
+      alias_method :_complete_for_badreq, :complete if method_defined?(:complete) && !method_defined?(:_complete_for_badreq)
+      define_method(:complete) { |**_kwargs, &_b| raise RubyLLM::BadRequestError, "Provider returned error - tool_use_id mismatch" }
+    end
+    perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+
+    notice = last_chat_notice_broadcast
+    assert notice, "expected a chat_notice broadcast"
+    assert_match(/can't be continued|start a new project/i, notice)
+    refute_match(/Something went wrong/, notice)
+  ensure
+    Chat.class_eval do
+      alias_method :complete, :_complete_for_badreq if method_defined?(:_complete_for_badreq)
+    end
+  end
+
   test "registers a SuggestPrompts tool bound to the project before completing" do
     captured_tools = []
     spy_with_tools(captured_tools) do
