@@ -39,6 +39,50 @@ class VerifyRevisionTest < ActiveSupport::TestCase
     end
   end
 
+  test "with_clean_bundler_env hides parent's BUNDLE_GEMFILE so workspace bundle commands resolve against the workspace" do
+    # Roast itself runs under `bundle exec`, which sets BUNDLE_GEMFILE to the
+    # generator's Gemfile. If that leaked into a `bundle check` cd'd into a
+    # workspace, bundler would resolve against the wrong bundle. The whole
+    # point of with_clean_bundler_env is to prevent that leak.
+    parent_gemfile = ENV["BUNDLE_GEMFILE"]
+    refute_nil parent_gemfile, "test setup assumes we're running under bundle exec"
+
+    inside = "STILL_SET"
+    VerifyRevision.with_clean_bundler_env { inside = ENV["BUNDLE_GEMFILE"] }
+    refute_equal parent_gemfile, inside,
+                 "BUNDLE_GEMFILE leaked inside the block — workspace bundle commands would resolve against the parent Gemfile"
+  end
+
+  test "with_clean_bundler_env delegates to Bundler.with_unbundled_env (regression: hand-rolled scrub stripped BUNDLE_PATH)" do
+    # The earlier implementation stripped every BUNDLE_*-prefixed var, which
+    # over-deleted: it also dropped BUNDLE_PATH (set globally to
+    # /usr/local/bundle by the Dockerfile, where every bundle install
+    # deposits gems). With BUNDLE_PATH gone, subprocess `bundle check`
+    # defaulted to a different lookup path and reported gems missing even
+    # after `bundle install` had populated /usr/local/bundle.
+    # Bundler.with_unbundled_env reverts only what bundler itself set on
+    # entering the bundle, leaving Dockerfile globals intact.
+    delegated = false
+    original = Bundler.method(:with_unbundled_env)
+    Bundler.singleton_class.define_method(:with_unbundled_env) do |&blk|
+      delegated = true
+      original.call(&blk)
+    end
+    VerifyRevision.with_clean_bundler_env { :ok }
+    assert delegated, "with_clean_bundler_env must use Bundler's primitive"
+  ensure
+    Bundler.singleton_class.define_method(:with_unbundled_env, &original) if original
+  end
+
+  test "with_clean_bundler_env returns the block's value and propagates exceptions" do
+    assert_equal 42, VerifyRevision.with_clean_bundler_env { 42 }
+
+    raised = assert_raises(RuntimeError) do
+      VerifyRevision.with_clean_bundler_env { raise "boom" }
+    end
+    assert_equal "boom", raised.message
+  end
+
   private
 
   # Replace VerifyRevision.perform with a stub that returns the configured
