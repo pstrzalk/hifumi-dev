@@ -308,7 +308,7 @@ execute do
       ## Rules — IMPORTANT, read carefully
 
       - Work from the diff above. Do NOT glob, do NOT read the workspace tree, do NOT inspect git history.
-      - The only file reads allowed are the four docs files in docs/ (to see what's there before editing).
+      - The only file reads allowed are these four exact paths: `docs/architecture.md`, `docs/conventions.md`, `docs/domain.md`, `docs/revision_notes.md`. Do not read the `docs/` directory itself — read the file paths directly.
       - Use Edit (small, targeted edits) or append-only operations. Do not rewrite whole files.
       - If a doc has nothing to update for this revision, skip it — don't write filler.
       - Be terse. Each section in revision_notes is 1-3 sentences max.
