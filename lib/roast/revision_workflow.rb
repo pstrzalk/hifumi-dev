@@ -114,7 +114,14 @@ execute(:fix_and_reverify) do
     WORKFLOW_STATE[:last_fix_response] = (agent!(:fix).response.to_s if agent?(:fix))
 
     result = VerifyRevision.run(WORKSPACE)
-    fail!(VerifyRevision.format_errors(result)) if VerifyRevision.failed?(result)
+    puts "[W2.RV] " + VerifyRevision.summary(result).gsub("\n", "\n[W2.RV] ")
+    if VerifyRevision.failed?(result)
+      errors = VerifyRevision.format_errors(result)
+      puts "[W2.RV] --- verify errors ---"
+      puts errors.lines.map { |l| "[W2.RV] #{l}" }.join
+      puts "[W2.RV] --- end verify errors ---"
+      fail!(errors)
+    end
     VerifyRevision.summary(result)
   end
 
@@ -230,10 +237,15 @@ execute do
 
     puts "[W2.AR] Applied: #{fixes.join('; ')}"
     result = VerifyRevision.run(WORKSPACE)
+    puts "[W2.AR] " + VerifyRevision.summary(result).gsub("\n", "\n[W2.AR] ")
     if VerifyRevision.failed?(result)
-      WORKFLOW_STATE[:verify_errors] = VerifyRevision.format_errors(result)
+      errors = VerifyRevision.format_errors(result)
+      puts "[W2.AR] --- verify errors ---"
+      puts errors.lines.map { |l| "[W2.AR] #{l}" }.join
+      puts "[W2.AR] --- end verify errors ---"
+      WORKFLOW_STATE[:verify_errors] = errors
       puts "[W2.AR] Re-verify still failing — falling through to agent remediation"
-      fail!(WORKFLOW_STATE[:verify_errors])
+      fail!(errors)
     end
 
     WORKFLOW_STATE[:verify_errors] = nil
