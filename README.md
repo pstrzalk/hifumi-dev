@@ -147,6 +147,23 @@ bin/watch-instruction 42       # watches instruction #42
 
 Polls every 2s and prints status per revision. Equivalent to the live revision cards in the UI.
 
+### Run a single instruction synchronously — `bin/execute-instruction`
+
+```sh
+bin/execute-instruction 99
+```
+
+Thin wrapper around `ExecuteInstructionJob.perform_now(99)`. Same caveats as `bin/generate execute --instruction-id 99` (no skip for already-completed revisions; not a retry tool).
+
+### Inspect a wedged chat — `bin/inspect-chat`
+
+```sh
+bin/rails runner bin/inspect-chat 15                                # local
+kamal app exec --primary "bin/rails runner bin/inspect-chat 15"     # against prod
+```
+
+Dumps a project's chat messages and `tool_calls` rows in order, then runs a structural pairing analysis (every `tool_result` must follow its matching assistant `tool_use`). Use when the chat fails with `RubyLLM::BadRequestError` ("unexpected `tool_use_id`...") — the dump tells you whether a tool was called twice in one turn or a tool_result is orphaned.
+
 ### Run the test suite
 
 ```sh
@@ -194,10 +211,12 @@ cat "$WS/docs/revision_notes.md"    # per-revision decision log
 
 ## Roast runner choice
 
-- `bin/roast` (default in `ExecuteInstructionJob`) — uses the local `claude` CLI's OAuth subscription. Free given a paid Claude plan; throttled by the plan's quota. The wrapper unsets `ANTHROPIC_*` env vars and pins frum's Ruby on PATH.
-- `bin/roast-openrouter` — uses OpenRouter's Anthropic-compatible API. Paid per-token; needs `OPENROUTER_API_KEY`. Use when the subscription quota is exhausted.
+`ExecuteInstructionJob` picks one of two wrappers based on environment:
 
-Don't call `bundle exec roast` directly — it bypasses both wrappers.
+- `bin/roast-claudesubscription` — dev default. Uses the local `claude` CLI's OAuth subscription. Free given a paid Claude plan; throttled by the plan's quota. The wrapper unsets `ANTHROPIC_*` env vars and pins frum's Ruby on PATH.
+- `bin/roast-openrouter` — production default (and dev when `FORCE_OPENROUTER=1`). Uses OpenRouter's Anthropic-compatible API. Paid per-token; needs `OPENROUTER_API_KEY`.
+
+`bin/roast` itself is the bundler binstub (`bundle exec roast` raw, no env setup) — for direct testing only. Don't rely on it from `ExecuteInstructionJob`.
 
 ## Development of the generator itself
 
