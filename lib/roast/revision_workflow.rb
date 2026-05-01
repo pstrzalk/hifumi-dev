@@ -17,11 +17,15 @@
 
 require "shellwords"
 require_relative "verify_revision"
+require_relative "auto_remediate"
 
 WORKSPACE = ENV.fetch("RAILS_APP_GENERATOR_WORKSPACE") do
   abort("RAILS_APP_GENERATOR_WORKSPACE env var is required (path to Rails workspace).")
 end
 CLAUDE_MODEL = ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet")
+# update_docs is a summarization step, not a reasoning step — runs on haiku to
+# cut ~$0.5/revision off the dominant cost line. Override via env if needed.
+DOCS_MODEL = ENV.fetch("RAILS_APP_GENERATOR_DOCS_MODEL", "haiku")
 
 # Shared state between workflow steps (Roast DSL blocks do not share `metadata`
 # or instance variables). Used to pass verify errors from W2.4 verify
@@ -36,6 +40,7 @@ config do
     skip_permissions!
     show_stats!
   end
+  agent(:update_docs) { model DOCS_MODEL }
   cmd { display! }
 end
 
@@ -43,18 +48,35 @@ end
 
 execute(:fix_and_reverify) do
   agent(:fix) do |_, errors, idx|
+    prev_attempt = WORKFLOW_STATE[:last_fix_response]
+    prev_section = if idx > 0 && prev_attempt && !prev_attempt.empty?
+      <<~PREV
+
+        ## Previous attempt summary (your last response — it didn't fully fix things)
+
+        #{prev_attempt}
+
+      PREV
+    else
+      ""
+    end
+
     <<~PROMPT
       Verification didn't pass (attempt #{idx + 1}/2).
 
       Errors:
 
       #{errors}
-
-      Fix exactly what's broken. Don't change the approach.
+      #{prev_section}
+      Fix exactly what's broken. Don't change the approach. If your previous attempt is shown above, build on it instead of starting from scratch — don't repeat investigation steps you already did.
     PROMPT
   end
 
   ruby(:reverify) do
+    # Capture the agent's response so the next iteration can build on it
+    # instead of starting over with `whoami / id / ls -la` from scratch.
+    WORKFLOW_STATE[:last_fix_response] = (agent!(:fix).response.to_s if agent?(:fix))
+
     result = VerifyRevision.run(WORKSPACE)
     fail!(VerifyRevision.format_errors(result)) if VerifyRevision.failed?(result)
     VerifyRevision.summary(result)
@@ -89,6 +111,25 @@ execute do
     notes_path = File.join(docs_dir, "revision_notes.md")
     revision_notes = File.exist?(notes_path) ? File.read(notes_path) : ""
 
+    # Pre-feed a structural snapshot (controllers, models, routes file,
+    # application_controller content) so the agent doesn't spend turns
+    # globbing / reading these on every revision. These are small and
+    # deterministic; cheaper as input tokens than as tool round-trips.
+    snapshot_parts = []
+    %w[app/controllers app/models].each do |dir|
+      files = Dir.glob("#{WORKSPACE}/#{dir}/**/*.rb").sort.map { |f| f.sub("#{WORKSPACE}/", "") }
+      snapshot_parts << "**#{dir}/** — #{files.empty? ? '(empty)' : files.join(', ')}"
+    end
+    routes_path = File.join(WORKSPACE, "config/routes.rb")
+    if File.exist?(routes_path)
+      snapshot_parts << "**config/routes.rb**\n```ruby\n#{File.read(routes_path)}```"
+    end
+    app_ctrl_path = File.join(WORKSPACE, "app/controllers/application_controller.rb")
+    if File.exist?(app_ctrl_path)
+      snapshot_parts << "**app/controllers/application_controller.rb**\n```ruby\n#{File.read(app_ctrl_path)}```"
+    end
+    snapshot = snapshot_parts.join("\n\n")
+
     parts = []
     parts << "## Task\n\n#{kwarg(:revision_prompt)}"
     parts << "## Summary (git commit message)\n\n#{kwarg(:revision_summary)}"
@@ -96,6 +137,8 @@ execute do
     unless manifest.empty?
       parts << "## Current application state (manifest)\n\n#{manifest}"
     end
+
+    parts << "## Workspace snapshot\n\n#{snapshot}" unless snapshot.empty?
 
     unless revision_notes.empty?
       parts << "## Context from previous revisions\n\n#{revision_notes}"
@@ -110,6 +153,7 @@ execute do
       - Write tests for new functionality
       - Don't create empty directories or files that aren't needed
       - You are working in #{WORKSPACE} — all paths are relative to this directory
+      - The snapshot above is current. Don't glob or list directories to discover what already exists; only read a specific file when you actually need its contents to make the change.
     RULES
 
     parts.join("\n\n")
@@ -135,16 +179,42 @@ execute do
     "all checks passed"
   end
 
-  # W2.R: Remediation loop — skip if verify passed immediately
-  repeat(:remediate, run: :fix_and_reverify) do
+  # W2.AR: Deterministic auto-remediation — try known recipes before burning
+  # an LLM turn. Eliminates the "agent figures out it should run bundle
+  # install" round-trip when verify fails on something we already know how
+  # to fix. Skip if verify passed.
+  ruby(:auto_remediate) do
     skip! if ruby?(:verify)
+
+    fixes = AutoRemediate.run(WORKSPACE, WORKFLOW_STATE[:verify_errors] || "")
+    if fixes.empty?
+      puts "[W2.AR] No deterministic recipe matched — falling through to agent remediation"
+      fail!("no auto-remediation applied")
+    end
+
+    puts "[W2.AR] Applied: #{fixes.join('; ')}"
+    result = VerifyRevision.run(WORKSPACE)
+    if VerifyRevision.failed?(result)
+      WORKFLOW_STATE[:verify_errors] = VerifyRevision.format_errors(result)
+      puts "[W2.AR] Re-verify still failing — falling through to agent remediation"
+      fail!(WORKFLOW_STATE[:verify_errors])
+    end
+
+    WORKFLOW_STATE[:verify_errors] = nil
+    "auto-remediated: #{fixes.join('; ')}"
+  end
+
+  # W2.R: Agent remediation loop — skip if verify or auto_remediate passed
+  repeat(:remediate, run: :fix_and_reverify) do
+    skip! if ruby?(:verify) || ruby?(:auto_remediate)
     puts "[W2.R] Verify failed, entering remediation loop"
     WORKFLOW_STATE[:verify_errors] || "initial verification failed"
   end
 
   # W2.F: Failure guard — if verify and remediation fail, we don't commit
   ruby(:ensure_passing) do
-    passed = ruby?(:verify) || (ruby?(:remediate) && repeat!(:remediate).value == :succeeded)
+    passed = ruby?(:verify) || ruby?(:auto_remediate) ||
+             (ruby?(:remediate) && repeat!(:remediate).value == :succeeded)
     unless passed
       puts "[W2.F1] Verification failed after remediation — aborting without commit"
       puts "[W2.F2] Resetting uncommitted changes in workspace"
@@ -162,21 +232,46 @@ execute do
   end
 
   # W2.6: Update app manifest + revision notes
+  #
+  # Runs on haiku (DOCS_MODEL). The full diff of the revision is fed into the
+  # prompt up front so the agent doesn't need to glob/read the workspace to
+  # figure out what changed. Earlier this step ate $0.5-$0.8/revision; now it
+  # is a constrained summarization, not an exploration.
   agent(:update_docs) do
+    diff_stat = `cd #{Shellwords.escape(WORKSPACE)} && git show --stat HEAD`
+    diff_body = `cd #{Shellwords.escape(WORKSPACE)} && git show HEAD`
+    # Cap the diff body at a generous but bounded size — large changes still
+    # get a structural summary via stat, full bodies for small ones.
+    diff_body = "#{diff_body[0, 16_000]}\n[... diff truncated at 16k chars ...]" if diff_body.length > 16_000
+
     <<~PROMPT
-      Revision "#{kwarg(:revision_summary)}" has been committed.
-      Update the documentation in docs/:
+      Revision "#{kwarg(:revision_summary)}" was just committed. Update the docs in docs/ to reflect it.
 
-      1. `architecture.md` — models, relations, key controllers, routing
-      2. `conventions.md` — decisions made, gems used, patterns
-      3. `domain.md` — domain glossary, business rules
-      4. `revision_notes.md` — APPEND a section for this revision:
-         - What implementation decisions you made and WHY
-         - Not a summary ("added model") but context ("used STI because...")
-         - These notes will be fed as context to the next revision
+      ## What changed (git show HEAD)
 
-      If a file doesn't exist — create it. If it exists — update only what's necessary.
-      Don't overwrite whole files from scratch.
+      ```
+      #{diff_stat}
+      ```
+
+      ```
+      #{diff_body}
+      ```
+
+      ## Your task
+
+      1. `architecture.md` — models, relations, key controllers, routing (touch only what changed)
+      2. `conventions.md` — decisions made, gems used, patterns (touch only what changed)
+      3. `domain.md` — domain glossary, business rules (touch only what changed)
+      4. `revision_notes.md` — APPEND a short section for this revision:
+         - What implementation decisions you made and WHY (not a summary)
+
+      ## Rules — IMPORTANT, read carefully
+
+      - Work from the diff above. Do NOT glob, do NOT read the workspace tree, do NOT inspect git history.
+      - The only file reads allowed are the four docs files in docs/ (to see what's there before editing).
+      - Use Edit (small, targeted edits) or append-only operations. Do not rewrite whole files.
+      - If a doc has nothing to update for this revision, skip it — don't write filler.
+      - Be terse. Each section in revision_notes is 1-3 sentences max.
     PROMPT
   end
 

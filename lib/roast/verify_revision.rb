@@ -6,8 +6,22 @@
 module VerifyRevision
   CHECKS = %i[bundle_check db_prepare herb_lint boot_check rails_test].freeze
 
+  # Short-circuit on bundle_check failure: every later check (db_prepare,
+  # herb_lint, boot_check, rails_test) loads bundler and would emit the same
+  # Bundler::GemNotFound stacktrace. Surfacing all four padded the fix-agent
+  # prompt with 4× the same noise, costing input tokens with zero new info.
   def self.run(workspace)
-    results = CHECKS.map { |check| perform(check, workspace) }.compact
+    results = []
+    CHECKS.each do |check|
+      result = perform(check, workspace)
+      next if result.nil?
+
+      results << result
+      if check == :bundle_check && !result[:passed]
+        break # bundle_check is the foundation — nothing downstream can succeed without it.
+      end
+    end
+
     {
       checks: results,
       passed: results.select { |r| r[:passed] },
