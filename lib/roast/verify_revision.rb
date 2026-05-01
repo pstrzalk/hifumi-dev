@@ -67,14 +67,17 @@ module VerifyRevision
     with_clean_bundler_env { system("cd #{workspace} && bundle show #{name} > /dev/null 2>&1") }
   end
 
-  # Roast runs under `bundle exec`, so ENV has the spike's BUNDLE_GEMFILE.
-  # The shell into the workspace must get a clean env so the workspace's Gemfile is visible.
-  def self.with_clean_bundler_env
-    saved = {}
-    bundler_keys = ENV.keys.select { |k| k.start_with?("BUNDLE", "BUNDLER", "RUBYOPT") }
-    bundler_keys.each { |k| saved[k] = ENV.delete(k) }
-    yield
-  ensure
-    saved.each { |k, v| ENV[k] = v }
+  # Roast runs under `bundle exec`, which sets BUNDLE_GEMFILE pointing at the
+  # generator's Gemfile. Subprocess `bundle check` / `bin/rails` against the
+  # workspace must NOT see that, or it'd resolve gems against the wrong
+  # bundle. The earlier hand-rolled scrubber stripped every BUNDLE_* var,
+  # which over-deleted: it also dropped BUNDLE_PATH (set globally by the
+  # Dockerfile to /usr/local/bundle) so bundler defaulted to a different
+  # lookup path and reported gems missing even after `bundle install` had
+  # populated /usr/local/bundle. Bundler's own with_unbundled_env reverts
+  # only what bundler itself set on entering the bundle, leaving Dockerfile
+  # globals intact.
+  def self.with_clean_bundler_env(&block)
+    Bundler.with_unbundled_env(&block)
   end
 end
