@@ -27,6 +27,14 @@ CLAUDE_MODEL = ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet")
 # cut ~$0.5/revision off the dominant cost line. Override via env if needed.
 DOCS_MODEL = ENV.fetch("RAILS_APP_GENERATOR_DOCS_MODEL", "haiku")
 
+# Hard ceiling on per-iteration agent(:fix) spend. The W2.R loop allows up
+# to 2 iterations, so total worst-case is 2x this. Default $0.50 is generous
+# vs historical legitimate fixes (bundle install: $0.05, master.key: $0.31)
+# but tight enough to kill runaway flails (e.g. the 49-turn / $0.99 chase
+# in tmp/simple_application_run_kamal.log rev 14). Bump via env if a real
+# case needs more than $1.00 across both iterations.
+FIX_BUDGET_USD = ENV.fetch("RAILS_APP_GENERATOR_FIX_BUDGET_USD", "0.50")
+
 # Shared state between workflow steps (Roast DSL blocks do not share `metadata`
 # or instance variables). Used to pass verify errors from W2.4 verify
 # to the W2.R repeat(:remediate) block.
@@ -40,8 +48,36 @@ config do
     skip_permissions!
     show_stats!
   end
-  agent(:update_docs) { model DOCS_MODEL }
+  # update_docs is summarization, not exploration. The diff is in the prompt
+  # and only the four files in docs/ may be touched.
+  # - --tools restricts to Edit/Read so the agent can't Bash/Glob/Write into
+  #   the rest of the workspace; prompt-level rules alone hadn't stopped it
+  #   from globbing **/* and reading 9+ unrelated files in past runs.
+  # - --bare strips Claude Code's auto-memory, hooks, plugin sync, and
+  #   CLAUDE.md auto-discovery — all noise inside this sandbox, and the
+  #   source of the `<system-reminder>...malware...</system-reminder>` blocks
+  #   that bloated input tokens on every Read.
+  agent(:update_docs) do
+    model DOCS_MODEL
+    command ["claude", "--tools", "Edit,Read", "--bare"]
+  end
   cmd { display! }
+
+  # When verify ultimately fails, ensure_passing's fail! must halt the
+  # workflow. Without abort_on_failure!, Roast swallows fail! (cog.rb:87)
+  # and the workflow keeps going — git_commit (no-op on a reset workspace),
+  # update_docs (fabricates docs against the parent commit, ~$0.5/run),
+  # then exits 0 so the job marks the revision :completed despite failure.
+  ruby(:ensure_passing) { abort_on_failure! }
+
+  # agent(:fix) gets a hard budget ceiling and --bare. Without a cap, a
+  # flailing fix has burned ~$1.00 in a single iteration (49-turn permission
+  # chase in production-run log rev 14). A flail isn't going to find an
+  # insight at turn 30 it missed at turn 10 — cap deterministically. Two
+  # iterations means up to 2x FIX_BUDGET_USD across the W2.R loop.
+  agent(:fix) do
+    command ["claude", "--bare", "--max-budget-usd", FIX_BUDGET_USD]
+  end
 end
 
 # --- W2.R: Remediation scope (max 2 attempts) ---
