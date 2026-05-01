@@ -64,7 +64,9 @@ RUN useradd -m -u 1000 -s /bin/bash generator && \
       'fi' \
       > /usr/local/bin/claude && \
     chmod +x /usr/local/bin/claude && \
-    git config --system --add safe.directory '*'
+    git config --system --add safe.directory '*' && \
+    git config --system user.name 'Hifumi' && \
+    git config --system user.email 'contact@hifumi.dev'
 
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
 ENV RAILS_ENV="production" \
