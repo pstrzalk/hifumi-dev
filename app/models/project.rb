@@ -40,17 +40,17 @@ class Project < ApplicationRecord
   end
 
   # Short natural-language summary of generation state, injected into the
-  # GeneratorAgent's system prompt each turn. Read by the LLM to decide
-  # whether it may call `create_application` or must wait.
+  # GeneratorAgent's system prompt each turn. Selects between STATE A (no
+  # build running) and STATE B (build running) — the prompt's lettered sections.
   def current_state_prompt
     active = instructions
       .where.not(phase: %w[completed failed cancelled])
       .order(:created_at).last
-    return "No generation is currently running. You MAY call `create_application` if the user wants to build or change something." unless active
+    return "STATE A — No generation is currently running. You may guide the user toward a build/change, but only call `create_application`/`modify_application` AFTER the user explicitly confirms in their next message." unless active
 
     total = active.revisions.count
     done = active.revisions.where(status: :completed).count
-    "A generation is CURRENTLY RUNNING (instruction ##{active.id}, #{done}/#{total} revisions complete). Do NOT call `create_application` now. Do NOT claim any new work has been done — it hasn't. Tell the user you'll start new changes once the current build finishes."
+    "STATE B — A generation is CURRENTLY RUNNING (instruction ##{active.id}, #{done}/#{total} revisions complete). Do NOT call `create_application` or `modify_application`. Do NOT claim any new work has been done — it hasn't. Tell the user you'll start their next change once the current build finishes."
   end
 
   # Generated Rails apps live OUTSIDE the generator's repo tree to avoid

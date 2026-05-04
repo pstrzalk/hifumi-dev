@@ -1002,14 +1002,15 @@ The "STATE A / STATE B" markers explicitly key into the prompt's lettered sectio
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test` — full suite green (no test exercises prompt content but the `current_state_prompt` text change must not break any string-matching test)
+- [x] `bin/rails test` — 284 runs, only the 9 pre-existing preview_manager failures; chat_respond_job_test's string-match assertion was updated to match the new "or `modify_application`" wording
 
 #### Manual Verification:
-- [ ] **Confirmation flow smoke**: on a fresh project, type "build a todo list." Verify the LLM responds with a summary + question (e.g. "Got it — a todo list with…. Ready to start?") and does NOT call `create_application` in this turn (no Instruction created, no Roast subprocess kicked off).
+- [ ] **Confirmation flow smoke**: on a fresh project, type "build a todo list." Verify the LLM responds with a summary + question (e.g. "Got it — a todo list with…. Ready to start?") and does NOT call `create_application` in this turn (no Instruction created, no Roast subprocess kicked off). — depends on Haiku obeying the new prompt; left for live verification
 - [ ] Reply "yes" — verify the LLM now calls `create_application` and an Instruction is created.
 - [ ] On an existing project (workspace initialized), type "make banner green." Verify the LLM responds with summary + ask, no tool call.
 - [ ] Reply "do it" — verify `modify_application` fires.
 - [ ] Type "build a todo list, just go" on a fresh project. Acceptable: LLM may interpret "just go" as in-message confirmation and call the tool in the same turn. Either behavior is fine; this is the eager-confirmation edge case.
+- [x] STATE A / STATE B prompt text verified via `bin/rails runner` — both branches of `Project#current_state_prompt` produce the expected new wording aligned with the prompt's lettered sections.
 
 **Implementation Note**: pause here for manual confirmation before proceeding.
 

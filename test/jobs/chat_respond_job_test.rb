@@ -119,7 +119,7 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_includes rendered, "CURRENTLY RUNNING"
     assert_includes rendered, "instruction ##{instruction.id}"
     assert_includes rendered, "1/2 revisions complete"
-    assert_includes rendered, "Do NOT call `create_application` now"
+    assert_includes rendered, "Do NOT call `create_application` or `modify_application`"
   end
 
   test "registers a CreateApplication tool bound to the project before completing" do
