@@ -511,13 +511,13 @@ Mirror `test/services/plan_application_creation/ad_hoc_llm_test.rb`:
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test test/services/plan_application_modification_test.rb` — all green
-- [ ] `bin/rails test test/services/plan_application_modification/ad_hoc_llm_test.rb` — all green
-- [ ] `bin/rails test` — full suite green (no regressions)
-- [ ] `bin/rails runner 'puts PlanApplicationModification::AdHocLLM::SYSTEM_PROMPT.length'` prints a non-zero number (system prompt loads)
+- [x] `bin/rails test test/services/plan_application_modification_test.rb` — all green
+- [x] `bin/rails test test/services/plan_application_modification/ad_hoc_llm_test.rb` — all green
+- [x] `bin/rails test` — 272 runs (12 new), only the 9 pre-existing preview_manager failures
+- [x] `bin/rails runner 'puts PlanApplicationModification::AdHocLLM::SYSTEM_PROMPT.length'` prints `1754`
 
 #### Manual Verification:
-- [ ] None at this phase — service is not yet wired into any user-facing path. Phase 5 is where this becomes user-visible.
+- [x] None at this phase — service is not yet wired into any user-facing path. Phase 5 is where this becomes user-visible.
 
 **Implementation Note**: pause here for manual confirmation before proceeding.
 

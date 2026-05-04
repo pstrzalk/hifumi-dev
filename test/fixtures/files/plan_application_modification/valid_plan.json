@@ -1,0 +1,9 @@
+{
+  "instruction_description": "Set primary color to teal across the storybook UI.",
+  "revisions": [
+    {
+      "summary": "Update primary color CSS variable to teal",
+      "prompt": "In app/assets/tailwind/application.css, change the value of --accent to a teal hex (e.g. #0D9488). Also update any inline yellow color classes in app/views/stories/index.html.erb to teal equivalents."
+    }
+  ]
+}

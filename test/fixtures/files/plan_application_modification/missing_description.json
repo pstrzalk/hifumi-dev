@@ -1,0 +1,8 @@
+{
+  "revisions": [
+    {
+      "summary": "Update primary color CSS variable to teal",
+      "prompt": "In app/assets/tailwind/application.css, change the value of --accent to a teal hex."
+    }
+  ]
+}
