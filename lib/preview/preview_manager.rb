@@ -187,7 +187,9 @@ module Preview
     # Job#relax_workspace_permissions only runs at init, not after revisions,
     # so re-relax here right before each container boot.
     def ensure_storage_writable!(project)
-      FileUtils.chmod_R("a+rwX", File.join(project.workspace_path, "storage"))
+      storage = File.join(project.workspace_path, "storage")
+      return unless File.directory?(storage)
+      FileUtils.chmod_R("a+rwX", storage)
     end
 
     def build_image(project)
