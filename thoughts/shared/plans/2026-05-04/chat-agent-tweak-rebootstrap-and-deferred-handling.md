@@ -1084,17 +1084,12 @@ end
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test test/integration/event_subscribers_test.rb` — all green
-- [ ] `bin/rails test` — full suite green
+- [x] `bin/rails test test/integration/event_subscribers_test.rb` — 10/10 tests pass (1 new)
+- [x] `bin/rails test` — 285 runs, only 9 pre-existing preview_manager failures
 
 #### Manual Verification:
-- [ ] **Bug B reproduction smoke**: send "build a todo list" → confirm at the prompt → wait for the `create_application` tool call. Within 1-2 seconds, the chat should show:
-  1. The user message
-  2. The assistant turn (likely with no body content, only `tool_calls`) — Message#visible_in_chat? hides empty assistant messages
-  3. **`🌀 Building: <description>`** — the new system-emitted message
-  4. The `suggest_prompts` partial (next-step pills)
-- [ ] Verify that NO assistant message contains "Done!" or "Updated" or "Finished" or any past-tense completion language during this window.
-- [ ] Wait for the build to complete (5-10 min) → confirm `✅ Generation finished.` appears (existing behavior).
+- [x] Smoke via `bin/rails runner`: instrumenting `instruction.requested` adds an assistant message with content `"🌀 Building: <description>"`. Verified end-to-end at the subscriber level.
+- [ ] **Live UX smoke** (Haiku-dependent): send "build a todo list" → confirm at the prompt → wait for `create_application` tool call → verify the new system message appears, no past-tense completion language ("Done!", "Updated", "Finished") in any assistant body. Left for live verification.
 
 **Implementation Note**: pause here for manual confirmation before proceeding.
 

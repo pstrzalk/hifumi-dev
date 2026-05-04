@@ -73,6 +73,19 @@ class EventSubscribersTest < ActiveSupport::TestCase
     end
   end
 
+  test "instruction.requested persists a 🌀 Building assistant message" do
+    assert_difference -> { @chat.messages.where(role: :assistant).count }, 1 do
+      ActiveSupport::Notifications.instrument(
+        "instruction.requested",
+        instruction_id: @instruction.id
+      )
+    end
+
+    msg = @chat.messages.where(role: :assistant).order(:id).last
+    assert_match(/^🌀 Building: /, msg.content)
+    assert_includes msg.content, @instruction.description
+  end
+
   test "instruction.completed persists an assistant status message" do
     assert_difference -> { @chat.messages.where(role: :assistant).count }, 1 do
       ActiveSupport::Notifications.instrument(
