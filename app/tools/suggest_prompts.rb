@@ -1,6 +1,6 @@
 class SuggestPrompts < RubyLLM::Tool
   def name = "suggest_prompts"
-  description "Suggests 3-5 short next-step prompts the user can click to continue. Call after start_generation returns, or when offering the user a direction to take."
+  description "Suggests 3-5 short next-step prompts the user can click to continue. Call after create_application returns, or when offering the user a direction to take."
 
   params do
     array :prompts,

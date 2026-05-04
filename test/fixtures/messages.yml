@@ -8,7 +8,7 @@ first_assistant:
   role: assistant
   content: Sounds great. I'll get started on a plan.
 
-start_generation:
+create_application:
   chat: flowers
   role: assistant
-  content: "[tool call: StartGeneration]"
+  content: "[tool call: CreateApplication]"

@@ -12,7 +12,7 @@ module MessagesHelper
   def tool_call_pill_text(message)
     names = message.tool_calls.map(&:name).uniq
     case names
-    when ["start_generation"] then "starting generation…"
+    when ["create_application"] then "starting generation…"
     when ["suggest_prompts"]  then "preparing suggestions…"
     else "running: #{names.join(", ")}"
     end

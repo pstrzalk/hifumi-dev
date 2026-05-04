@@ -8,7 +8,7 @@ class InstructionTest < ActiveSupport::TestCase
   test "phase defaults to researching" do
     instruction = Instruction.new(
       project: projects(:flowers),
-      anchor_message: messages(:start_generation),
+      anchor_message: messages(:create_application),
       description: "New feature"
     )
     assert_equal "researching", instruction.phase
@@ -46,7 +46,7 @@ class InstructionTest < ActiveSupport::TestCase
   test "user_intent is optional" do
     instruction = Instruction.new(
       project: projects(:flowers),
-      anchor_message: messages(:start_generation),
+      anchor_message: messages(:create_application),
       description: "Plan without recorded user intent"
     )
     assert_nil instruction.user_intent

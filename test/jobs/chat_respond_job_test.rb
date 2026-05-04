@@ -119,10 +119,10 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_includes rendered, "CURRENTLY RUNNING"
     assert_includes rendered, "instruction ##{instruction.id}"
     assert_includes rendered, "1/2 revisions complete"
-    assert_includes rendered, "Do NOT call `start_generation` now"
+    assert_includes rendered, "Do NOT call `create_application` now"
   end
 
-  test "registers a StartGeneration tool bound to the project before completing" do
+  test "registers a CreateApplication tool bound to the project before completing" do
     captured_tools = []
     spy_with_tools(captured_tools) do
       stub_complete(chunks: [ "ok" ]) do
@@ -131,9 +131,9 @@ class ChatRespondJobTest < ActiveJob::TestCase
     end
 
     tools = captured_tools.first
-    start_gen = tools.find { |t| t.is_a?(StartGeneration) }
-    assert start_gen, "expected a StartGeneration tool instance passed to with_tools"
-    assert_equal @project, start_gen.instance_variable_get(:@project)
+    create_app = tools.find { |t| t.is_a?(CreateApplication) }
+    assert create_app, "expected a CreateApplication tool instance passed to with_tools"
+    assert_equal @project, create_app.instance_variable_get(:@project)
   end
 
   test "calls with_context carrying the project owner's openrouter key" do

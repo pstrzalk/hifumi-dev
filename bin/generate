@@ -5,7 +5,7 @@
 #
 # Subcommands:
 #   bin/generate full --prompt "..." [--plan todo_list]
-#       Creates a project, forces StartGeneration with a stubbed plan
+#       Creates a project, forces CreateApplication with a stubbed plan
 #       (default: todo_list), and runs ExecuteInstructionJob synchronously.
 #       Burns Claude tokens for the W2 implementation phase only — the
 #       chat-LLM and PlanApplicationCreation layers are bypassed.
@@ -66,12 +66,12 @@ when "full"
   original_impl = PlanApplicationCreation.implementation
   PlanApplicationCreation.implementation = fake_plan
   begin
-    result = StartGeneration.new(project: project).execute(intent: prompt, clarifications: {})
+    result = CreateApplication.new(project: project).execute(intent: prompt, clarifications: {})
   ensure
     PlanApplicationCreation.implementation = original_impl
   end
 
-  abort("StartGeneration error: #{result[:error]}") if result[:error]
+  abort("CreateApplication error: #{result[:error]}") if result[:error]
 
   puts "project ##{project.id}"
   puts "instruction ##{result[:instruction_id]} (#{result[:revision_count]} revisions)"

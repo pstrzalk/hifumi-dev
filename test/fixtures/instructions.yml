@@ -1,6 +1,6 @@
 flowers_v1:
   project: flowers
-  anchor_message: start_generation
+  anchor_message: create_application
   phase: implementing
   description: Build initial flower shop skeleton (catalog, cart, checkout).
   user_intent: build a flower shop with inventory

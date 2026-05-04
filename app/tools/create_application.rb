@@ -1,6 +1,8 @@
-class StartGeneration < RubyLLM::Tool
-  def name = "start_generation"
-  description "Starts application generation. Call when the user has described what they want to build and you have any clarifications you need."
+class CreateApplication < RubyLLM::Tool
+  def name = "create_application"
+  description "Starts the first-time generation of the application from the user's intent. " \
+              "Call this only when the project has no application yet (workspace is empty). " \
+              "The user must have explicitly confirmed they're ready to start before you call this."
 
   params do
     string :intent,

@@ -5,7 +5,7 @@ class GeneratorAgent < RubyLLM::Agent
 
   tools do
     [
-      StartGeneration.new(project: chat.project),
+      CreateApplication.new(project: chat.project),
       SuggestPrompts.new(project: chat.project)
     ]
   end

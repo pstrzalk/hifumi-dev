@@ -2,12 +2,12 @@ require "test_helper"
 require "shellwords"
 
 # E2E acceptance for Phase 2's W1+W2 happy path: a user message goes through
-# ProjectsController → ChatRespondJob → StartGeneration → ExecuteInstructionJob,
+# ProjectsController → ChatRespondJob → CreateApplication → ExecuteInstructionJob,
 # the real `bin/roast` subprocess runs three revisions, and the generated app's
 # own test suite is green.
 #
 # Stubbed: `Chat#complete` (chat-LLM) and `PlanApplicationCreation.implementation` (plan-LLM)
-# so we don't burn tokens on those layers — a real LLM would call StartGeneration
+# so we don't burn tokens on those layers — a real LLM would call CreateApplication
 # with whatever intent the user typed; we short-circuit to that decision.
 #
 # Real: ExecuteInstructionJob, including the `bin/roast` subprocess that calls
@@ -71,7 +71,7 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
       alias_method :_original_complete_for_e2e, :complete unless method_defined?(:_original_complete_for_e2e)
       define_method(:complete) do |**_kwargs, &_block|
         latest_user = messages.where(role: :user).order(:id).last
-        StartGeneration.new(project: project).execute(intent: latest_user.content.to_s, clarifications: {})
+        CreateApplication.new(project: project).execute(intent: latest_user.content.to_s, clarifications: {})
       end
     end
   end

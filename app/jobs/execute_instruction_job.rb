@@ -112,7 +112,7 @@ class ExecuteInstructionJob < ApplicationJob
   end
 
   # `instruction.user_intent` is the synthesis the chat agent passes to
-  # start_generation — typically 1-3 sentences of substantive signal. Falls
+  # create_application — typically 1-3 sentences of substantive signal. Falls
   # back to project.name (the truncated first chat message) if blank, which
   # can happen when the agent skips clarifications and the input was very
   # short. The picker writes a NEW file (docs/frontend.md) and rewrites the
