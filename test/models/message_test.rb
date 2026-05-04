@@ -38,4 +38,20 @@ class MessageTest < ActiveSupport::TestCase
     assert_includes payload, 'target="messages"'
     assert_includes payload, 'action="append"'
   end
+
+  test "system_injected user messages are not visible_in_chat" do
+    msg = @chat.messages.create!(role: :user, content: "hi", system_injected: true)
+    refute msg.visible_in_chat?
+  end
+
+  test "regular user messages are visible_in_chat" do
+    msg = @chat.messages.create!(role: :user, content: "hi", system_injected: false)
+    assert msg.visible_in_chat?
+  end
+
+  test "system_injected messages do not enqueue an append broadcast" do
+    assert_no_enqueued_jobs(only: Turbo::Streams::ActionBroadcastJob) do
+      @chat.messages.create!(role: :user, content: "hi", system_injected: true)
+    end
+  end
 end

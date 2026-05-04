@@ -99,7 +99,11 @@ class EventSubscribersTest < ActiveSupport::TestCase
   end
 
   test "instruction.completed broadcasts both the status message and an empty list" do
-    perform_enqueued_jobs do
+    # Drains only the Turbo broadcast jobs from `broadcast_append_later_to` for
+    # the persisted assistant message — explicitly skips ChatRespondJob (the
+    # auto-recap subscriber's enqueue), which would otherwise also fire and
+    # send a chat_notice broadcast on top of the two we care about here.
+    perform_enqueued_jobs(except: ChatRespondJob) do
       assert_broadcasts(@stream_name, 2) do
         ActiveSupport::Notifications.instrument(
           "instruction.completed",
@@ -107,6 +111,57 @@ class EventSubscribersTest < ActiveSupport::TestCase
         )
       end
     end
+  end
+
+  test "instruction.completed persists a hidden synthetic nudge user message" do
+    assert_difference -> { @chat.messages.where(system_injected: true).count }, 1 do
+      ActiveSupport::Notifications.instrument(
+        "instruction.completed",
+        instruction_id: @instruction.id
+      )
+    end
+
+    nudge = @chat.messages.where(system_injected: true).order(:id).last
+    assert_equal "user", nudge.role
+    assert_includes nudge.content, "Auto-resume"
+    refute nudge.visible_in_chat?
+  end
+
+  test "instruction.completed enqueues a ChatRespondJob for the synthetic nudge" do
+    assert_enqueued_jobs 1, only: ChatRespondJob do
+      ActiveSupport::Notifications.instrument(
+        "instruction.completed",
+        instruction_id: @instruction.id
+      )
+    end
+
+    nudge = @chat.messages.where(system_injected: true).order(:id).last
+    job = enqueued_jobs.find { |j| j["job_class"] == "ChatRespondJob" }
+    assert_equal nudge.id, job["arguments"].first
+  end
+
+  test "instruction.completed lists pending mid-build user messages in the nudge body" do
+    @chat.messages.create!(role: :user, content: "make the banner green")
+    @chat.messages.create!(role: :user, content: "and add a logo")
+
+    ActiveSupport::Notifications.instrument(
+      "instruction.completed",
+      instruction_id: @instruction.id
+    )
+
+    nudge = @chat.messages.where(system_injected: true).order(:id).last
+    assert_includes nudge.content, "make the banner green"
+    assert_includes nudge.content, "and add a logo"
+  end
+
+  test "instruction.completed includes a 'no messages' marker when none were sent during the build" do
+    ActiveSupport::Notifications.instrument(
+      "instruction.completed",
+      instruction_id: @instruction.id
+    )
+
+    nudge = @chat.messages.where(system_injected: true).order(:id).last
+    assert_match(/no messages were sent/, nudge.content)
   end
 
   test "instruction.failed names the failing revision in the status message" do

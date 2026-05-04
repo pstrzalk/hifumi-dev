@@ -6,6 +6,7 @@ class Message < ApplicationRecord
   after_update_commit :broadcast_replace_message
 
   def visible_in_chat?
+    return false if system_injected?
     return true if role == "user"
     role == "assistant" && (content.to_s.strip.present? || tool_calls.any?)
   end
@@ -14,6 +15,7 @@ class Message < ApplicationRecord
 
   def broadcast_append_message
     return unless %w[user assistant].include?(role)
+    return if system_injected?
 
     broadcast_append_later_to chat.project,
       target: "messages",
@@ -22,6 +24,8 @@ class Message < ApplicationRecord
   end
 
   def broadcast_replace_message
+    return if system_injected?
+
     broadcast_replace_later_to chat.project,
       target: ActionView::RecordIdentifier.dom_id(self),
       partial: "messages/message",

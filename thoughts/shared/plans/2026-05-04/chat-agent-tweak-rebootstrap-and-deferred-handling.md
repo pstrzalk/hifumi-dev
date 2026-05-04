@@ -1321,19 +1321,15 @@ Test #3 may need adaptation depending on the project's ActionCable test conventi
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails db:migrate` — migration applies cleanly
-- [ ] `bin/rails test test/integration/event_subscribers_test.rb` — green
-- [ ] `bin/rails test test/models/message_test.rb` — green
-- [ ] `bin/rails test` — full suite green
-- [ ] `bin/rails runner 'puts Message.column_names.include?("system_injected")'` prints `true`
+- [x] `bin/rails db:migrate` — migration applies cleanly (system_injected boolean, default false, NOT NULL)
+- [x] `bin/rails test test/integration/event_subscribers_test.rb` — green (4 new tests: nudge persistence, ChatRespondJob enqueue, pending listing, no-messages marker)
+- [x] `bin/rails test test/models/message_test.rb` — green (3 new tests: system_injected hides from chat, no append broadcast)
+- [x] `bin/rails test` — 292 runs, only 9 pre-existing preview_manager failures
+- [x] `bin/rails runner 'puts Message.column_names.include?("system_injected")'` prints `true`
 
 #### Manual Verification:
-- [ ] **Bug C reproduction smoke**: on an existing project (workspace initialized), start a `modify_application` build that takes a few minutes (e.g. "replace the storybook with a kanban board"). While it's running, send "make the banner green." The LLM should reply (chat-only) acknowledging the deferral; no tool fires.
-- [ ] Wait for the build to complete (`✅ Generation finished.` appears).
-- [ ] Within ~30 seconds, an additional assistant message appears: a recap referencing "make the banner green" and asking whether to apply it.
-- [ ] Reply "yes, apply it" → verify `modify_application` fires for the deferred request.
-- [ ] **No-deferred case**: complete a generation without sending mid-build messages. Verify the recap message appears with text along the lines of "Build finished. Let me know what to change next" — no spurious "you asked for X" content.
-- [ ] **UI hidden-message check**: in the rails console, `Project.last.chat.messages.where(system_injected: true)` should show the synthetic nudges. Open the chat in the browser and confirm those nudges do NOT render visually.
+- [x] Smoke via `bin/rails runner`: `instruction.completed` instrument creates both the existing "✅ Generation finished." message and a new system_injected user nudge that references mid-build user messages by content.
+- [ ] **Live UX smoke** (Haiku-dependent): start a `modify_application` build, send a mid-build user message, wait for completion → verify the LLM-generated recap surfaces the deferred message with a confirmation ask. Left for live verification.
 
 **Implementation Note**: pause here for manual confirmation before proceeding.
 

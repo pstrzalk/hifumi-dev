@@ -65,6 +65,49 @@ ActiveSupport::Notifications.subscribe("instruction.completed") do |*, payload|
   )
 end
 
+# After every completed instruction, fire one LLM turn to recap and ask the
+# user what's next. The LLM is forbidden (via the synthetic nudge body) from
+# calling any tool — its job is text-only summary + question. The user's
+# next reply re-enters the normal confirmation flow.
+#
+# This is how mid-build user messages get surfaced for explicit confirmation
+# rather than being silently dropped.
+ActiveSupport::Notifications.subscribe("instruction.completed") do |*, payload|
+  instruction = Instruction.find(payload[:instruction_id])
+  chat = instruction.project.chat
+
+  pending = chat.messages
+    .where(role: :user, system_injected: false)
+    .where("id > ?", instruction.anchor_message_id)
+    .order(:id)
+
+  pending_section = if pending.empty?
+    "(no messages were sent during the build.)"
+  else
+    pending.map { |m| "- #{m.content}" }.join("\n")
+  end
+
+  nudge_body = <<~NUDGE
+    [Auto-resume after instruction ##{instruction.id} completed.]
+
+    Messages the user sent while the build was running:
+    #{pending_section}
+
+    Your job in this turn:
+    1. If the user sent change requests during the build, recap them in 1-2 sentences and ask whether to proceed (without applying anything yet).
+    2. If they sent no change requests (or only questions), acknowledge that the build finished and ask what they want next.
+    3. DO NOT call create_application or modify_application. DO NOT call any other tool. Reply with text only.
+  NUDGE
+
+  nudge_msg = chat.messages.create!(
+    role: :user,
+    content: nudge_body,
+    system_injected: true
+  )
+
+  ChatRespondJob.perform_later(nudge_msg.id)
+end
+
 ActiveSupport::Notifications.subscribe("instruction.failed") do |*, payload|
   instruction = Instruction.find(payload[:instruction_id])
   failed = instruction.revisions.where(status: :failed).order(:position).first
