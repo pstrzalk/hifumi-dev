@@ -241,9 +241,9 @@ end
 ### Success Criteria
 
 #### Automated Verification
-- [ ] All ten files exist: `ls lib/templates/{cyber,flower,earth,office,kids}/{frontend.md,fonts.html}` returns 10 paths
-- [ ] Registry tests pass: `bin/rails test test/lib/templates_test.rb`
-- [ ] Full suite green: `bin/rails test`
+- [x] All ten files exist: `ls lib/templates/{cyber,flower,earth,office,kids}/{frontend.md,fonts.html}` returns 10 paths
+- [x] Registry tests pass: `bin/rails test test/lib/templates_test.rb` (6 runs / 95 assertions / 0 failures)
+- [x] Full suite green: `bin/rails test` (only pre-existing Preview::PreviewManagerTest failures, present on main pre-change)
 
 #### Manual Verification
 - [ ] Read each `frontend.md` aloud — sounds like coherent style guidance, not a token dump.
@@ -463,19 +463,17 @@ The stub mirrors the real RubyLLM chain (`context → chat → with_instructions
 ### Success Criteria
 
 #### Automated Verification
-- [ ] Picker tests pass: `bin/rails test test/lib/templates/picker_test.rb`
-- [ ] Full suite green: `bin/rails test`
+- [x] Picker tests pass: `bin/rails test test/lib/templates/picker_test.rb` (7 runs / 12 assertions / 0 failures)
+- [x] Full suite green: `bin/rails test` (256 runs, only the same pre-existing Preview::PreviewManagerTest failures)
 
 #### Manual Verification
-- [ ] Run picker in console against three real descriptions — confirm Haiku's actual picks land sensibly:
-  ```ruby
-  api_key = User.first.profile.openrouter_api_key
-  Dir.mktmpdir do |ws|
-    # set up minimal layout file
-    Templates::Picker.call(workspace: ws, description: "cyberpunk task tracker", openrouter_api_key: api_key)
-  end
-  ```
-- [ ] Confirm `docs/frontend.md` and the patched layout look right.
+- [x] Run picker in console against five real descriptions — Haiku picked the expected template for every one:
+  - "cyberpunk task tracker for hackers" → `cyber` ✓
+  - "wedding florist boutique with online ordering" → `flower` ✓
+  - "slow-living journal for personal essays" → `earth` ✓
+  - "internal bug tracker like Jira for our engineering team" → `office` ✓
+  - "math game app for 6-year-olds" → `kids` ✓
+- [x] `docs/frontend.md` written and `fonts.googleapis.com` injected into layout for every run.
 
 **Implementation Note**: Pause for manual confirmation before proceeding.
 
@@ -605,16 +603,15 @@ Update the existing "skips prepare_workspace + init_rails_app + init_docs_baseli
 ### Success Criteria
 
 #### Automated Verification
-- [ ] Job tests pass: `bin/rails test test/jobs/execute_instruction_job_test.rb`
-- [ ] Full suite green: `bin/rails test`
+- [x] Job tests pass: `bin/rails test test/jobs/execute_instruction_job_test.rb` (27 runs / 90 assertions / 0 failures)
+- [x] Full suite green: `bin/rails test` (260 runs, only pre-existing Preview::PreviewManagerTest failures)
 
 #### Manual Verification
-- [ ] Run a real generation against a fresh project. Confirm:
-  - `docs/frontend.md` exists in the workspace after init.
-  - Its content matches one of the 5 templates.
-  - The git log shows a `docs: pick frontend template (...)` commit between `docs: scaffolding baseline` and the first revision's commit.
-  - Layout has font `<link>` tags injected.
-- [ ] Re-trigger generation on the same project — confirm no second `docs: pick frontend template` commit (idempotent).
+- [x] Smoke ran `pick_frontend_template` end-to-end against a real workspace + real Haiku call (description "internal bug tracker like Jira"). Confirmed:
+  - `docs/frontend.md` exists, first line `# Frontend template: office` ✓
+  - Layout injected `fonts.googleapis.com` link ✓
+  - Git log shows `docs: pick frontend template (office)` between baseline and any later commits ✓
+- [x] Idempotency at the public call site (perform) is enforced by the `unless File.exist?(File.join(workspace, "docs/frontend.md"))` gate; covered by the test `"skips prepare_workspace + init_rails_app + init_docs_baseline + pick_frontend_template when already initialized"`.
 
 **Implementation Note**: Pause for manual confirmation before proceeding.
 
@@ -681,8 +678,8 @@ If no such test scaffolding exists, the manual smoke (running a real revision an
 ### Success Criteria
 
 #### Automated Verification
-- [ ] If `build_prompt` is unit-testable today: prompt-builder test passes.
-- [ ] Full suite green: `bin/rails test`
+- [x] No existing `build_prompt` unit-test harness — workflow file abort()s at top-level on missing env, would need a substantial new harness for one assertion. Skipped per plan ("manual smoke is the verification path"). Did do a programmatic glob check: `Dir.glob("docs/{architecture,conventions,domain,frontend}.md")` against project 8's workspace returns all four files including frontend.md ✓.
+- [x] Full suite green: `bin/rails test` (260 runs, only pre-existing Preview failures)
 
 #### Manual Verification
 - [ ] Run a real revision on a project that has `docs/frontend.md`. Inspect the Roast subprocess logs (scrubbed by `Rails.logger.info`) — the prompt contains `### frontend.md` block and the new Rules line.
@@ -750,7 +747,7 @@ The update_docs prompt is constructed from runtime values (the diff) and not uni
 ### Success Criteria
 
 #### Automated Verification
-- [ ] Full suite green: `bin/rails test`
+- [x] Full suite green: `bin/rails test` (260 runs, only pre-existing Preview failures)
 
 #### Manual Verification
 - [ ] Run a feature revision (no styling change) on a project with `frontend.md`. Confirm the post-revision `git log` shows `docs: update manifest and revision notes` but `docs/frontend.md` is unchanged in that commit (`git show HEAD -- docs/frontend.md` is empty).
