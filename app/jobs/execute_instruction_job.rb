@@ -9,9 +9,10 @@ class ExecuteInstructionJob < ApplicationJob
     project = instruction.project
     workspace = project.workspace_path
 
-    prepare_workspace(workspace) unless project.workspace_initialized?
-    init_rails_app(workspace) unless File.exist?(File.join(workspace, "Gemfile"))
-    init_docs_baseline(workspace) unless File.exist?(File.join(workspace, "docs"))
+    prepare_workspace(workspace)                   unless project.workspace_initialized?
+    init_rails_app(workspace)                      unless File.exist?(File.join(workspace, "Gemfile"))
+    init_docs_baseline(workspace)                  unless File.exist?(File.join(workspace, "docs"))
+    pick_frontend_template(workspace, instruction) unless File.exist?(File.join(workspace, "docs/frontend.md"))
 
     instruction.revisions.order(:position).each do |revision|
       execute_revision(revision, workspace)
@@ -108,6 +109,29 @@ class ExecuteInstructionJob < ApplicationJob
     frum_bin = File.join(Dir.home, ".frum", "versions", ruby_version, "bin")
     return {} unless File.directory?(frum_bin)
     { "PATH" => "#{frum_bin}:#{ENV.fetch('PATH', '')}" }
+  end
+
+  # `instruction.user_intent` is the synthesis the chat agent passes to
+  # start_generation — typically 1-3 sentences of substantive signal. Falls
+  # back to project.name (the truncated first chat message) if blank, which
+  # can happen when the agent skips clarifications and the input was very
+  # short. The picker writes a NEW file (docs/frontend.md) and rewrites the
+  # layout as root, so we need relax_workspace_permissions afterwards —
+  # otherwise the W2.6 update_docs `claude` agent (running as the generator
+  # user) hits EACCES the first time it tries to Edit frontend.md.
+  def pick_frontend_template(workspace, instruction)
+    api_key = instruction.project.user.profile.openrouter_api_key
+    raise "Project owner has no OpenRouter API key" if api_key.blank?
+
+    description = instruction.user_intent.presence || instruction.project.name
+
+    Templates::Picker.call(
+      workspace: workspace,
+      description: description,
+      openrouter_api_key: api_key
+    )
+
+    relax_workspace_permissions(workspace) if File.directory?(workspace)
   end
 
   def init_docs_baseline(workspace)

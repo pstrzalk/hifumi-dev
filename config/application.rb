@@ -22,9 +22,15 @@ module RailsAppGenerator
     # generated workspaces (`cp_r` in ExecuteInstructionJob#init_rails_app),
     # not Ruby modules — they contain a whole nested Rails application that
     # Zeitwerk would (correctly) refuse to load alongside this one.
+    # `templates/<name>/` per-template directories hold static asset bundles
+    # (frontend.md + fonts.html), not ruby modules. Zeitwerk would (correctly)
+    # refuse to load them as Templates::Cyber etc. `lib/templates.rb` and
+    # `lib/templates/picker.rb` stay autoloaded as `Templates` and
+    # `Templates::Picker`.
     config.autoload_lib(ignore: %w[
       assets tasks roast
       preview/skeleton preview/skeleton-overlay
+      templates/cyber templates/flower templates/earth templates/office templates/kids
     ])
 
     # Configuration for the application, engines, and railties goes here.

@@ -89,10 +89,11 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
 
   # --- idempotent setup --------------------------------------------------
 
-  test "skips prepare_workspace + init_rails_app + init_docs_baseline when workspace already initialized" do
+  test "skips prepare_workspace + init_rails_app + init_docs_baseline + pick_frontend_template when already initialized" do
     ws = @project.workspace_path
     FileUtils.mkdir_p(File.join(ws, "docs"))
     File.write(File.join(ws, "Gemfile"), "")
+    File.write(File.join(ws, "docs/frontend.md"), "# already picked\n")
 
     spy_snapshot = nil
     with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
@@ -103,6 +104,21 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal 0, spy_snapshot[:prepare_calls]
     assert_equal 0, spy_snapshot[:init_rails_app_calls]
     assert_equal 0, spy_snapshot[:init_docs_calls]
+    assert_empty spy_snapshot[:pick_template_calls],
+                 "pick_frontend_template must be skipped when docs/frontend.md already exists"
+  end
+
+  test "perform invokes pick_frontend_template once when docs/frontend.md is absent" do
+    spy_snapshot = nil
+    with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
+      ExecuteInstructionJob.perform_now(@instruction.id)
+      spy_snapshot = spy
+    end
+
+    assert_equal 1, spy_snapshot[:pick_template_calls].size
+    call = spy_snapshot[:pick_template_calls].first
+    assert_equal @project.workspace_path, call[:workspace]
+    assert_equal @instruction, call[:instruction]
   end
 
   # --- skeleton seed ----------------------------------------------------
@@ -274,6 +290,48 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal "pending", @rev2.reload.status
   end
 
+  # --- pick_frontend_template -------------------------------------------
+
+  test "pick_frontend_template threads instruction.user_intent as description and project owner's key" do
+    @instruction.update!(user_intent: "neon hacker dashboard for tracking exploits")
+    ws = @project.workspace_path
+    FileUtils.mkdir_p(ws)
+
+    picker_calls = nil
+    with_picker_call_stub do |calls|
+      ExecuteInstructionJob.new.send(:pick_frontend_template, ws, @instruction)
+      picker_calls = calls
+    end
+
+    assert_equal 1, picker_calls.size
+    call = picker_calls.first
+    assert_equal ws, call[:workspace]
+    assert_equal "neon hacker dashboard for tracking exploits", call[:description]
+    assert_equal "sk-or-test-fixture-1234567890ab", call[:openrouter_api_key]
+  end
+
+  test "pick_frontend_template falls back to project.name when instruction.user_intent is blank" do
+    @instruction.update!(user_intent: "")
+    ws = @project.workspace_path
+    FileUtils.mkdir_p(ws)
+
+    picker_calls = nil
+    with_picker_call_stub do |calls|
+      ExecuteInstructionJob.new.send(:pick_frontend_template, ws, @instruction)
+      picker_calls = calls
+    end
+
+    assert_equal @project.name, picker_calls.first[:description]
+  end
+
+  test "pick_frontend_template raises when project owner has no OpenRouter API key" do
+    @user.profile.update_columns(openrouter_api_key: nil)
+    err = assert_raises(RuntimeError) do
+      ExecuteInstructionJob.new.send(:pick_frontend_template, @project.workspace_path, @instruction)
+    end
+    assert_match(/no OpenRouter API key/i, err.message)
+  end
+
   # --- subprocess_env normalization -------------------------------------
 
   test "subprocess_env strips the ruby- prefix from .ruby-version when computing frum_bin" do
@@ -403,22 +461,25 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
       prepare_calls: 0,
       init_rails_app_calls: 0,
       init_docs_calls: 0,
+      pick_template_calls: [],
       subprocess_calls: [],
       git_head_calls: []
     }
 
     originals = {
-      prepare_workspace:    ExecuteInstructionJob.instance_method(:prepare_workspace),
-      init_rails_app:       ExecuteInstructionJob.instance_method(:init_rails_app),
-      init_docs_baseline:   ExecuteInstructionJob.instance_method(:init_docs_baseline),
-      run_roast_subprocess: ExecuteInstructionJob.instance_method(:run_roast_subprocess),
-      git_head:             ExecuteInstructionJob.instance_method(:git_head)
+      prepare_workspace:      ExecuteInstructionJob.instance_method(:prepare_workspace),
+      init_rails_app:         ExecuteInstructionJob.instance_method(:init_rails_app),
+      init_docs_baseline:     ExecuteInstructionJob.instance_method(:init_docs_baseline),
+      pick_frontend_template: ExecuteInstructionJob.instance_method(:pick_frontend_template),
+      run_roast_subprocess:   ExecuteInstructionJob.instance_method(:run_roast_subprocess),
+      git_head:               ExecuteInstructionJob.instance_method(:git_head)
     }
 
     ExecuteInstructionJob.class_eval do
-      define_method(:prepare_workspace)   { |_ws| spy[:prepare_calls]   += 1 }
-      define_method(:init_rails_app)      { |_ws| spy[:init_rails_app_calls] += 1 }
-      define_method(:init_docs_baseline)  { |_ws| spy[:init_docs_calls] += 1 }
+      define_method(:prepare_workspace)      { |_ws| spy[:prepare_calls]   += 1 }
+      define_method(:init_rails_app)         { |_ws| spy[:init_rails_app_calls] += 1 }
+      define_method(:init_docs_baseline)     { |_ws| spy[:init_docs_calls] += 1 }
+      define_method(:pick_frontend_template) { |ws, instr| spy[:pick_template_calls] << { workspace: ws, instruction: instr } }
       define_method(:run_roast_subprocess) do |env, args|
         spy[:subprocess_calls] << { env: env, args: args }
         subprocess.shift || [ true, 0, 0.1 ]
@@ -434,6 +495,24 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     originals&.each do |m, original|
       ExecuteInstructionJob.class_eval { define_method(m, original) }
     end
+  end
+
+  # Replace Templates::Picker.call with a recorder for the duration of the
+  # block. Returns the canonical "cyber" name so callers that expect a
+  # Templates::NAMES-valid result keep working. Mirrors the singleton-method-
+  # swap pattern used in test/lib/verify_revision_test.rb (Minitest 6 dropped
+  # Object#stub).
+  def with_picker_call_stub(return_value: "cyber")
+    calls = []
+    Templates::Picker.singleton_class.alias_method(:__orig_call, :call)
+    Templates::Picker.define_singleton_method(:call) do |**args|
+      calls << args
+      return_value
+    end
+    yield calls
+  ensure
+    Templates::Picker.singleton_class.alias_method(:call, :__orig_call)
+    Templates::Picker.singleton_class.send(:remove_method, :__orig_call)
   end
 
   def capture_all_events
