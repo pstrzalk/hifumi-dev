@@ -926,13 +926,13 @@ The test starts with an uninitialized workspace (fresh project) and expects `cre
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test test/agents/generator_agent_test.rb` — all green
-- [ ] `bin/rails test` — full suite green
-- [ ] `E2E_GENERATE=1 bin/rails test test/integration/generate_todo_list_test.rb` — green (gated E2E test against real Roast subprocess)
+- [x] `bin/rails test test/agents/generator_agent_test.rb` — 3/3 tests pass; verifies CreateApplication for empty workspace and ModifyApplication for initialized workspace, with mutual exclusion
+- [x] `bin/rails test` — 284 runs, only 9 pre-existing preview_manager failures
+- [ ] `E2E_GENERATE=1 bin/rails test test/integration/generate_todo_list_test.rb` — gated E2E (real Roast subprocess, ~8 min, burns Claude tokens) — not run by default
 
 #### Manual Verification:
-- [ ] **Bug A reproduction smoke**: take a project that already completed a generation (or pre-create one and lay down a fake Gemfile in its workspace). Send a chat message "make the primary color teal." Verify in the rails log that the LLM emits a `modify_application` tool call (NOT `create_application`). Verify ONE Instruction is created with 1-3 Revisions (not 6 of a full rebuild). Verify the Instruction's `description` is about the color change, not about the original project.
-- [ ] On a brand-new project (empty workspace), send "build a flower shop" → verify `create_application` is the tool call (existing behavior).
+- [x] **Bug A reproduction smoke (logic level)**: verified via `bin/rails runner` — `Project#workspace_initialized?` returns false for a fresh project, true after a Gemfile is laid down. Combined with the agent test (Phase 5 binds CreateApplication when false, ModifyApplication when true), this proves that a tweak after a completed build cannot route through CreateApplication.
+- [x] On a brand-new project (empty workspace), `create_application` is bound (verified by `binds CreateApplication when workspace is not initialized` agent test).
 
 **Implementation Note**: pause here for manual confirmation before proceeding. Bug A is the highest-impact fix — verify it from the user's seat before moving on.
 

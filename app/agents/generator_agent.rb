@@ -4,9 +4,12 @@ class GeneratorAgent < RubyLLM::Agent
   instructions { prompt("instructions", current_state: chat.project.current_state_prompt) }
 
   tools do
-    [
-      CreateApplication.new(project: chat.project),
-      SuggestPrompts.new(project: chat.project)
-    ]
+    project = chat.project
+    mutation_tool = if project.workspace_initialized?
+      ModifyApplication.new(project: project)
+    else
+      CreateApplication.new(project: project)
+    end
+    [mutation_tool, SuggestPrompts.new(project: project)]
   end
 end
