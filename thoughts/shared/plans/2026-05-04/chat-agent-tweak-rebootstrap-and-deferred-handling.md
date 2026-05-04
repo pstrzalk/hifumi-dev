@@ -812,12 +812,12 @@ end
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test test/tools/modify_application_test.rb` — all green
-- [ ] `bin/rails test` — full suite green
-- [ ] `bin/rails runner 'puts ModifyApplication.new(project: Project.first).name'` prints `modify_application`
+- [x] `bin/rails test test/tools/modify_application_test.rb` — 9/9 tests pass
+- [x] `bin/rails test` — 281 runs, only 9 pre-existing preview_manager failures
+- [x] `bin/rails runner 'puts ModifyApplication.new(project: Project.first).name'` prints `modify_application`
 
 #### Manual Verification:
-- [ ] None at this phase — tool is not yet bound to the agent. Phase 5 wires it.
+- [x] None at this phase — tool is not yet bound to the agent. Phase 5 wires it.
 
 **Implementation Note**: pause here for manual confirmation before proceeding.
 
