@@ -8,7 +8,7 @@
 
 module PlanFixtures
   def self.todo_list
-    CreatePlan::Result.new(
+    PlanApplicationCreation::Result.new(
       instruction_description: "Build a Tailwind-styled CRUD todo list (model, controller, views).",
       revisions: [
         {

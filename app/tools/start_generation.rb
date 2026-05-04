@@ -23,7 +23,7 @@ class StartGeneration < RubyLLM::Tool
       }
     end
 
-    result = CreatePlan.call(
+    result = PlanApplicationCreation.call(
       intent: intent,
       clarifications: clarifications,
       context: { project_id: @project.id },
@@ -62,7 +62,7 @@ class StartGeneration < RubyLLM::Tool
       revision_count: result.revisions.size,
       instruction_description: result.instruction_description
     }
-  rescue CreatePlan::AdHocLLM::InvalidResponse => e
+  rescue PlanApplicationCreation::AdHocLLM::InvalidResponse => e
     { error: "Could not generate a plan: #{e.message}. Ask the user to rephrase." }
   end
 

@@ -1,6 +1,6 @@
-module CreatePlan
+module PlanApplicationCreation
   module AdHocLLM
-    SYSTEM_PROMPT = Rails.root.join("app/prompts/create_plan_system.md").read.freeze
+    SYSTEM_PROMPT = Rails.root.join("app/prompts/plan_application_creation_system.md").read.freeze
     MODEL = "anthropic/claude-haiku-4.5"
 
     class InvalidResponse < StandardError; end
@@ -35,7 +35,7 @@ module CreatePlan
       end
       raise InvalidResponse, "empty revisions" if revisions.empty?
 
-      CreatePlan::Result.new(
+      PlanApplicationCreation::Result.new(
         instruction_description: content.fetch("instruction_description"),
         revisions: revisions
       )

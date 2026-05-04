@@ -1,4 +1,4 @@
-module CreatePlan
+module PlanApplicationCreation
   Result = Struct.new(:instruction_description, :revisions, keyword_init: true)
 
   class << self

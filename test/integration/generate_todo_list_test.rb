@@ -6,7 +6,7 @@ require "shellwords"
 # the real `bin/roast` subprocess runs three revisions, and the generated app's
 # own test suite is green.
 #
-# Stubbed: `Chat#complete` (chat-LLM) and `CreatePlan.implementation` (plan-LLM)
+# Stubbed: `Chat#complete` (chat-LLM) and `PlanApplicationCreation.implementation` (plan-LLM)
 # so we don't burn tokens on those layers — a real LLM would call StartGeneration
 # with whatever intent the user typed; we short-circuit to that decision.
 #
@@ -24,14 +24,14 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
     skip "set E2E_GENERATE=1 to run (real bin/roast subprocess, ~8 min, burns Claude tokens)" unless ENV["E2E_GENERATE"] == "1"
 
     require Rails.root.join("test/fixtures/plans/todo_list.rb").to_s
-    @original_create_plan = CreatePlan.implementation
-    CreatePlan.implementation = fake_plan_returning(PlanFixtures.todo_list)
+    @original_create_plan = PlanApplicationCreation.implementation
+    PlanApplicationCreation.implementation = fake_plan_returning(PlanFixtures.todo_list)
     stub_chat_complete!
   end
 
   teardown do
     restore_chat_complete!
-    CreatePlan.implementation = @original_create_plan if @original_create_plan
+    PlanApplicationCreation.implementation = @original_create_plan if @original_create_plan
   end
 
   test "Simple todo list, Tailwind: 3 revisions complete and workspace tests green" do

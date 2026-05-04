@@ -8,7 +8,7 @@
 #       Creates a project, forces StartGeneration with a stubbed plan
 #       (default: todo_list), and runs ExecuteInstructionJob synchronously.
 #       Burns Claude tokens for the W2 implementation phase only — the
-#       chat-LLM and CreatePlan layers are bypassed.
+#       chat-LLM and PlanApplicationCreation layers are bypassed.
 #
 #   bin/generate respond --project-id N
 #       Runs ChatRespondJob.perform_now on the project's latest user
@@ -63,12 +63,12 @@ when "full"
   fake_plan = Class.new do
     define_singleton_method(:call) { |**| plan_result }
   end
-  original_impl = CreatePlan.implementation
-  CreatePlan.implementation = fake_plan
+  original_impl = PlanApplicationCreation.implementation
+  PlanApplicationCreation.implementation = fake_plan
   begin
     result = StartGeneration.new(project: project).execute(intent: prompt, clarifications: {})
   ensure
-    CreatePlan.implementation = original_impl
+    PlanApplicationCreation.implementation = original_impl
   end
 
   abort("StartGeneration error: #{result[:error]}") if result[:error]

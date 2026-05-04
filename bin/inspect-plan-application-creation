@@ -1,17 +1,17 @@
 #!/usr/bin/env ruby
-# Invoke CreatePlan against one or more intents and dump the resulting
-# revisions, without persisting anything or running the W2 implementer.
+# Invoke PlanApplicationCreation against one or more intents and dump the
+# resulting revisions, without persisting anything or running the W2 implementer.
 #
-# Use this to verify changes to app/prompts/create_plan_system.md or to
-# CreatePlan::AdHocLLM by inspecting what the planner emits, without paying
-# the full ~900s W2 generation cost (planner alone is haiku, a few cents).
+# Use this to verify changes to app/prompts/plan_application_creation_system.md
+# or to PlanApplicationCreation::AdHocLLM by inspecting what the planner emits,
+# without paying the full ~900s W2 generation cost (planner alone is haiku, a few cents).
 #
 # Usage (locally):
-#   bin/rails runner bin/inspect-create-plan "your intent here" ["another intent" ...]
+#   bin/rails runner bin/inspect-plan-application-creation "your intent here" ["another intent" ...]
 #
 # Examples:
-#   bin/rails runner bin/inspect-create-plan "a todo list app"
-#   bin/rails runner bin/inspect-create-plan \
+#   bin/rails runner bin/inspect-plan-application-creation "a todo list app"
+#   bin/rails runner bin/inspect-plan-application-creation \
 #     "a todo list app" \
 #     "a personal finance tracker with expenses and budgets and a dashboard"
 #
@@ -42,7 +42,7 @@ intents.each do |intent|
   puts "INTENT: #{intent}"
   puts "=" * 80
 
-  result = CreatePlan.call(intent: intent, openrouter_api_key: key)
+  result = PlanApplicationCreation.call(intent: intent, openrouter_api_key: key)
 
   puts "instruction_description: #{result.instruction_description}"
   puts

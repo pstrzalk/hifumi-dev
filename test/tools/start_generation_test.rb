@@ -7,7 +7,7 @@ class StartGenerationTest < ActiveSupport::TestCase
     @user_message = @chat.messages.create!(role: :user, content: "simple todo list")
     @tool = StartGeneration.new(project: @project)
 
-    @plan = CreatePlan::Result.new(
+    @plan = PlanApplicationCreation::Result.new(
       instruction_description: "A simple todo list.",
       revisions: [
         { summary: "Add Task model", prompt: "Generate a Task model with title:string and done:boolean." },
@@ -18,13 +18,13 @@ class StartGenerationTest < ActiveSupport::TestCase
   end
 
   def stub_create_plan(result_or_proc)
-    original = CreatePlan.method(:call)
-    CreatePlan.define_singleton_method(:call) do |**kwargs|
+    original = PlanApplicationCreation.method(:call)
+    PlanApplicationCreation.define_singleton_method(:call) do |**kwargs|
       result_or_proc.respond_to?(:call) ? result_or_proc.call(**kwargs) : result_or_proc
     end
     yield
   ensure
-    CreatePlan.define_singleton_method(:call, original) if original
+    PlanApplicationCreation.define_singleton_method(:call, original) if original
   end
 
   test "persists an Instruction with user_intent, description, implementing phase, and user anchor_message" do
@@ -89,8 +89,8 @@ class StartGenerationTest < ActiveSupport::TestCase
     )
   end
 
-  test "on CreatePlan InvalidResponse: returns error hash, persists nothing, no notification" do
-    raising = ->(**) { raise CreatePlan::AdHocLLM::InvalidResponse, "empty revisions" }
+  test "on PlanApplicationCreation InvalidResponse: returns error hash, persists nothing, no notification" do
+    raising = ->(**) { raise PlanApplicationCreation::AdHocLLM::InvalidResponse, "empty revisions" }
     payloads = []
     subscriber = ActiveSupport::Notifications.subscribe("instruction.requested") { |*, p| payloads << p }
 
@@ -109,7 +109,7 @@ class StartGenerationTest < ActiveSupport::TestCase
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 
-  test "on unexpected error from CreatePlan: propagates and persists nothing" do
+  test "on unexpected error from PlanApplicationCreation: propagates and persists nothing" do
     raising = ->(**) { raise RuntimeError, "upstream boom" }
 
     assert_no_difference -> { Instruction.count } do
