@@ -45,13 +45,16 @@ config do
   # - --tools restricts to Edit/Read so the agent can't Bash/Glob/Write into
   #   the rest of the workspace; prompt-level rules alone hadn't stopped it
   #   from globbing **/* and reading 9+ unrelated files in past runs.
-  # - --bare strips Claude Code's auto-memory, hooks, plugin sync, and
-  #   CLAUDE.md auto-discovery — all noise inside this sandbox, and the
-  #   source of the `<system-reminder>...malware...</system-reminder>` blocks
-  #   that bloated input tokens on every Read.
+  # - --bare was previously here to strip Claude Code's auto-memory, hooks,
+  #   plugin sync, and CLAUDE.md auto-discovery (source of the malware-ish
+  #   <system-reminder> blocks bloating Reads). Dropped 2026-05-04 because
+  #   --bare also skips OAuth credential loading from ~/.claude/, breaking
+  #   the dev claude-subscription auth ("Not logged in · Please run /login")
+  #   while leaving the default-agent invocations (which don't pass --bare)
+  #   working. If the system-reminder bloat returns, find a narrower flag.
   agent(:update_docs) do
     model DOCS_MODEL
-    command ["claude", "--tools", "Edit,Read", "--bare"]
+    command ["claude", "--tools", "Edit,Read"]
   end
   cmd { display! }
 
@@ -62,13 +65,15 @@ config do
   # then exits 0 so the job marks the revision :completed despite failure.
   ruby(:ensure_passing) { abort_on_failure! }
 
-  # agent(:fix) gets a hard budget ceiling and --bare. Without a cap, a
-  # flailing fix has burned ~$1.00 in a single iteration (49-turn permission
-  # chase in production-run log rev 14). A flail isn't going to find an
-  # insight at turn 30 it missed at turn 10 — cap deterministically. Two
-  # iterations means up to 2x FIX_BUDGET_USD across the W2.R loop.
+  # agent(:fix) gets a hard budget ceiling. Without a cap, a flailing fix has
+  # burned ~$1.00 in a single iteration (49-turn permission chase in
+  # production-run log rev 14). A flail isn't going to find an insight at
+  # turn 30 it missed at turn 10 — cap deterministically. Two iterations
+  # means up to 2x FIX_BUDGET_USD across the W2.R loop.
+  # --bare was previously here too; dropped 2026-05-04 for the same reason
+  # as agent(:update_docs) — it breaks claude OAuth credential loading.
   agent(:fix) do
-    command ["claude", "--bare", "--max-budget-usd", FIX_BUDGET_USD]
+    command ["claude", "--max-budget-usd", FIX_BUDGET_USD]
   end
 end
 
@@ -140,7 +145,7 @@ execute do
   # W2.2: Build prompt with app manifest + revision notes
   ruby(:build_prompt) do
     docs_dir = File.join(WORKSPACE, "docs")
-    manifest = Dir.glob("#{docs_dir}/{architecture,conventions,domain}.md")
+    manifest = Dir.glob("#{docs_dir}/{architecture,conventions,domain,frontend}.md")
                   .map { |f| "### #{File.basename(f)}\n\n#{File.read(f)}" }
                   .join("\n\n")
     notes_path = File.join(docs_dir, "revision_notes.md")
@@ -183,6 +188,7 @@ execute do
       ## Rules
       - Rails Way: conventions, generators, built-in solutions
       - Tailwind CSS for styling
+      - Follow `docs/frontend.md` (palette, fonts, density, class snippets) for every view. Don't ship default Rails scaffold markup or unstyled forms — apply the template's class snippets to buttons, inputs, cards, navs, alerts. Inline hex values in arbitrary-value brackets (`bg-[#00FFCC]`) are fine.
       - Hotwire (Turbo + Stimulus), no React/Vue
       - Minitest, not RSpec
       - Write tests for new functionality
@@ -302,13 +308,14 @@ execute do
       1. `architecture.md` — models, relations, key controllers, routing (touch only what changed)
       2. `conventions.md` — decisions made, gems used, patterns (touch only what changed)
       3. `domain.md` — domain glossary, business rules (touch only what changed)
-      4. `revision_notes.md` — APPEND a short section for this revision:
+      4. `frontend.md` — design template + class snippets. Touch ONLY if this revision changed styling decisions (new palette, new component pattern, user-driven design tweak). NEVER touch if styling didn't change. NEVER replace the entire file — small edits to the relevant snippet section.
+      5. `revision_notes.md` — APPEND a short section for this revision:
          - What implementation decisions you made and WHY (not a summary)
 
       ## Rules — IMPORTANT, read carefully
 
       - Work from the diff above. Do NOT glob, do NOT read the workspace tree, do NOT inspect git history.
-      - The only file reads allowed are these four exact paths: `docs/architecture.md`, `docs/conventions.md`, `docs/domain.md`, `docs/revision_notes.md`. Do not read the `docs/` directory itself — read the file paths directly.
+      - The only file reads allowed are these five exact paths: `docs/architecture.md`, `docs/conventions.md`, `docs/domain.md`, `docs/frontend.md`, `docs/revision_notes.md`. Do not read the `docs/` directory itself — read the file paths directly.
       - Use Edit (small, targeted edits) or append-only operations. Do not rewrite whole files.
       - If a doc has nothing to update for this revision, skip it — don't write filler.
       - Be terse. Each section in revision_notes is 1-3 sentences max.
