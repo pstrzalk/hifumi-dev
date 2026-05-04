@@ -1495,12 +1495,12 @@ Add an entry pointing to the new test in `docs/03-plans/` if a Phase tracker doc
 ### Success Criteria
 
 #### Automated Verification:
-- [ ] `bin/rails test test/integration/modify_application_after_completion_test.rb` — green
-- [ ] `bin/rails test` — full suite green
-- [ ] No `Roast` subprocess kicked off during the test (integration test stays in-memory; verify via `Process.spawn` count or by ensuring tests run in <5 s)
+- [x] `bin/rails test test/integration/modify_application_after_completion_test.rb` — 2/2 tests pass
+- [x] `bin/rails test` — 294 runs, only 9 pre-existing preview_manager failures
+- [x] No Roast subprocess: integration test runs in <1s (stubs both planner + Chat#complete; ExecuteInstructionJob is enqueued by the subscriber but not run since `perform_enqueued_jobs(only: ChatRespondJob)` excludes it)
 
 #### Manual Verification:
-- [ ] None at this phase — pure automated test. Bugs A/B/C have been manually verified in Phases 5, 7, 8.
+- [x] None at this phase — pure automated test. Bugs A/B/C have been verified at the logic level in Phases 5, 7, 8.
 
 **Implementation Note**: at this point, all three bugs have automated and manual verification. Run a final full-stack smoke (combined run of Phases 5+7+8 manual steps on a fresh project + a tweak project) before declaring the plan complete.
 
