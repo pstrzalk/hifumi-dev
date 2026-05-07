@@ -463,7 +463,7 @@ end
 
 #### 8. Profile edit view
 **File**: `app/views/devise/registrations/edit.html.erb`
-**Changes**: Insert a "GitHub connection" section between the password section (line 30) and "Cancel my account" (line 57). When connected, show `@username` + Disconnect; when disconnected, show Connect button. Match existing `<h3>` + `<div class="field">` structure.
+**Changes**: Insert a "GitHub connection" section **after line 55 (the `<% end %>` that closes `form_for`) and before line 57 (`<h3>Cancel my account</h3>`)**. The section uses `button_to`, which generates its own `<form>` — placing it inside the existing `form_for` would create nested `<form>` elements (invalid HTML, silently broken submit in some browsers). When connected, show `@username` + Disconnect; when disconnected, show Connect button. Match existing `<h3>` + `<div class="field">` structure.
 
 ```erb
 <h3>GitHub connection</h3>
@@ -575,7 +575,7 @@ class ExportToGithubJob < ApplicationJob
   queue_as :default
 
   class TokenRevoked       < StandardError; end
-  class RepoNameTaken      < StandardError; end
+  class RepoCreateFailed   < StandardError; end
   class PushDiverged       < StandardError; end
   class WorkspaceMissing   < StandardError; end
 
@@ -601,7 +601,10 @@ class ExportToGithubJob < ApplicationJob
   rescue Octokit::Unauthorized
     fail!(project, TokenRevoked.new("GitHub token was revoked. Please reconnect on your profile."))
   rescue Octokit::UnprocessableEntity => e
-    fail!(project, RepoNameTaken.new("That repo name is already taken: #{e.message}"))
+    # 422 from create_repository covers several causes — name collision is the
+    # most common, but also: invalid name characters, repo creation disabled,
+    # validation failures on auto_init/private. Don't pretend we know which.
+    fail!(project, RepoCreateFailed.new("There was an issue creating the repo on GitHub: #{e.message}"))
   rescue PushDiverged => e
     fail!(project, e)
   rescue StandardError => e
@@ -671,7 +674,7 @@ end
 - Happy path first export: creates repo, pushes, persists `github_repo_full_name` + state `:exported`.
 - Happy path subsequent push: `github_repo_full_name` already set → no Octokit call → just push.
 - `Octokit::Unauthorized` from create → state `:failed`, error mentions reconnecting, raises `TokenRevoked`.
-- `Octokit::UnprocessableEntity` from create (name collision) → state `:failed`, raises `RepoNameTaken`.
+- `Octokit::UnprocessableEntity` from create (name collision or any other 422) → state `:failed`, raises `RepoCreateFailed` with a generic "issue creating the repo" message.
 - `git push` returns non-fast-forward → state `:failed`, raises `PushDiverged`. Assert that `git remote add origin …` was called with the **clean** URL (no token), and that the token-bearing URL appears only as an argv to `Open3.capture3`, never as a `git remote add/set-url` argument.
 - `git push` succeeds → assert the same invariant: `.git/config` (via the stubbed `system` calls) only ever sees the clean URL.
 - Workspace missing → raises `WorkspaceMissing` immediately.
@@ -811,7 +814,7 @@ end
   </div>
   <div class="field">
     <%= f.label :private_repo do %>
-      <%= f.check_box :private_repo, {}, "1", "0" %>
+      <%= f.check_box :private_repo, { checked: true }, "1", "0" %>
       Private repository
     <% end %>
     <p><small>Defaults to private. You can flip the repo to public on GitHub later.</small></p>
@@ -820,7 +823,7 @@ end
 <% end %>
 ```
 
-> Default check_box value is `"1"` (checked = private). Mirror Lovable / bolt.new defaults.
+> `checked: true` is required because `form_with scope: :github_export` has no model object — without it, the checkbox renders unchecked and every export defaults to public. Mirror Lovable / bolt.new defaults: private on by default.
 
 #### 5. Project show view
 **File**: `app/views/projects/show.html.erb`
