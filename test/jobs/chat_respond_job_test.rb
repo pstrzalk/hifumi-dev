@@ -203,20 +203,6 @@ class ChatRespondJobTest < ActiveJob::TestCase
     end
   end
 
-  test "registers a SuggestPrompts tool bound to the project before completing" do
-    captured_tools = []
-    spy_with_tools(captured_tools) do
-      stub_complete(chunks: [ "ok" ]) do
-        perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
-      end
-    end
-
-    tools = captured_tools.first
-    suggest = tools.find { |t| t.is_a?(SuggestPrompts) }
-    assert suggest, "expected a SuggestPrompts tool instance passed to with_tools"
-    assert_equal @project, suggest.instance_variable_get(:@project)
-  end
-
   private
 
   def last_chat_notice_broadcast

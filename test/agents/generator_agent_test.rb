@@ -29,7 +29,6 @@ class GeneratorAgentTest < ActiveJob::TestCase
     classes = captured.map(&:class)
     assert_includes classes, CreateApplication
     refute_includes classes, ModifyApplication
-    assert_includes classes, SuggestPrompts
   end
 
   test "binds ModifyApplication when workspace is initialized" do
@@ -42,7 +41,6 @@ class GeneratorAgentTest < ActiveJob::TestCase
     classes = captured.map(&:class)
     assert_includes classes, ModifyApplication
     refute_includes classes, CreateApplication
-    assert_includes classes, SuggestPrompts
   end
 
   test "the bound mutation tool is initialized with the chat's project" do

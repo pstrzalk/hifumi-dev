@@ -14,9 +14,15 @@
         <%= render "revisions/list", revisions: @active_revisions %>
       </div>
       <div id="messages" class="flex flex-col" style="gap: 12px; margin-bottom: 16px;">
-        <%= render partial: "messages/message", collection: @messages, as: :message %>
+        <% @chat_events.each do |event| %>
+          <% case event %>
+          <% when Message %>
+            <%= render partial: "messages/message", locals: { message: event } %>
+          <% when Instruction %>
+            <%= render partial: "instructions/status_row", locals: { instruction: event } %>
+          <% end %>
+        <% end %>
       </div>
-      <%= render "suggestions/frame", prompts: [] %>
       <% if flash[:alert] %>
         <div class="notice-strip notice-strip--err">
           <div class="notice-strip__stripe"></div>

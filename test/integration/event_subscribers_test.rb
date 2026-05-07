@@ -73,36 +73,26 @@ class EventSubscribersTest < ActiveSupport::TestCase
     end
   end
 
-  test "instruction.requested persists a 🌀 Building assistant message" do
-    assert_difference -> { @chat.messages.where(role: :assistant).count }, 1 do
+  test "instruction.requested does not persist a 🌀 Building assistant message" do
+    assert_no_difference -> { @chat.messages.where(role: :assistant).count } do
       ActiveSupport::Notifications.instrument(
         "instruction.requested",
         instruction_id: @instruction.id
       )
     end
-
-    msg = @chat.messages.where(role: :assistant).order(:id).last
-    assert_match(/^🌀 Building: /, msg.content)
-    assert_includes msg.content, @instruction.description
   end
 
-  test "instruction.completed persists an assistant status message" do
-    assert_difference -> { @chat.messages.where(role: :assistant).count }, 1 do
+  test "instruction.completed does not persist any assistant status message" do
+    assert_no_difference -> { @chat.messages.where(role: :assistant).count } do
       ActiveSupport::Notifications.instrument(
         "instruction.completed",
         instruction_id: @instruction.id
       )
     end
-
-    msg = @chat.messages.where(role: :assistant).last
-    assert_equal "✅ Generation finished.", msg.content
   end
 
-  test "instruction.completed broadcasts both the status message and an empty list" do
-    # Drains only the Turbo broadcast jobs from `broadcast_append_later_to` for
-    # the persisted assistant message — explicitly skips ChatRespondJob (the
-    # auto-recap subscriber's enqueue), which would otherwise also fire and
-    # send a chat_notice broadcast on top of the two we care about here.
+  test "instruction.completed broadcasts an appended status_row partial and an empty revisions list" do
+    @instruction.update!(phase: :completed)
     perform_enqueued_jobs(except: ChatRespondJob) do
       assert_broadcasts(@stream_name, 2) do
         ActiveSupport::Notifications.instrument(
@@ -111,6 +101,11 @@ class EventSubscribersTest < ActiveSupport::TestCase
         )
       end
     end
+
+    appended = broadcasts(@stream_name).find { |b| b.to_s.include?("✅ Built") }
+    assert appended, "expected an append broadcast containing ✅ Built"
+    assert_match(/target=\\?"messages\\?"/, appended.to_s)
+    assert_match(/action=\\?"append\\?"/, appended.to_s)
   end
 
   test "instruction.completed persists a hidden synthetic nudge user message" do
@@ -164,26 +159,52 @@ class EventSubscribersTest < ActiveSupport::TestCase
     assert_match(/no messages were sent/, nudge.content)
   end
 
-  test "instruction.failed names the failing revision in the status message" do
+  test "instruction.completed nudge body forbids past-tense completion claims and requires a question" do
+    ActiveSupport::Notifications.instrument(
+      "instruction.completed",
+      instruction_id: @instruction.id
+    )
+
+    nudge = @chat.messages.where(system_injected: true).order(:id).last
+    assert_match(/Do NOT use past-tense completion language/, nudge.content)
+    assert_match(/END with a question/, nudge.content)
+    %w[Done Built Finished Updated Applied].each do |word|
+      assert_includes nudge.content, %("#{word}"), "expected branch 2 to forbid the word #{word.inspect}"
+    end
+  end
+
+  test "instruction.failed broadcasts a status_row partial naming the failing revision" do
+    @instruction.update!(phase: :failed)
     failing = @instruction.revisions.first
     failing.update!(status: :failed)
 
-    ActiveSupport::Notifications.instrument(
-      "instruction.failed",
-      instruction_id: @instruction.id
-    )
+    perform_enqueued_jobs(except: ChatRespondJob) do
+      ActiveSupport::Notifications.instrument(
+        "instruction.failed",
+        instruction_id: @instruction.id
+      )
+    end
 
-    msg = @chat.messages.where(role: :assistant).last
-    assert_equal "❌ Revision 'rev 0' failed.", msg.content
+    appended = broadcasts(@stream_name).find { |b| b.to_s.include?("Build failed") }
+    assert appended, "expected an append broadcast containing Build failed"
+    assert_includes appended.to_s, "❌ Build failed: rev 0"
+    assert_match(/target=\\?"messages\\?"/, appended.to_s)
+    assert_match(/action=\\?"append\\?"/, appended.to_s)
   end
 
   test "instruction.failed falls back to generic content if no revision is in failed status" do
-    ActiveSupport::Notifications.instrument(
-      "instruction.failed",
-      instruction_id: @instruction.id
-    )
+    @instruction.update!(phase: :failed)
 
-    msg = @chat.messages.where(role: :assistant).last
-    assert_equal "❌ Generation failed.", msg.content
+    perform_enqueued_jobs(except: ChatRespondJob) do
+      ActiveSupport::Notifications.instrument(
+        "instruction.failed",
+        instruction_id: @instruction.id
+      )
+    end
+
+    appended = broadcasts(@stream_name).find { |b| b.to_s.include?("Build failed") }
+    assert appended, "expected an append broadcast containing Build failed"
+    assert_includes appended.to_s, "❌ Build failed"
+    refute_match(/Build failed:/, appended.to_s)
   end
 end

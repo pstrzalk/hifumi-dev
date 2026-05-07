@@ -28,7 +28,7 @@ class ProjectsController < ApplicationController
   end
 
   def show
-    @messages = @project.chat.messages.order(:created_at)
+    @chat_events = build_chat_events(@project)
     @active_revisions = active_revisions_for(@project)
   end
 
@@ -51,6 +51,21 @@ class ProjectsController < ApplicationController
       .where.not(phase: %w[completed failed cancelled])
       .order(:created_at).last
     instruction&.revisions&.order(:position) || []
+  end
+
+  def build_chat_events(project)
+    messages = project.chat.messages.includes(:tool_calls).to_a
+    status_instructions = project.instructions
+      .where(phase: %w[completed failed])
+      .to_a
+    (messages + status_instructions).sort_by { |e| event_timestamp(e) }
+  end
+
+  def event_timestamp(event)
+    case event
+    when Message     then event.created_at
+    when Instruction then event.updated_at
+    end
   end
 
   def project_params

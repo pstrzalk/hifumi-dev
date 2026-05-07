@@ -3,9 +3,10 @@
     <div class="msg-bubble">
       <div class="msg-role"><%= message.role %></div>
 
-      <% if render_as_pill?(message) %>
+      <% if message.role == "assistant" && message.tool_calls.any? %>
         <div class="msg-pill"><%= tool_call_pill_text(message) %></div>
-      <% else %>
+      <% end %>
+      <% if message.content.to_s.strip.present? %>
         <div class="msg-body"><%= message.content %></div>
       <% end %>
     </div>

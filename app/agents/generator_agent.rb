@@ -10,6 +10,6 @@ class GeneratorAgent < RubyLLM::Agent
     else
       CreateApplication.new(project: project)
     end
-    [mutation_tool, SuggestPrompts.new(project: project)]
+    [mutation_tool]
   end
 end

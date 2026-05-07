@@ -1,0 +1,16 @@
+<div id="<%= dom_id(instruction) %>_status" class="msg msg-asst">
+  <div class="msg-bubble">
+    <div class="msg-pill">
+      <% if instruction.completed? %>
+        ✅ Built
+      <% elsif instruction.failed? %>
+        <% failed_rev = instruction.revisions.where(status: :failed).order(:position).first %>
+        <% if failed_rev %>
+          ❌ Build failed: <%= failed_rev.summary %>
+        <% else %>
+          ❌ Build failed
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

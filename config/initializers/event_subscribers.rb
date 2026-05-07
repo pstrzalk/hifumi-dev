@@ -27,18 +27,6 @@ ActiveSupport::Notifications.subscribe("instruction.requested") do |*, payload|
   StopPreviewJob.perform_later(instruction.project.id)
 end
 
-# After the LLM has just called create_application/modify_application, the
-# user needs an immediate "build started" indicator. The LLM itself is forbidden
-# (per the agent prompt) from narrating around the tool call — so we post the
-# starting message here, symmetric to "✅ Generation finished." on completion.
-ActiveSupport::Notifications.subscribe("instruction.requested") do |*, payload|
-  instruction = Instruction.find(payload[:instruction_id])
-  instruction.project.chat.messages.create!(
-    role: :assistant,
-    content: "🌀 Building: #{instruction.description}"
-  )
-end
-
 %w[revision.started revision.completed revision.failed].each do |event|
   ActiveSupport::Notifications.subscribe(event) do |*, payload|
     revision = Revision.find(payload[:revision_id])
@@ -53,9 +41,11 @@ end
 
 ActiveSupport::Notifications.subscribe("instruction.completed") do |*, payload|
   instruction = Instruction.find(payload[:instruction_id])
-  instruction.project.chat.messages.create!(
-    role: :assistant,
-    content: "✅ Generation finished."
+  Turbo::StreamsChannel.broadcast_append_later_to(
+    instruction.project,
+    target: "messages",
+    partial: "instructions/status_row",
+    locals: { instruction: instruction }
   )
   Turbo::StreamsChannel.broadcast_replace_to(
     instruction.project,
@@ -95,7 +85,7 @@ ActiveSupport::Notifications.subscribe("instruction.completed") do |*, payload|
 
     Your job in this turn:
     1. If the user sent change requests during the build, recap them in 1-2 sentences and ask whether to proceed (without applying anything yet).
-    2. If they sent no change requests (or only questions), acknowledge that the build finished and ask what they want next.
+    2. If they sent no change requests (or only questions), greet them in ONE short sentence and END with a question asking what they want next. Do NOT use past-tense completion language ("Done", "Built", "Finished", "Updated", "Applied"). The completion is shown elsewhere in the UI; your job is to invite the next move.
     3. DO NOT call create_application or modify_application. DO NOT call any other tool. Reply with text only.
   NUDGE
 
@@ -110,11 +100,12 @@ end
 
 ActiveSupport::Notifications.subscribe("instruction.failed") do |*, payload|
   instruction = Instruction.find(payload[:instruction_id])
-  failed = instruction.revisions.where(status: :failed).order(:position).first
-  content = failed ?
-    "❌ Revision '#{failed.summary}' failed." :
-    "❌ Generation failed."
-  instruction.project.chat.messages.create!(role: :assistant, content: content)
+  Turbo::StreamsChannel.broadcast_append_later_to(
+    instruction.project,
+    target: "messages",
+    partial: "instructions/status_row",
+    locals: { instruction: instruction }
+  )
   Turbo::StreamsChannel.broadcast_replace_to(
     instruction.project,
     target: "active_revisions",
