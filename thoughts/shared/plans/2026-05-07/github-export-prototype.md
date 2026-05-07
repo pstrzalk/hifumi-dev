@@ -52,9 +52,22 @@ Verification: a fresh user can complete the full Connect → Export → see-the-
 - No webhooks, no two-way sync, no installation tokens, no app-attributed commits — all require GitHub App.
 - No `delete_repo` scope and no "Delete from GitHub" button. User can delete on GitHub.
 - No GitHub-side revocation API call on disconnect — destroying the `GithubConnection` row is enough; user can revoke on `github.com/settings/applications` if they want.
-- No GitHub App migration in this plan. The model is shaped to absorb it (provider field, nullable refresh_token/expires_at columns), but the actual swap is a separate piece of work.
+- No GitHub App migration in this plan. The model is shaped to absorb it (provider field, nullable refresh_token/expires_at columns), but the actual swap is a separate piece of work — see Phase 5 placeholder below. Phase 5 is the unblocker for shipping this feature to anyone outside localhost.
 - No scope upgrades (no `delete_repo`, no `user:email`). We use `repo` only.
 - **No GPG/SSH commit signing.** The `hifumi.dev <code@hifumi.dev>` commits will show up unsigned (no green "Verified" badge on GitHub). Adding signing would require provisioning a GPG/SSH key on the `hifumidev-bot` account and configuring git to sign with it — out of scope for the prototype. The avatar + name still render correctly without a signature.
+
+## Production gate (load-bearing)
+
+This plan ships a **prototype**, not a feature. The OAuth App grants the `repo` scope, which is **read/write to every public and private repository on the connecting user's account** — far broader than what this feature actually does (create one new repo, push to it). A leak of an encrypted token + the Rails master key compromises every private repo the user owns, not just the exported one.
+
+That risk is acceptable on a localhost / single-developer demo and unacceptable anywhere a user we don't personally trust can sign up. So:
+
+- This OAuth-App build is for **localhost development and internal demos only**. The GitHub OAuth App registered in Pre-flight P4 has a `localhost:3000` callback URL specifically to enforce that — a production callback URL would require a separate registration that does not exist yet.
+- **No production deploy** of this code path. The `kamal deploy` target gets the Phase 0 / Phase 1 changes (workspace authorship is harmless to ship), but Phase 2-4 stay behind a feature flag (`ENV["GITHUB_EXPORT_ENABLED"] == "1"`) that is OFF in production until the GitHub App migration in Phase 5 lands.
+- **No public sign-up flow exposed to this feature.** If sign-up opens before Phase 5 ships, the Connect GitHub button must remain hidden to non-allowlisted user IDs. (Tracked as a checklist item in the manual-verification section of Phase 2.)
+- **No open beta, no friends-and-family demo, no recorded video that suggests this is a shipping feature** — the security tradeoff is only acceptable when the user understands they are pointing a broad-scoped token at a localhost dev environment.
+
+The Phase 5 placeholder below names the migration as a tracked obligation. Until that ships, this work is internal-only.
 
 ## Implementation Approach
 
@@ -179,7 +192,7 @@ COMMIT_AUTHOR_EMAIL = "code@hifumi.dev"
 ok = system(
   subprocess_env,
   "cd #{Shellwords.escape(workspace)} && " \
-  "git init -q && " \
+  "git init -q -b main && " \
   "git config user.email #{Shellwords.escape(Project::COMMIT_AUTHOR_EMAIL)} && " \
   "git config user.name #{Shellwords.escape(Project::COMMIT_AUTHOR_NAME)} && " \
   "git add -A && " \
@@ -190,6 +203,8 @@ ok = system(
 ```
 
 > `git config` runs without `-c` overrides, so it writes to repo-local `.git/config`. Belt-and-braces with the inline `-c` flags on the first commit because the order is `init → config → commit` and we want the first commit to be branded even if the config write somehow no-ops.
+>
+> `-b main` pins the initial branch name. Without it, the branch name comes from the host's `init.defaultBranch` config — modern systems default to `main` but older containers/boxes default to `master`, which would later break `git push origin main` in Phase 3. Pinning here means Phase 3's push code can rely on `main` existing locally.
 
 #### 3. `init_docs_baseline` — drop ambiguity
 **File**: `app/jobs/execute_instruction_job.rb:147-150`
@@ -227,6 +242,10 @@ assert_equal "hifumi.dev", out
 sha = `git -C #{workspace} rev-parse HEAD`.strip
 author = `git -C #{workspace} log -1 --pretty='%an <%ae>' #{sha}`.strip
 assert_equal "hifumi.dev <code@hifumi.dev>", author
+
+# Branch name pinned to main regardless of host init.defaultBranch:
+branch = `git -C #{workspace} rev-parse --abbrev-ref HEAD`.strip
+assert_equal "main", branch
 ```
 
 ### Success Criteria:
@@ -293,6 +312,10 @@ class GithubConnection < ApplicationRecord
   validates :provider, :github_username, :github_user_id, :access_token, presence: true
   validates :provider, inclusion: { in: %w[github_oauth github_app] }
 
+  # Today this is functionally `access_token.present?` (and the row only
+  # exists when there's a token), but keep the predicate — Phase 5 (GitHub
+  # App migration) will make it meaningful: an `expired?` token + no
+  # refresh_token will mean "row exists but not currently usable".
   def connected? = access_token.present?
 
   # True only when the token has a known expiry that's in the past.
@@ -315,7 +338,7 @@ has_one :github_connection, dependent: :destroy, inverse_of: :user
 
 #### 4. Tests
 **File**: `test/models/github_connection_test.rb`
-**Changes**: New file. Cover: presence validations (provider, github_username, github_user_id, access_token), provider inclusion, `connected?` true/false, `expired?` for nil/past/future `expires_at`, encryption round-trip on `access_token` and `refresh_token`, `User#github_connection` association + `dependent: :destroy`.
+**Changes**: New file. Cover: presence validations (provider, github_username, github_user_id, access_token), provider inclusion, `connected?` true/false, `expired?` for nil/past/future `expires_at`, encryption round-trip on `access_token` (set, save, reload, decrypt), explicit nil round-trip on `refresh_token` (set to nil, save, reload, still nil — `encrypts` on a nullable column should be a no-op for `nil`, but worth pinning so a future encryption-config change can't break it silently), `User#github_connection` association + `dependent: :destroy`.
 
 **File**: `test/fixtures/github_connections.yml`
 **Changes**: One fixture for `users(:one)` with a fake `gho_…` token.
@@ -569,7 +592,7 @@ class ExportToGithubJob < ApplicationJob
 
     if project.github_repo_full_name.blank?
       repo = create_repo(connection.access_token, repo_name, private_repo)
-      project.update!(github_repo_full_name: repo[:full_name])
+      project.update!(github_repo_full_name: repo.full_name)
     end
 
     push!(project, connection.access_token)
@@ -598,18 +621,22 @@ class ExportToGithubJob < ApplicationJob
     remote_url_with_token = "https://x-access-token:#{token}@github.com/#{full_name}.git"
     remote_url_clean      = "https://github.com/#{full_name}.git"
 
-    # Set or replace the origin remote.
+    # Pin a clean origin remote (no token in .git/config, ever) for the
+    # user's later convenience (so `git push` from a checkout works once
+    # they've added their own credentials).
     run!(workspace, "git remote remove origin", allow_fail: true)
-    run!(workspace, "git remote add origin #{Shellwords.escape(remote_url_with_token)}")
+    run!(workspace, "git remote add origin #{Shellwords.escape(remote_url_clean)}")
 
+    # Push using the token-bearing URL passed directly on the command line,
+    # NOT via a stored remote — Open3 args don't touch disk, so a crash
+    # mid-push can't leave the token in .git/config. The URL is in the
+    # process's argv for the duration of the push (visible in `ps` to
+    # other users on the host) — acceptable given the host is a single-
+    # tenant container in production.
     stdout, stderr, status = Open3.capture3(
       { "GIT_TERMINAL_PROMPT" => "0" },
-      "git", "-C", workspace, "push", "origin", "main"
+      "git", "-C", workspace, "push", remote_url_with_token, "main"
     )
-
-    # Always strip the token-bearing remote URL, even on push failure —
-    # the token must never persist in .git/config on disk.
-    run!(workspace, "git remote set-url origin #{Shellwords.escape(remote_url_clean)}", allow_fail: true)
 
     return if status.success?
 
@@ -636,17 +663,17 @@ class ExportToGithubJob < ApplicationJob
 end
 ```
 
-> Token-leak hygiene: the token-bearing remote URL is always stripped via `set-url origin <clean>` after the push attempt — even on failure — so it never persists in `.git/config`.
+> Token-leak hygiene: the token never lands in `.git/config`. We add the *clean* `origin` URL up front (no token) and pass the token-bearing URL directly to `git push` as a positional argument. Open3's argv stays in process memory (and `ps`) for the duration of the push, but never touches disk — so a crash/SIGTERM mid-push can't leave a `gho_…` token sitting in the workspace's git config indefinitely.
 
 #### 5. Tests
 **File**: `test/jobs/export_to_github_job_test.rb`
-**Changes**: Stub Octokit at the boundary (`Octokit::Client#create_repository` returns a Sawyer::Resource-like Hash) and stub `Open3.capture3` + `Kernel#system`. Cover:
+**Changes**: Stub Octokit at the boundary (`Octokit::Client#create_repository` returns a real `Sawyer::Resource` built from a hash, so the `.full_name` method accessor works exactly as in production) and stub `Open3.capture3` + `Kernel#system`. Cover:
 - Happy path first export: creates repo, pushes, persists `github_repo_full_name` + state `:exported`.
 - Happy path subsequent push: `github_repo_full_name` already set → no Octokit call → just push.
 - `Octokit::Unauthorized` from create → state `:failed`, error mentions reconnecting, raises `TokenRevoked`.
 - `Octokit::UnprocessableEntity` from create (name collision) → state `:failed`, raises `RepoNameTaken`.
-- `git push` returns non-fast-forward → state `:failed`, raises `PushDiverged`, **token-bearing URL is still stripped** (assert remote-set-url called with clean URL).
-- `git push` succeeds → token-bearing URL is stripped, clean URL is set.
+- `git push` returns non-fast-forward → state `:failed`, raises `PushDiverged`. Assert that `git remote add origin …` was called with the **clean** URL (no token), and that the token-bearing URL appears only as an argv to `Open3.capture3`, never as a `git remote add/set-url` argument.
+- `git push` succeeds → assert the same invariant: `.git/config` (via the stubbed `system` calls) only ever sees the clean URL.
 - Workspace missing → raises `WorkspaceMissing` immediately.
 
 ### Success Criteria:
@@ -664,7 +691,8 @@ end
   ExportToGithubJob.perform_now(project.id, repo_name: "exported-test-#{Time.now.to_i}", private_repo: true)
   ```
   → repo appears on github.com under the user's account, contains the workspace's commit history, default branch is `main`.
-- [ ] After push, inspect `<workspace>/.git/config` — `[remote "origin"]` URL has no token in it.
+- [ ] After push, inspect `<workspace>/.git/config` — `[remote "origin"]` URL has no token in it (should read `https://github.com/<owner>/<repo>.git` exactly).
+- [ ] Mid-run safety check: kill the worker mid-push (`kill -9` the Solid Queue process while the push is in flight), inspect `.git/config` afterwards — still no token. (This is the regression case the new push pattern protects against.)
 - [ ] Run again on same project (no kwargs) → new commits push to the same repo.
 - [ ] Manually push a commit on github.com (edit the README via the web UI), run job again → fails with `PushDiverged`, project state is `:failed`, no data lost.
 - [ ] Revoke the OAuth grant on github.com/settings/applications, run job again → fails with `TokenRevoked`, project state is `:failed`.
@@ -689,22 +717,18 @@ Wire the job into the project page: a button that opens a tiny form (repo name +
 
 ```ruby
 resources :projects do
-  resource :github_export, only: [:new, :create]
+  resource :github_export, only: :create
 end
 ```
+
+> Only `:create` — the form renders inline in the pane partial, so there is no separate `:new` page/frame to GET.
 
 #### 2. Controller
 **File**: `app/controllers/github_exports_controller.rb`
 
 ```ruby
 class GithubExportsController < ApplicationController
-  before_action :authenticate_user!
-  before_action :set_project
   include ProjectOwnerRequired
-
-  def new
-    # Renders the form turbo-frame for repo name + visibility.
-  end
 
   def create
     unless @project.exportable?
@@ -712,27 +736,27 @@ class GithubExportsController < ApplicationController
       return
     end
 
-    name = params.require(:github_export).permit(:repo_name, :private_repo)[:repo_name].presence
-    private_repo = params.dig(:github_export, :private_repo) == "1"
+    # First-export path supplies a `github_export` form scope (repo name +
+    # private flag). The "Push latest changes" / "Retry" buttons re-POST
+    # without that scope — we use existing project.github_repo_full_name
+    # in the job and ignore the missing params.
+    form_params = params.fetch(:github_export, {}).permit(:repo_name, :private_repo)
+    name = form_params[:repo_name].presence
+    private_repo = form_params[:private_repo] == "1"
 
     ExportToGithubJob.perform_later(@project.id, repo_name: name, private_repo: private_repo)
     @project.update!(export_state: :exporting, export_error: nil)
 
-    respond_to do |format|
-      format.turbo_stream { render turbo_stream: turbo_stream.replace("github_export_pane", partial: "github_exports/pane", locals: { project: @project }) }
-      format.html { redirect_to project_path(@project) }
-    end
-  end
-
-  private
-
-  def set_project
-    @project = Project.find(params[:project_id])
+    # Form submits inside turbo-frame "github_export_pane" — render the
+    # pane partial as plain HTML; the matching <turbo-frame> inside it
+    # tells Turbo what to swap. Subsequent state transitions (exported /
+    # failed) arrive via `turbo_stream_from @project` from the job.
+    render partial: "github_exports/pane", locals: { project: @project }
   end
 end
 ```
 
-> `ProjectOwnerRequired` already enforces ownership (`app/controllers/concerns/project_owner_required.rb`).
+> `ProjectOwnerRequired` (`app/controllers/concerns/project_owner_required.rb`) already does `authenticate_user!` AND loads `@project` from `params[:project_id]` AND verifies ownership — so no separate `set_project` or `before_action :authenticate_user!` is needed. Including the concern is enough.
 
 #### 3. Pane partial
 **File**: `app/views/github_exports/_pane.html.erb`
@@ -748,9 +772,7 @@ end
   <% case project.export_state.to_sym %>
   <% when :not_exported %>
     <% if project.exportable? %>
-      <%= turbo_frame_tag "github_export_form", src: new_project_github_export_path(project), loading: :lazy do %>
-        <%= button_to "Export to GitHub", new_project_github_export_path(project), method: :get, form: { data: { turbo_frame: "github_export_form" } } %>
-      <% end %>
+      <%= render "github_exports/form", project: project %>
     <% else %>
       <p class="muted">Connect GitHub on <%= link_to "your profile", edit_user_registration_path %> to export.</p>
     <% end %>
@@ -773,28 +795,28 @@ end
 ```
 
 > Status-box partial follows the existing rectangular-outlined-box pattern (per memory + design system) — stripe + blinking dot for live states, no emoji, sentence case in the body.
+>
+> The form renders **inline** in the not-exported branch (no lazy turbo-frame wrapper). An earlier draft used a lazy `turbo_frame_tag "github_export_form" loading: :lazy` with a fallback button — that pattern caused the button to flash briefly and morph into the form on load, and added a redundant round-trip for what is two visible inputs. The form partial is small enough to render directly.
 
 #### 4. Form partial
-**File**: `app/views/github_exports/new.html.erb`
-**Changes**: Renders inside the turbo-frame.
+**File**: `app/views/github_exports/_form.html.erb`
+**Changes**: Rendered inline by the pane partial. The form's `data: { turbo_frame: "github_export_pane" }` makes the response replace the whole pane (which the controller renders with the new `:exporting` state).
 
 ```erb
-<%= turbo_frame_tag "github_export_form" do %>
-  <%= form_with url: project_github_export_path(@project), scope: :github_export,
-        data: { turbo_frame: "github_export_pane" } do |f| %>
-    <div class="field">
-      <%= f.label :repo_name, "Repository name" %>
-      <%= f.text_field :repo_name, value: @project.name.parameterize, required: true %>
-    </div>
-    <div class="field">
-      <%= f.label :private_repo do %>
-        <%= f.check_box :private_repo, {}, "1", "0" %>
-        Private repository
-      <% end %>
-      <p><small>Defaults to private. You can flip the repo to public on GitHub later.</small></p>
-    </div>
-    <%= f.submit "Export" %>
-  <% end %>
+<%= form_with url: project_github_export_path(project), scope: :github_export,
+      data: { turbo_frame: "github_export_pane" } do |f| %>
+  <div class="field">
+    <%= f.label :repo_name, "Repository name" %>
+    <%= f.text_field :repo_name, value: project.name.parameterize, required: true %>
+  </div>
+  <div class="field">
+    <%= f.label :private_repo do %>
+      <%= f.check_box :private_repo, {}, "1", "0" %>
+      Private repository
+    <% end %>
+    <p><small>Defaults to private. You can flip the repo to public on GitHub later.</small></p>
+  </div>
+  <%= f.submit "Export" %>
 <% end %>
 ```
 
@@ -835,6 +857,7 @@ Call after each `project.update!(export_state: ...)`.
 - Non-owner sees no button (or 404 on direct POST).
 - Owner without connection sees the "Connect GitHub on your profile" prompt.
 - POST with name + private flag → enqueues `ExportToGithubJob` with right args + state flips to `:exporting`.
+- POST without `:github_export` scope (the "Push latest changes" / "Retry" path on an already-exported project) → does NOT raise `ActionController::ParameterMissing`; enqueues the job with `repo_name: nil`, `private_repo: false`; state flips to `:exporting`.
 - Calling `perform_now` (or asserting the broadcast) results in `exported` pane.
 
 **File**: `test/system/github_export_test.rb`
@@ -859,6 +882,34 @@ Call after each `project.update!(export_state: ...)`.
 - [ ] Force a divergence: edit README on github.com via web UI, then click "Push latest changes" → pane flips to FAILED with a divergence message; the project's git history on disk is untouched.
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to any follow-up work.
+
+---
+
+## Phase 5: GitHub App migration (placeholder)
+
+> Not a deliverable of this plan — included as a named, tracked obligation so the OAuth-App work is honestly scoped as throwaway and the production gate has a concrete unblocker. A full plan for this phase is a separate document.
+
+### Why it exists
+
+The OAuth App's `repo` scope is too broad to put in front of users we don't personally trust (see Production gate). GitHub Apps fix the scoping by attaching permissions to a per-user *installation* rather than a global token: the user picks which repos the app can touch, and a token leak compromises only those repos — not their entire account.
+
+### What changes
+
+- **New**: GitHub App registration in `hifumidev` org (Pre-flight P5, currently deferred).
+- **New**: installation flow — user clicks "Connect GitHub" → arrives at the GitHub *install* page (not the *authorize* page) → picks "Only select repositories" or "All repositories" → returns with an installation_id.
+- **New**: installation-token rotation — `ghu_…` user-to-server tokens expire every 8 hours; the app refreshes via JWT-signed requests to `/app/installations/<id>/access_tokens`. The `refresh_token` and `expires_at` columns on `github_connections` (already present from Phase 1) get populated.
+- **Changed**: `GithubConnection#provider` flips from `"github_oauth"` to `"github_app"`. The provider field already exists; no schema migration needed.
+- **Changed**: `omniauth-github` → `omniauth-github` configured for App user-to-server flow, OR drop omniauth and hand-roll the installation callback (the App flow is simple enough that omniauth's value is marginal).
+- **New**: webhook endpoint to handle `installation.deleted` (user uninstalls the app → destroy the row).
+- **Unchanged**: Phase 0 (workspace identity), Phase 1 (data model), Phase 3's push mechanic (the `https://x-access-token:TOKEN@...` URL works identically for `gho_…` and `ghu_…` tokens), Phase 4's UI. This is the explicit reason the data model and push code were shaped the way they were.
+
+### Gating
+
+Until this phase lands and the production callback URL is registered, the `GITHUB_EXPORT_ENABLED` flag stays OFF in production and the Connect GitHub button stays hidden. When Phase 5 lands, that flag flips on and the OAuth-App registration is decommissioned (revoke at github.com → org → Developer settings → OAuth Apps → Delete).
+
+### Cost estimate
+
+GitHub App registration is free. Implementation is roughly two engineering days of work — most of it in the JWT-signing helper and the installation-token cache — assuming Phases 0-4 of this plan have already shipped and proven the push mechanic + UI. Less if we drop omniauth and hand-roll the callback (one fewer moving part to debug).
 
 ---
 
