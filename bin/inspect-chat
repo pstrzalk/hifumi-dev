@@ -2,8 +2,10 @@
 # Dump the chat history for a project so we can spot why Anthropic rejects
 # the conversation with "tool_use_id without matching tool_use" errors.
 #
-# Usage (locally):     bin/rails runner bin/inspect-chat <project_id>
-# Usage (on Kamal):    kamal app exec --primary "bin/rails runner bin/inspect-chat <project_id>"
+# Usage (locally):     bin/inspect-chat <project_id>
+# Usage (on Kamal):    kamal app exec --primary "bin/inspect-chat <project_id>"
+
+require_relative "../config/environment"
 
 project_id = ARGV.first || abort("usage: bin/inspect-chat <project_id>")
 project = Project.find(project_id)
