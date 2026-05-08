@@ -7,12 +7,37 @@ class Project < ApplicationRecord
 
   validates :name, presence: true
 
+  # Identity used for every commit made into a generated workspace —
+  # written to repo-local .git/config at init time + applied as -c flags
+  # on every explicit-author commit. Set on commit, not on push: GitHub
+  # attributes commits by author email regardless of who pushed them.
+  COMMIT_AUTHOR_NAME  = "hifumi.dev"
+  COMMIT_AUTHOR_EMAIL = "code@hifumi.dev"
+
   enum :preview_state, {
     stopped:  0,
     starting: 1,
     running:  2,
     failed:   3
   }, default: :stopped, prefix: :preview
+
+  enum :export_state, {
+    not_exported: 0,
+    exporting:    1,
+    exported:     2,
+    failed:       3
+  }, default: :not_exported, prefix: :export
+
+  def github_repo_url
+    return nil if github_repo_full_name.blank?
+    "https://github.com/#{github_repo_full_name}"
+  end
+
+  def exportable?
+    user.github_connection&.connected? &&
+      instructions.where(phase: :completed).exists? &&
+      !export_exporting?
+  end
 
   def workspace_path
     File.join(self.class.workspace_root, "project_#{id}")

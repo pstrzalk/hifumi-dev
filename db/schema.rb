@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_04_195442) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_07_210644) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -46,6 +46,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_195442) do
     t.datetime "updated_at", null: false
     t.index ["model_id"], name: "index_chats_on_model_id"
     t.index ["project_id"], name: "index_chats_on_project_id"
+  end
+
+  create_table "github_connections", force: :cascade do |t|
+    t.string "access_token", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at"
+    t.bigint "github_user_id", null: false
+    t.string "github_username", null: false
+    t.string "provider", default: "github_oauth", null: false
+    t.string "refresh_token"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["github_user_id"], name: "index_github_connections_on_github_user_id", unique: true
+    t.index ["user_id"], name: "index_github_connections_on_user_id", unique: true
   end
 
   create_table "instructions", force: :cascade do |t|
@@ -116,6 +130,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_195442) do
 
   create_table "projects", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.text "export_error"
+    t.integer "export_state", default: 0, null: false
+    t.datetime "exported_at"
+    t.string "github_repo_full_name"
     t.string "name", null: false
     t.string "preview_container_id"
     t.text "preview_error"
@@ -123,6 +141,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_195442) do
     t.integer "preview_state", default: 0, null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
+    t.index ["github_repo_full_name"], name: "index_projects_on_github_repo_full_name", unique: true, where: "github_repo_full_name IS NOT NULL"
     t.index ["user_id"], name: "index_projects_on_user_id"
   end
 
@@ -175,6 +194,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_195442) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "chats", "models"
   add_foreign_key "chats", "projects", on_delete: :cascade
+  add_foreign_key "github_connections", "users"
   add_foreign_key "instructions", "messages", column: "anchor_message_id", on_delete: :cascade
   add_foreign_key "instructions", "projects", on_delete: :cascade
   add_foreign_key "messages", "chats"

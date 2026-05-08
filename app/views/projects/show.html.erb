@@ -38,6 +38,9 @@
 
     <div class="lg:sticky lg:top-4 lg:h-fit">
       <%= render "previews/pane", project: @project %>
+      <div style="margin-top: 16px;">
+        <%= render "github_exports/pane", project: @project %>
+      </div>
     </div>
   </div>
 </section>

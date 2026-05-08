@@ -54,6 +54,19 @@
   </div>
 <% end %>
 
+<h3>GitHub connection</h3>
+
+<% if current_user.github_connection&.connected? %>
+  <p>
+    Connected as <a href="<%= current_user.github_connection.github_url %>" target="_blank">@<%= current_user.github_connection.github_username %></a>.
+  </p>
+  <%= button_to "Disconnect GitHub", github_connection_path, method: :delete,
+        data: { turbo_confirm: "Disconnect from GitHub? You'll need to reauthorize before exporting again." } %>
+<% else %>
+  <p><%= button_to "Connect GitHub", user_github_omniauth_authorize_path, method: :post, data: { turbo: false } %></p>
+  <p><small>Required to export projects to your GitHub account. Grants access to your repositories (`repo` scope).</small></p>
+<% end %>
+
 <h3>Cancel my account</h3>
 
 <div>Unhappy? <%= button_to "Cancel my account", registration_path(resource_name), data: { confirm: "Are you sure?", turbo_confirm: "Are you sure?" }, method: :delete %></div>

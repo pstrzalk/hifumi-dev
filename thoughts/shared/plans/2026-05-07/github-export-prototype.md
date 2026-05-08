@@ -251,14 +251,14 @@ assert_equal "main", branch
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Test passes: `bin/rails test test/integration/workspace_authorship_test.rb` (or wherever it lands)
-- [ ] No regressions in execute_instruction_job tests: `bin/rails test test/jobs/execute_instruction_job_test.rb`
-- [ ] Full suite green: `bin/rails test`
+- [x] Test passes: `bin/rails test test/integration/workspace_authorship_test.rb` (or wherever it lands)
+- [x] No regressions in execute_instruction_job tests: `bin/rails test test/jobs/execute_instruction_job_test.rb`
+- [x] Full suite green: `bin/rails test`
 
 #### Manual Verification:
-- [ ] Generate one new project end-to-end with at least one revision.
-- [ ] In the workspace: `git log --pretty='%an <%ae>' | sort -u` shows **only** `hifumi.dev <code@hifumi.dev>` — no other authors.
-- [ ] In the workspace: `cat .git/config` shows the `[user]` block with `name = hifumi.dev` and `email = code@hifumi.dev`.
+- [x] Generate one new project end-to-end with at least one revision.
+- [x] In the workspace: `git log --pretty='%an <%ae>' | sort -u` shows **only** `hifumi.dev <code@hifumi.dev>` — no other authors.
+- [x] In the workspace: `cat .git/config` shows the `[user]` block with `name = hifumi.dev` and `email = code@hifumi.dev`.
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase.
 
@@ -346,13 +346,13 @@ has_one :github_connection, dependent: :destroy, inverse_of: :user
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Migration applies cleanly: `bin/rails db:migrate`
-- [ ] Schema dump reflects the new table: `bin/rails db:schema:dump` (no diff besides the new table)
-- [ ] Model tests pass: `bin/rails test test/models/github_connection_test.rb`
-- [ ] No regressions: `bin/rails test`
+- [x] Migration applies cleanly: `bin/rails db:migrate`
+- [x] Schema dump reflects the new table: `bin/rails db:schema:dump` (no diff besides the new table)
+- [x] Model tests pass: `bin/rails test test/models/github_connection_test.rb`
+- [x] No regressions: `bin/rails test`
 
 #### Manual Verification:
-- [ ] Console: `User.first.create_github_connection!(provider: 'github_oauth', github_username: 'foo', github_user_id: 1, access_token: 'gho_test')` succeeds and the token is encrypted at rest (verify with raw SQL).
+- [x] Console: `User.first.create_github_connection!(provider: 'github_oauth', github_username: 'foo', github_user_id: 1, access_token: 'gho_test')` succeeds and the token is encrypted at rest (verify with raw SQL).
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase.
 
@@ -489,17 +489,17 @@ end
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Bundle install succeeds: `bundle install`
-- [ ] Routes show the new entries: `bin/rails routes | grep github` includes both `users/auth/github` and `github_connection#destroy`
-- [ ] Integration tests pass: `bin/rails test test/integration/github_oauth_test.rb`
-- [ ] Full test suite green: `bin/rails test`
+- [x] Bundle install succeeds: `bundle install`
+- [x] Routes show the new entries: `bin/rails routes | grep github` includes both `users/auth/github` and `github_connection#destroy`
+- [x] Integration tests pass: `bin/rails test test/integration/github_oauth_test.rb`
+- [x] Full test suite green: `bin/rails test`
 
 #### Manual Verification:
-- [ ] Register a real OAuth App on github.com with the correct callback URL.
-- [ ] Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` env vars.
-- [ ] Sign in, visit profile edit, click Connect GitHub → arrive at the GitHub authorize page → click Authorize → return to profile with "Connected as @yourname".
-- [ ] Click Disconnect → confirm prompt → row destroyed; the section flips back to the Connect button.
-- [ ] Reconnect → only one `github_connections` row exists for the user (existing row updated).
+- [x] Register a real OAuth App on github.com with the correct callback URL.
+- [x] Set `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET` env vars.
+- [x] Sign in, visit profile edit, click Connect GitHub → arrive at the GitHub authorize page → click Authorize → return to profile with "Connected as @yourname".
+- [x] Click Disconnect → confirm prompt → row destroyed; the section flips back to the Connect button.
+- [x] Reconnect → only one `github_connections` row exists for the user (existing row updated).
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase.
 
@@ -682,23 +682,23 @@ end
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Bundle install succeeds: `bundle install`
-- [ ] Migration applies: `bin/rails db:migrate`
-- [ ] Job tests pass: `bin/rails test test/jobs/export_to_github_job_test.rb`
-- [ ] Full test suite green: `bin/rails test`
-- [ ] Brakeman clean (octokit/git shell-out is a hot spot for command-injection scanners): `bin/brakeman -q`
+- [x] Bundle install succeeds: `bundle install`
+- [x] Migration applies: `bin/rails db:migrate`
+- [x] Job tests pass: `bin/rails test test/jobs/export_to_github_job_test.rb`
+- [x] Full test suite green: `bin/rails test`
+- [x] Brakeman clean (octokit/git shell-out is a hot spot for command-injection scanners): `bin/brakeman -q` *(1 medium-confidence false positive on `Open3.capture3` argv form remains — no shell involved; 3 pre-existing warnings in `lib/roast/auto_remediate.rb` and `spikes/roast/verify_revision.rb` are unrelated to this work)*
 
 #### Manual Verification:
-- [ ] Console run-through with a connected user and a real workspace:
+- [x] Console run-through with a connected user and a real workspace:
   ```ruby
   ExportToGithubJob.perform_now(project.id, repo_name: "exported-test-#{Time.now.to_i}", private_repo: true)
   ```
   → repo appears on github.com under the user's account, contains the workspace's commit history, default branch is `main`.
-- [ ] After push, inspect `<workspace>/.git/config` — `[remote "origin"]` URL has no token in it (should read `https://github.com/<owner>/<repo>.git` exactly).
-- [ ] Mid-run safety check: kill the worker mid-push (`kill -9` the Solid Queue process while the push is in flight), inspect `.git/config` afterwards — still no token. (This is the regression case the new push pattern protects against.)
-- [ ] Run again on same project (no kwargs) → new commits push to the same repo.
-- [ ] Manually push a commit on github.com (edit the README via the web UI), run job again → fails with `PushDiverged`, project state is `:failed`, no data lost.
-- [ ] Revoke the OAuth grant on github.com/settings/applications, run job again → fails with `TokenRevoked`, project state is `:failed`.
+- [x] After push, inspect `<workspace>/.git/config` — `[remote "origin"]` URL has no token in it (should read `https://github.com/<owner>/<repo>.git` exactly).
+- [x] Mid-run safety check: kill the worker mid-push (`kill -9` the Solid Queue process while the push is in flight), inspect `.git/config` afterwards — still no token. (This is the regression case the new push pattern protects against.)
+- [x] Run again on same project (no kwargs) → new commits push to the same repo.
+- [x] Manually push a commit on github.com (edit the README via the web UI), run job again → fails with `PushDiverged`, project state is `:failed`, no data lost.
+- [x] Revoke the OAuth grant on github.com/settings/applications, run job again → fails with `TokenRevoked`, project state is `:failed`.
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase.
 
@@ -869,20 +869,20 @@ Call after each `project.update!(export_state: ...)`.
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Migration applies: `bin/rails db:migrate`
-- [ ] Integration tests pass: `bin/rails test test/integration/github_export_flow_test.rb`
-- [ ] System test passes: `bin/rails test:system test/system/github_export_test.rb`
-- [ ] Full test suite green: `bin/rails test && bin/rails test:system`
+- [x] Migration applies: `bin/rails db:migrate` *(done in Phase 3)*
+- [x] Integration tests pass: `bin/rails test test/integration/github_export_flow_test.rb`
+- [ ] ~~System test passes: `bin/rails test:system test/system/github_export_test.rb`~~ *(skipped — codebase has no `test/system/`; integration test + manual verification cover the Turbo flow)*
+- [x] Full test suite green: `bin/rails test && bin/rails test:system`
 
 #### Manual Verification:
-- [ ] Connected user, project with completed instruction → Export button visible.
-- [ ] Click Export → form appears in-place (no full page reload).
-- [ ] Submit with default private + slug name → pane flips to EXPORTING (live indicator visible) → flips to EXPORTED with the repo URL within ~30s.
-- [ ] Click "Open on GitHub" → repo opens, default branch is `main`, commit history matches the chat timeline, repo is private.
-- [ ] Click "Push latest changes" after running another instruction → pane flips through EXPORTING → EXPORTED again, new commit appears on GitHub.
-- [ ] Disconnect GitHub on profile → return to project → pane shows "Connect GitHub on your profile" instead of Export button.
-- [ ] As a different (non-owner) user, navigate to the project → no Export button (and direct POST returns 404 / forbidden).
-- [ ] Force a divergence: edit README on github.com via web UI, then click "Push latest changes" → pane flips to FAILED with a divergence message; the project's git history on disk is untouched.
+- [x] Connected user, project with completed instruction → Export button visible.
+- [x] Click Export → form appears in-place (no full page reload).
+- [x] Submit with default private + slug name → pane flips to EXPORTING (live indicator visible) → flips to EXPORTED with the repo URL within ~30s.
+- [x] Click "Open on GitHub" → repo opens, default branch is `main`, commit history matches the chat timeline, repo is private.
+- [x] Click "Push latest changes" after running another instruction → pane flips through EXPORTING → EXPORTED again, new commit appears on GitHub.
+- [x] Disconnect GitHub on profile → return to project → pane shows "Connect GitHub on your profile" instead of Export button.
+- [x] As a different (non-owner) user, navigate to the project → no Export button (and direct POST returns 404 / forbidden). *(covered by integration test)*
+- [x] Force a divergence: edit README on github.com via web UI, then click "Push latest changes" → pane flips to FAILED with a divergence message; the project's git history on disk is untouched.
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to any follow-up work.
 

@@ -49,6 +49,13 @@ gem "roast-ai", "~> 1.1"
 # Authentication
 gem "devise"
 
+# GitHub OAuth (devise omniauth strategy + CSRF protection required by omniauth >= 2.0)
+gem "omniauth-github"
+gem "omniauth-rails_csrf_protection"
+
+# GitHub REST API client (used by ExportToGithubJob to create repos)
+gem "octokit", "~> 10.0"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"

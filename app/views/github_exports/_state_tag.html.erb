@@ -1,0 +1,10 @@
+<% case project.export_state.to_sym %>
+<% when :not_exported %>
+  <span class="tag tag--stopped">not exported</span>
+<% when :exporting %>
+  <span class="tag tag--starting"><span class="tag-dot"></span>exporting</span>
+<% when :exported %>
+  <span class="tag tag--running">exported</span>
+<% when :failed %>
+  <span class="tag tag--failed">failed</span>
+<% end %>

@@ -1,0 +1,5 @@
+# Empty by design. access_token is encrypted via Rails 8 attribute
+# encryption; fixtures bypass model callbacks (raw INSERT), so any value
+# put here is stored as plaintext and fails to decrypt when the model
+# reads it. Tests that need a connection build it through the model:
+#   user.create_github_connection!(provider: "github_oauth", ...)

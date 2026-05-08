@@ -58,7 +58,8 @@ module Templates
 
       ok = system(
         "cd #{Shellwords.escape(workspace)} && git add docs/frontend.md app/views/layouts/application.html.erb && " \
-        "git -c user.email=generator@local -c user.name='Rails App Generator' " \
+        "git -c user.email=#{Shellwords.escape(Project::COMMIT_AUTHOR_EMAIL)} " \
+        "-c user.name=#{Shellwords.escape(Project::COMMIT_AUTHOR_NAME)} " \
         "commit -q -m 'docs: pick frontend template (#{name})'"
       )
       raise "git commit failed in #{workspace}" unless ok

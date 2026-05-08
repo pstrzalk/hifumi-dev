@@ -271,6 +271,8 @@ execute do
   end
 
   # W2.5: Git commit code
+  # Author identity comes from the workspace's repo-local git config
+  # (set in ExecuteInstructionJob#init_rails_app to hifumi.dev <code@hifumi.dev>).
   cmd(:git_commit) do |my|
     summary = kwarg(:revision_summary)
     my.command = "sh"

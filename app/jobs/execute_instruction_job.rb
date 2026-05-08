@@ -70,8 +70,12 @@ class ExecuteInstructionJob < ApplicationJob
       ok = system(
         subprocess_env,
         "cd #{Shellwords.escape(workspace)} && " \
-        "git init -q && git add -A && " \
-        "git -c user.email=generator@local -c user.name='Rails App Generator' " \
+        "git init -q -b main && " \
+        "git config user.email #{Shellwords.escape(Project::COMMIT_AUTHOR_EMAIL)} && " \
+        "git config user.name #{Shellwords.escape(Project::COMMIT_AUTHOR_NAME)} && " \
+        "git add -A && " \
+        "git -c user.email=#{Shellwords.escape(Project::COMMIT_AUTHOR_EMAIL)} " \
+        "-c user.name=#{Shellwords.escape(Project::COMMIT_AUTHOR_NAME)} " \
         "commit -q -m 'chore: skeleton baseline'"
       )
       raise "git init failed in #{workspace}" unless ok
@@ -144,6 +148,7 @@ class ExecuteInstructionJob < ApplicationJob
       "revision_notes.md" => "# Revision notes\n\n"
     }.each { |name, content| File.write(File.join(docs_dir, name), content) }
 
+    # Author identity comes from the repo-local config set in init_rails_app.
     system(
       "cd #{Shellwords.escape(workspace)} && git add -A && " \
       "git commit -m 'docs: scaffolding baseline' --allow-empty"
