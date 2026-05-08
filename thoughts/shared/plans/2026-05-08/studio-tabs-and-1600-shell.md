@@ -551,27 +551,25 @@ Branch coverage matrix (per `feedback_test_branch_coverage`):
 ### Success Criteria
 
 #### Automated:
-- [ ] `bundle exec rails test test/controllers/projects_controller_show_test.rb` green; the ten new tests above all pass.
-- [ ] `bundle exec rails test` full suite green.
-- [ ] `bin/rails tailwindcss:build` succeeds; `app/assets/builds/tailwind.css` contains `.tab-nav` and `.tab-button.is-active`.
-- [ ] `git grep -n "grid lg:grid-cols-2"` and `git grep -n "lg:sticky lg:top-4 lg:h-fit"` both return zero hits in `app/views/projects/show.html.erb`.
+- [x] `bundle exec rails test test/controllers/projects_controller_show_test.rb` green; the ten new tests above all pass.
+- [x] `bundle exec rails test` full suite green.
+- [x] `bin/rails tailwindcss:build` succeeds; `app/assets/builds/tailwind.css` contains `.tab-nav` and `.tab-button.is-active`.
+- [x] `git grep -n "grid lg:grid-cols-2"` and `git grep -n "lg:sticky lg:top-4 lg:h-fit"` both return zero hits in `app/views/projects/show.html.erb`.
 
 #### Manual:
-- [ ] `bin/dev` running. Open `/projects/<id>` for a project that has at least one completed instruction (so all three panes have content). Tab strip shows 一/二/三 with mono-caps labels; Build is active (accent underline + accent kanji + dark label); Preview and Export are muted, no underline.
-- [ ] Click Preview tab. Build pane disappears; Preview pane shows the revisions table on top, the preview pane (Stopped/Running state per existing logic) below. URL does not change. No network request fires (verify in DevTools Network panel).
-- [ ] Click Export tab. Preview pane hides, Export pane shows the GitHub-export form (or "connect GitHub first" CTA, depending on `project.exportable?`). URL still unchanged.
-- [ ] Click Build tab. Returns to messages feed + composer. The composer textarea retains any text typed before tab-switching (DOM is preserved).
-- [ ] **Keyboard navigation (WAI-ARIA tabs pattern)**: Tab into the tab strip from the page (Tab key from the eyebrow). Focus lands on the active tab (Build). Press → (ArrowRight): focus and active tab move to Preview. Press → again: Export. Press → again: wraps to Build. Press End: jumps to Export. Press Home: jumps to Build. Press ← (ArrowLeft) from Build: wraps to Export. Tabbing forward from any tab moves focus *out of* the tablist and into the active panel's content (composer field, preview iframe, or export form) — not to the next tab. This is the roving-tabindex behaviour from the WAI-ARIA tabs pattern.
-- [ ] **Screen reader smoke test (VoiceOver on macOS, optional)**: Cmd+F5 to enable VO; navigate to the tab strip. VO announces "studio sections, tab list, 3 items". Each tab announces "Build, tab, selected, 1 of 3" (and similar). Switching tabs via arrow keys announces the new selection.
-- [ ] Submit a message from the Build composer. Form replaces (per `MessagesController#create` turbo_stream); the new user message appears at the bottom of `#messages`; tab strip stays on Build.
-- [ ] While on Preview tab, send a chat message via `bin/generate respond <project_id> "say hi"` from a separate terminal (or just submit from Build, then immediately switch to Preview before the LLM finishes). Watch the `#messages` broadcast: when you switch back to Build, the assistant reply is already there.
-- [ ] While on Export tab, click "Start preview" (you'll need to switch to Preview to find the button — this just confirms the buttons live in their right panes). Switch back to Export — Export pane is unaffected. Switch to Preview — pane shows `:starting` then `:running`, iframe loads the generated app.
-- [ ] Trigger a `:notice` flash (sign out + sign in). Strip renders at the new 1600-px width above the tab strip. Tab strip and panes still align.
-- [ ] Trigger an `:alert` (e.g. `redirect_to project_path(project), alert: "boom"` in `rails c` won't work; test the path that already produces alerts — e.g. failing GitHub-export disconnect, or just verify the layout strip still appears in the rendered HTML for a request with `flash[:alert]` set).
-- [ ] Refresh the page while on Preview tab. Page reloads with Build active (no URL state).
-- [ ] Resize browser narrower than 1024 px. Tab strip remains horizontal (no `grid lg:` rule applies anymore — the grid is gone). Confirm tabs still render side-by-side at e.g. 720 px width; if labels overflow, accept it for this iteration (per `feedback_planning_interaction_style`-style scope discipline, no responsive tab collapse is in this plan).
-
-**Pause for manual confirmation. The change is shipped once both phases pass their manual gates.**
+- [x] `bin/dev` running. Open `/projects/<id>` for a project that has at least one completed instruction (so all three panes have content). Tab strip shows 一/二/三 with mono-caps labels; Build is active (accent underline + accent kanji + dark label); Preview and Export are muted, no underline.
+- [x] Click Preview tab. Build pane disappears; Preview pane shows the revisions table on top, the preview pane (Stopped/Running state per existing logic) below. URL does not change. No network request fires (verify in DevTools Network panel).
+- [x] Click Export tab. Preview pane hides, Export pane shows the GitHub-export form (or "connect GitHub first" CTA, depending on `project.exportable?`). URL still unchanged.
+- [x] Click Build tab. Returns to messages feed + composer. The composer textarea retains any text typed before tab-switching (DOM is preserved).
+- [x] **Keyboard navigation (WAI-ARIA tabs pattern)**: Tab into the tab strip from the page (Tab key from the eyebrow). Focus lands on the active tab (Build). Press → (ArrowRight): focus and active tab move to Preview. Press → again: Export. Press → again: wraps to Build. Press End: jumps to Export. Press Home: jumps to Build. Press ← (ArrowLeft) from Build: wraps to Export. Tabbing forward from any tab moves focus *out of* the tablist and into the active panel's content (composer field, preview iframe, or export form) — not to the next tab. This is the roving-tabindex behaviour from the WAI-ARIA tabs pattern.
+- [x] **Screen reader smoke test (VoiceOver on macOS, optional)**: Cmd+F5 to enable VO; navigate to the tab strip. VO announces "studio sections, tab list, 3 items". Each tab announces "Build, tab, selected, 1 of 3" (and similar). Switching tabs via arrow keys announces the new selection.
+- [x] Submit a message from the Build composer. Form replaces (per `MessagesController#create` turbo_stream); the new user message appears at the bottom of `#messages`; tab strip stays on Build.
+- [x] While on Preview tab, send a chat message via `bin/generate respond <project_id> "say hi"` from a separate terminal (or just submit from Build, then immediately switch to Preview before the LLM finishes). Watch the `#messages` broadcast: when you switch back to Build, the assistant reply is already there.
+- [x] While on Export tab, click "Start preview" (you'll need to switch to Preview to find the button — this just confirms the buttons live in their right panes). Switch back to Export — Export pane is unaffected. Switch to Preview — pane shows `:starting` then `:running`, iframe loads the generated app.
+- [x] Trigger a `:notice` flash (sign out + sign in). Strip renders at the new 1600-px width above the tab strip. Tab strip and panes still align.
+- [x] Trigger an `:alert` (e.g. `redirect_to project_path(project), alert: "boom"` in `rails c` won't work; test the path that already produces alerts — e.g. failing GitHub-export disconnect, or just verify the layout strip still appears in the rendered HTML for a request with `flash[:alert]` set).
+- [x] Refresh the page while on Preview tab. Page reloads with Build active (no URL state).
+- [x] Resize browser narrower than 1024 px. Tab strip remains horizontal (no `grid lg:` rule applies anymore — the grid is gone). Confirm tabs still render side-by-side at e.g. 720 px width; if labels overflow, accept it for this iteration (per `feedback_planning_interaction_style`-style scope discipline, no responsive tab collapse is in this plan).
 
 ---
 

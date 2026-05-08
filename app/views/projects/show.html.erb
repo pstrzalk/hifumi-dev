@@ -8,11 +8,15 @@
 
   <%= render "shared/chat_notice" %>
 
-  <div class="grid lg:grid-cols-2 gap-6">
-    <div class="flex flex-col">
-      <div id="active_revisions">
-        <%= render "revisions/list", revisions: @active_revisions %>
-      </div>
+  <div data-controller="tabs" data-tabs-active-value="build">
+    <%= render "tab_nav" %>
+
+    <div id="pane_build"
+         role="tabpanel"
+         aria-labelledby="tab_build"
+         tabindex="0"
+         data-tabs-target="pane"
+         data-tab-name="build">
       <div id="messages" class="flex flex-col" style="gap: 12px; margin-bottom: 16px;">
         <% @chat_events.each do |event| %>
           <% case event %>
@@ -23,24 +27,34 @@
           <% end %>
         <% end %>
       </div>
-      <% if flash[:alert] %>
-        <div class="notice-strip notice-strip--err">
-          <div class="notice-strip__stripe"></div>
-          <div class="notice-strip__tag">error</div>
-          <div class="notice-strip__body"><%= flash[:alert] %></div>
-          <div></div>
-        </div>
-      <% end %>
       <div style="margin-top: 16px;">
         <%= render "messages/form", project: @project %>
       </div>
     </div>
 
-    <div class="lg:sticky lg:top-4 lg:h-fit">
-      <%= render "previews/pane", project: @project %>
-      <div style="margin-top: 16px;">
-        <%= render "github_exports/pane", project: @project %>
+    <div id="pane_preview"
+         role="tabpanel"
+         aria-labelledby="tab_preview"
+         tabindex="0"
+         data-tabs-target="pane"
+         data-tab-name="preview"
+         style="display: none;">
+      <div id="active_revisions">
+        <%= render "revisions/list", revisions: @active_revisions %>
       </div>
+      <div style="margin-top: 16px;">
+        <%= render "previews/pane", project: @project %>
+      </div>
+    </div>
+
+    <div id="pane_export"
+         role="tabpanel"
+         aria-labelledby="tab_export"
+         tabindex="0"
+         data-tabs-target="pane"
+         data-tab-name="export"
+         style="display: none;">
+      <%= render "github_exports/pane", project: @project %>
     </div>
   </div>
 </section>

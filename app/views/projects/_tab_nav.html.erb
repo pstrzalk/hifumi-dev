@@ -1,0 +1,33 @@
+<%#
+  Studio tab strip. Renders three tab buttons (Build / Preview / Export).
+  The Stimulus `tabs` controller (data-controller="tabs" on the parent)
+  toggles which pane is visible. Default active = "build".
+
+  Implements the full WAI-ARIA tabs pattern:
+  - role="tablist" on container, role="tab" + aria-selected + aria-controls
+    on each button, with roving tabindex (active=0, inactive=-1)
+  - Arrow keys (Left/Right/Home/End) wired via data-action keydown→tabs#keydown
+  - Panes live in show.html.erb and carry role="tabpanel" + aria-labelledby
+%>
+<nav class="tab-nav" role="tablist" aria-label="studio sections" aria-orientation="horizontal">
+  <% [
+    [:build,   "一", "hi · 01 · build"],
+    [:preview, "二", "fu · 02 · preview"],
+    [:export,  "三", "mi · 03 · export"]
+  ].each do |name, glyph, label| %>
+    <% active = (name == :build) %>
+    <button type="button"
+            id="tab_<%= name %>"
+            class="tab-button<%= " is-active" if active %>"
+            role="tab"
+            aria-selected="<%= active ? "true" : "false" %>"
+            aria-controls="pane_<%= name %>"
+            tabindex="<%= active ? "0" : "-1" %>"
+            data-tabs-target="tab"
+            data-tab-name="<%= name %>"
+            data-action="click->tabs#switch keydown->tabs#keydown">
+      <span class="tab-button__numeral kanji" aria-hidden="true"><%= glyph %></span>
+      <span class="tab-button__label"><%= label %></span>
+    </button>
+  <% end %>
+</nav>
