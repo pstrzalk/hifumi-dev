@@ -115,18 +115,16 @@ Four edits in three files. No behavior change. Lands first so Phase 2 reviewers 
 ### Success Criteria
 
 #### Automated:
-- [ ] `bundle exec rails test` green.
-- [ ] `git grep -n "1120" -- '*.css' '*.html.erb'` returns zero hits inside `app/views/layouts/application.html.erb`, `app/views/projects/show.html.erb`, and `app/assets/tailwind/application.css`. (Other repos / docs / thoughts mentions don't matter — they're history.)
-- [ ] `git grep -n "1600" app/views/layouts/application.html.erb app/views/projects/show.html.erb app/assets/tailwind/application.css` returns exactly four hits (one in each .erb, one in the CSS — note both flash strips are in the same .erb).
+- [x] `bundle exec rails test` green.
+- [x] `git grep -n "1120" -- '*.css' '*.html.erb'` returns zero hits inside `app/views/layouts/application.html.erb`, `app/views/projects/show.html.erb`, and `app/assets/tailwind/application.css`. (Other repos / docs / thoughts mentions don't matter — they're history.)
+- [x] `git grep -n "1600" app/views/layouts/application.html.erb app/views/projects/show.html.erb app/assets/tailwind/application.css` returns exactly four hits (one in each .erb, one in the CSS — note both flash strips are in the same .erb).
 
 #### Manual:
-- [ ] `bin/dev` running, `GET /projects/<id>`: studio content stretches to 1600 px on a wide monitor; preview iframe still renders inside it without breaking.
-- [ ] Top nav (`hifumi.dev · Projects · Account · Sign out`) aligns left-edge with studio content (both at the 1600-px container's left padding).
-- [ ] Trigger a `:notice` flash (e.g. by signing out and back in): strip is centered at 1600 px, top edge below the nav.
-- [ ] Trigger an `:alert` flash (e.g. submitting an empty `POST /projects`): strip aligns identically.
-- [ ] `GET /projects` (index, 720 px) and `GET /users/edit` (Devise, 480 px) still render at their existing narrower widths — no regression on the other pages.
-
-**Pause for manual confirmation before proceeding to Phase 2.**
+- [x] `bin/dev` running, `GET /projects/<id>`: studio content stretches to 1600 px on a wide monitor; preview iframe still renders inside it without breaking.
+- [x] Top nav (`hifumi.dev · Projects · Account · Sign out`) aligns left-edge with studio content (both at the 1600-px container's left padding).
+- [x] Trigger a `:notice` flash (e.g. by signing out and back in): strip is centered at 1600 px, top edge below the nav.
+- [x] Trigger an `:alert` flash (e.g. submitting an empty `POST /projects`): strip aligns identically.
+- [x] `GET /projects` (index, 720 px) and `GET /users/edit` (Devise, 480 px) still render at their existing narrower widths — no regression on the other pages.
 
 ---
 
