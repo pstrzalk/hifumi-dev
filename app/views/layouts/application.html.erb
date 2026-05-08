@@ -25,9 +25,9 @@
   </head>
 
   <body class="app-shell">
-    <% if user_signed_in? %>
-      <nav class="app-nav">
-        <div class="app-nav-inner">
+    <nav class="app-nav">
+      <div class="app-nav-inner">
+        <% if user_signed_in? %>
           <%= link_to projects_path, class: "app-nav-brand" do %>hifumi<span class="tld">.dev</span><% end %>
           <%= link_to "Projects", projects_path, class: "app-nav-link#{' active' if controller_name == 'projects'}" %>
           <span class="app-nav-sep">·</span>
@@ -35,9 +35,14 @@
           <span class="app-nav-sep">·</span>
           <%= button_to "Sign out", destroy_user_session_path, method: :delete,
               form: { class: "inline" }, class: "btn btn--ghost btn--sm" %>
-        </div>
-      </nav>
-    <% end %>
+        <% else %>
+          <%= link_to root_path, class: "app-nav-brand" do %>hifumi<span class="tld">.dev</span><% end %>
+          <%= link_to "Log in", new_user_session_path %>
+          <span class="app-nav-sep">·</span>
+          <%= link_to "Sign up", new_user_registration_path, class: "btn btn--accent btn--sm" %>
+        <% end %>
+      </div>
+    </nav>
 
     <main class="w-full" style="padding: 24px;">
       <% if notice %>

@@ -206,8 +206,8 @@ body {
   font-size: 14px;
   color: var(--fg);
 }
-.app-nav-inner a { color: var(--fg); text-decoration: none; }
-.app-nav-inner a:hover { color: var(--accent); }
+.app-nav-inner a:not(.btn) { color: var(--fg); text-decoration: none; }
+.app-nav-inner a:not(.btn):hover { color: var(--accent); }
 .app-nav-brand {
   font-family: var(--hi-font-sans);
   font-weight: 600;
