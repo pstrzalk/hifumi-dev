@@ -111,6 +111,8 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--hi-font-sans);
+  font-size: 22px;
+  line-height: 1.5;
   font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -130,7 +132,7 @@ body {
 
 .h-section {
   font-family: var(--hi-font-sans);
-  font-size: 26px;
+  font-size: 40px;
   line-height: 1.25;
   letter-spacing: var(--tracking-tight);
   font-weight: 600;
@@ -139,7 +141,7 @@ body {
 
 .lede {
   font-family: var(--hi-font-serif);
-  font-size: 20px;
+  font-size: 32px;
   line-height: 1.55;
   color: var(--fg-muted);
   font-weight: 400;
@@ -152,11 +154,17 @@ body {
 
 .eyebrow {
   font-family: var(--hi-font-mono);
-  font-size: 11px;
+  font-size: 18px;
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
   color: var(--fg-muted);
   font-weight: 500;
+}
+
+.small {
+  font-family: var(--hi-font-mono);
+  font-size: 18px;
+  color: var(--fg-faint);
 }
 
 .numeral {
@@ -203,7 +211,7 @@ body {
   gap: 16px;
   padding: 0 24px;
   font-family: var(--hi-font-sans);
-  font-size: 14px;
+  font-size: 22px;
   color: var(--fg);
 }
 .app-nav-inner a:not(.btn) { color: var(--fg); text-decoration: none; }
@@ -211,7 +219,7 @@ body {
 .app-nav-brand {
   font-family: var(--hi-font-sans);
   font-weight: 600;
-  font-size: 16px;
+  font-size: 24px;
   letter-spacing: -0.01em;
   color: var(--fg);
   text-decoration: none;
@@ -256,13 +264,13 @@ body {
   outline-offset: 2px;
 }
 .tab-button__numeral {
-  font-size: 28px;
+  font-size: 44px;
   line-height: 1;
   color: inherit;
 }
 .tab-button__label {
   font-family: var(--hi-font-mono);
-  font-size: 11px;
+  font-size: 18px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
@@ -279,11 +287,11 @@ body {
    ============================================================ */
 .notice-strip {
   display: grid;
-  grid-template-columns: 4px 88px 1fr auto;
+  grid-template-columns: 4px 110px 1fr auto;
   align-items: stretch;
   border: 1px solid var(--border);
   background: var(--paper-0);
-  font-size: 13px;
+  font-size: 20px;
   line-height: 1.5;
   margin-bottom: 16px;
 }
@@ -293,7 +301,7 @@ body {
   align-items: center;
   justify-content: center;
   font-family: var(--hi-font-mono);
-  font-size: 10px;
+  font-size: 16px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   border-right: 1px solid var(--border);
@@ -304,7 +312,7 @@ body {
 .notice-strip__body code,
 .notice-strip__body pre {
   font-family: var(--hi-font-mono);
-  font-size: 12px;
+  font-size: 20px;
   background: var(--bg-sunken);
   padding: 1px 5px;
   border-radius: 2px;
@@ -314,7 +322,7 @@ body {
   cursor: pointer;
   opacity: .55;
   font-family: var(--hi-font-mono);
-  font-size: 14px;
+  font-size: 22px;
   padding: 8px 12px;
   color: var(--fg-muted);
   background: transparent;
@@ -340,7 +348,7 @@ body {
   justify-content: center;
   gap: 6px;
   font-family: var(--hi-font-sans);
-  font-size: 14px;
+  font-size: 22px;
   font-weight: 500;
   line-height: 1;
   padding: 8px 14px;
@@ -374,7 +382,7 @@ body {
 .btn--danger { color: var(--err-fg); background: transparent; }
 .btn--danger:hover { background: var(--err-bg); }
 
-.btn--sm { font-size: 12px; padding: 6px 10px; }
+.btn--sm { font-size: 20px; padding: 6px 10px; }
 
 /* ============================================================
    FORMS
@@ -382,7 +390,7 @@ body {
 .field-label {
   display: block;
   font-family: var(--hi-font-mono);
-  font-size: 11px;
+  font-size: 18px;
   color: var(--fg-muted);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
@@ -391,7 +399,7 @@ body {
 .field-input,
 .field-textarea {
   font-family: var(--hi-font-sans);
-  font-size: 14px;
+  font-size: 22px;
   line-height: 1.5;
   color: var(--fg);
   background: var(--paper-0);
@@ -420,7 +428,7 @@ body {
   align-items: center;
   gap: 6px;
   font-family: var(--hi-font-mono);
-  font-size: 10px;
+  font-size: 16px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -472,7 +480,7 @@ body {
 .project-card__name {
   font-family: var(--hi-font-mono);
   font-weight: 500;
-  font-size: 14px;
+  font-size: 22px;
   color: var(--ink-800);
   letter-spacing: -0.01em;
   text-decoration: none;
@@ -486,7 +494,7 @@ body {
   align-items: center;
   gap: 10px;
   font-family: var(--hi-font-mono);
-  font-size: 11px;
+  font-size: 18px;
   color: var(--fg-muted);
 }
 .project-card__meta .dot { color: var(--fg-faint); }
@@ -505,7 +513,7 @@ body {
   border: 0;
   cursor: pointer;
   font-family: var(--hi-font-mono);
-  font-size: 11px;
+  font-size: 18px;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--fg-muted);
@@ -534,14 +542,14 @@ body {
   border-bottom: 1px solid var(--border);
   background: var(--bg-elevated);
   font-family: var(--hi-font-mono);
-  font-size: 10px;
+  font-size: 16px;
   text-transform: uppercase;
   letter-spacing: 0.16em;
   color: var(--fg-muted);
 }
 .revision-row {
   display: grid;
-  grid-template-columns: 4px 56px 110px 1fr 90px;
+  grid-template-columns: 4px 56px 110px 1fr 120px;
   align-items: stretch;
   border-bottom: 1px solid var(--border);
   min-height: 38px;
@@ -552,13 +560,13 @@ body {
   align-items: center;
   padding: 0 12px;
   border-right: 1px solid var(--border);
-  font-size: 13px;
+  font-size: 20px;
 }
 .revision-row > div:last-child { border-right: 0; }
 .revision-row .stripe { padding: 0; border-right: 1px solid var(--border); background: var(--ink-200); }
-.revision-row .id { font-family: var(--hi-font-mono); font-size: 11px; color: var(--fg-muted); letter-spacing: 0.04em; }
+.revision-row .id { font-family: var(--hi-font-mono); font-size: 18px; color: var(--fg-muted); letter-spacing: 0.04em; }
 .revision-row .summary { color: var(--fg); font-family: var(--hi-font-sans); }
-.revision-row .sha { justify-content: flex-end; font-family: var(--hi-font-mono); font-size: 11px; color: var(--fg-faint); }
+.revision-row .sha { justify-content: flex-end; font-family: var(--hi-font-mono); font-size: 18px; color: var(--fg-faint); }
 
 .revision-row--ok    .stripe { background: var(--ok-line); }
 .revision-row--gen   .stripe { background: var(--info-fg); }
@@ -589,7 +597,7 @@ body {
 .msg-asst .msg-bubble { background: var(--bg-elevated); }
 .msg-role {
   font-family: var(--hi-font-mono);
-  font-size: 10px;
+  font-size: 16px;
   color: var(--fg-faint);
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
@@ -598,7 +606,7 @@ body {
 .msg-body { color: var(--fg); white-space: pre-wrap; line-height: 1.55; }
 .msg-pill {
   font-family: var(--hi-font-mono);
-  font-size: 12px;
+  font-size: 20px;
   color: var(--fg-muted);
   font-style: normal;
   display: inline-flex;
@@ -627,7 +635,7 @@ body {
 }
 .suggestion-chip {
   font-family: var(--hi-font-sans);
-  font-size: 13px;
+  font-size: 20px;
   padding: 6px 10px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
@@ -656,7 +664,7 @@ body {
   border-bottom: 1px solid var(--border);
   background: var(--bg-elevated);
   font-family: var(--hi-font-mono);
-  font-size: 11px;
+  font-size: 18px;
 }
 .preview-pane__url {
   color: var(--fg-muted);
@@ -684,14 +692,9 @@ body {
   color: var(--fg-muted);
   padding: 32px 16px;
 }
-.preview-pane__empty .small {
-  font-family: var(--hi-font-mono);
-  font-size: 11px;
-  color: var(--fg-faint);
-}
 .preview-pane__error {
   font-family: var(--hi-font-mono);
-  font-size: 12px;
+  font-size: 20px;
   background: var(--bg-code);
   color: var(--steel-100);
   padding: 12px;
@@ -758,13 +761,13 @@ body {
 .pipeline-step__numeral {
   font-family: var(--hi-font-serif);
   font-weight: 500;
-  font-size: 56px;
+  font-size: 88px;
   line-height: 1;
   color: var(--accent);
 }
 .pipeline-step__label {
   font-family: var(--hi-font-mono);
-  font-size: 11px;
+  font-size: 18px;
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
   color: var(--fg-muted);
@@ -772,12 +775,12 @@ body {
 .pipeline-step__title {
   font-family: var(--hi-font-sans);
   font-weight: 600;
-  font-size: 22px;
+  font-size: 36px;
   letter-spacing: var(--tracking-tight);
 }
 .pipeline-step__body {
   font-family: var(--hi-font-sans);
-  font-size: 14px;
+  font-size: 22px;
   line-height: 1.6;
   color: var(--fg-muted);
 }

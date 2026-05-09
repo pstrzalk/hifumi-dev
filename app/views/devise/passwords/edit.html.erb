@@ -10,7 +10,7 @@
       <%= f.label :password, "New password", class: "field-label" %>
       <%= f.password_field :password, autofocus: true, autocomplete: "new-password", class: "field-input" %>
       <% if @minimum_password_length %>
-        <p style="margin: 6px 0 0; font-size: 12px; color: var(--fg-muted);">
+        <p style="margin: 6px 0 0; font-size: 20px; color: var(--fg-muted);">
           <%= @minimum_password_length %> characters minimum.
         </p>
       <% end %>
@@ -21,12 +21,12 @@
       <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "field-input" %>
     </div>
 
-    <%= f.submit "Change my password", class: "btn btn--primary", style: "align-self: flex-start;" %>
+    <%= f.submit "Change my password", class: "btn btn--accent", style: "align-self: flex-start;" %>
   <% end %>
 
   <hr class="section-rule" style="margin: 24px 0;">
 
-  <div class="flex flex-col" style="gap: 6px; font-size: 13px;">
+  <div class="flex flex-col" style="gap: 6px; font-size: 20px;">
     <%= render "devise/shared/links" %>
   </div>
 </section>

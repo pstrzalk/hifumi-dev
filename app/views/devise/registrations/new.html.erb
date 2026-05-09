@@ -14,7 +14,7 @@
       <%= f.label :password, class: "field-label" %>
       <%= f.password_field :password, autocomplete: "new-password", class: "field-input" %>
       <% if @minimum_password_length %>
-        <p class="small" style="margin: 4px 0 0; font-family: var(--hi-font-mono); font-size: 11px; color: var(--fg-faint);">
+        <p class="small" style="margin: 4px 0 0;">
           <%= @minimum_password_length %> characters minimum.
         </p>
       <% end %>
@@ -39,7 +39,7 @@
       <div>
         <%= pf.label :openrouter_api_key, "OpenRouter API key", class: "field-label" %>
         <%= pf.password_field :openrouter_api_key, autocomplete: "off", class: "field-input" %>
-        <p style="margin: 6px 0 0; font-size: 12px; color: var(--fg-muted);">
+        <p class="small" style="margin: 6px 0 0;">
           Get one at
           <a href="https://openrouter.ai/keys" target="_blank"
              style="color: var(--accent); text-decoration: underline; text-underline-offset: 2px;">openrouter.ai/keys</a>.
@@ -53,7 +53,7 @@
 
   <hr class="section-rule" style="margin: 24px 0;">
 
-  <div class="flex flex-col" style="gap: 6px; font-size: 13px;">
+  <div class="flex flex-col" style="gap: 6px; font-size: 20px;">
     <%= render "devise/shared/links" %>
   </div>
 </section>

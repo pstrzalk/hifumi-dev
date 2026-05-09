@@ -1,15 +1,18 @@
 <%= form_with url: project_github_export_path(project), scope: :github_export,
-      data: { turbo_frame: "github_export_pane" } do |f| %>
-  <div class="field">
-    <%= f.label :repo_name, "Repository name" %>
-    <%= f.text_field :repo_name, value: project.name.parameterize, required: true %>
+      data: { turbo_frame: "github_export_pane" },
+      class: "flex flex-col", style: "gap: 16px;" do |f| %>
+  <div>
+    <%= f.label :repo_name, "Repository name", class: "field-label" %>
+    <%= f.text_field :repo_name, value: project.name.parameterize, required: true, class: "field-input" %>
   </div>
-  <div class="field">
-    <%= f.label :private_repo do %>
+
+  <div>
+    <label class="flex items-center" style="gap: 8px;">
       <%= f.check_box :private_repo, { checked: true }, "1", "0" %>
-      Private repository
-    <% end %>
-    <p><small>Defaults to private. You can flip the repo to public on GitHub later.</small></p>
+      <span>Private repository</span>
+    </label>
+    <p class="small" style="margin: 6px 0 0;">Defaults to private. You can flip the repo to public on GitHub later.</p>
   </div>
-  <%= f.submit "Export to GitHub", class: "btn btn--accent btn--sm" %>
+
+  <%= f.submit "Export to GitHub", class: "btn btn--accent btn--sm", style: "align-self: flex-start;" %>
 <% end %>

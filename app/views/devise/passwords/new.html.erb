@@ -10,12 +10,12 @@
       <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "field-input" %>
     </div>
 
-    <%= f.submit "Send me password reset instructions", class: "btn btn--primary", style: "align-self: flex-start;" %>
+    <%= f.submit "Send me password reset instructions", class: "btn btn--accent", style: "align-self: flex-start;" %>
   <% end %>
 
   <hr class="section-rule" style="margin: 24px 0;">
 
-  <div class="flex flex-col" style="gap: 6px; font-size: 13px;">
+  <div class="flex flex-col" style="gap: 6px; font-size: 20px;">
     <%= render "devise/shared/links" %>
   </div>
 </section>

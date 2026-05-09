@@ -26,7 +26,7 @@
         <%= pf.label :openrouter_api_key, "OpenRouter API key", class: "field-label" %>
         <%= pf.password_field :openrouter_api_key, autocomplete: "off",
               placeholder: "(unchanged — leave blank to keep current key)", class: "field-input" %>
-        <p style="margin: 6px 0 0; font-size: 12px; color: var(--fg-muted);">
+        <p style="margin: 6px 0 0; font-size: 20px; color: var(--fg-muted);">
           Rotate at
           <a href="https://openrouter.ai/keys" target="_blank"
              style="color: var(--accent); text-decoration: underline; text-underline-offset: 2px;">openrouter.ai/keys</a>.
@@ -41,7 +41,7 @@
       <%= f.label :password, "New password", class: "field-label" %>
       <%= f.password_field :password, autocomplete: "new-password", class: "field-input" %>
       <% if @minimum_password_length %>
-        <p style="margin: 6px 0 0; font-size: 12px; color: var(--fg-muted);">
+        <p style="margin: 6px 0 0; font-size: 20px; color: var(--fg-muted);">
           <%= @minimum_password_length %> characters minimum.
         </p>
       <% end %>
@@ -57,7 +57,7 @@
     <div>
       <%= f.label :current_password, class: "field-label" %>
       <%= f.password_field :current_password, autocomplete: "current-password", class: "field-input" %>
-      <p style="margin: 6px 0 0; font-size: 12px; color: var(--fg-muted);">
+      <p style="margin: 6px 0 0; font-size: 20px; color: var(--fg-muted);">
         Only required when changing your email or password.
       </p>
     </div>
@@ -72,7 +72,7 @@
   <h2 class="h-section" style="margin: 4px 0 16px;">GitHub connection</h2>
 
   <% if current_user.github_connection&.connected? %>
-    <p style="margin: 0 0 12px; font-size: 13px; color: var(--fg-muted);">
+    <p style="margin: 0 0 12px; font-size: 20px; color: var(--fg-muted);">
       Connected as
       <a href="<%= current_user.github_connection.github_url %>" target="_blank"
          style="color: var(--accent); text-decoration: underline; text-underline-offset: 2px;">@<%= current_user.github_connection.github_username %></a>.
@@ -83,7 +83,7 @@
   <% else %>
     <%= button_to "Connect GitHub", user_github_omniauth_authorize_path, method: :post,
           data: { turbo: false }, class: "btn btn--outline" %>
-    <p style="margin: 8px 0 0; font-size: 12px; color: var(--fg-muted);">
+    <p style="margin: 8px 0 0; font-size: 20px; color: var(--fg-muted);">
       Required to export projects to your GitHub account. Grants access to your repositories (<code style="font-family: var(--hi-font-mono);">repo</code> scope).
     </p>
   <% end %>
@@ -94,7 +94,7 @@
   <div class="eyebrow">account · danger zone</div>
   <h2 class="h-section" style="margin: 4px 0 16px;">Cancel my account</h2>
 
-  <p style="margin: 0 0 12px; font-size: 13px; color: var(--fg-muted);">
+  <p style="margin: 0 0 12px; font-size: 20px; color: var(--fg-muted);">
     Deletes your account and all associated projects. This cannot be undone.
   </p>
   <%= button_to "Cancel my account", registration_path(resource_name), method: :delete,

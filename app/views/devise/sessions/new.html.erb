@@ -14,18 +14,18 @@
     </div>
 
     <% if devise_mapping.rememberable? %>
-      <label class="flex items-center" style="gap: 8px; font-size: 13px; color: var(--fg-muted);">
+      <label class="flex items-center" style="gap: 8px; font-size: 20px; color: var(--fg-muted);">
         <%= f.check_box :remember_me %>
         Remember me
       </label>
     <% end %>
 
-    <%= f.submit "Log in", class: "btn btn--primary", style: "align-self: flex-start;" %>
+    <%= f.submit "Log in", class: "btn btn--accent", style: "align-self: flex-start;" %>
   <% end %>
 
   <hr class="section-rule" style="margin: 24px 0;">
 
-  <div class="flex flex-col" style="gap: 6px; font-size: 13px;">
+  <div class="flex flex-col" style="gap: 6px; font-size: 20px;">
     <%= render "devise/shared/links" %>
   </div>
 </section>
