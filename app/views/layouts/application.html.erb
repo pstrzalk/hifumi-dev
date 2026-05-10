@@ -28,7 +28,7 @@
     <nav class="app-nav">
       <div class="app-nav-inner">
         <% if user_signed_in? %>
-          <%= link_to projects_path, class: "app-nav-brand" do %>hifumi<span class="tld">.dev</span><% end %>
+          <%= link_to projects_path, class: "app-nav-brand" do %><span class="kanji" aria-hidden="true">一二三</span>hifumi<span class="tld">.dev</span><% end %>
           <%= link_to "Projects", projects_path, class: "app-nav-link#{' active' if controller_name == 'projects'}" %>
           <span class="app-nav-sep">·</span>
           <%= link_to "Account", edit_user_registration_path %>
@@ -36,7 +36,7 @@
           <%= button_to "Sign out", destroy_user_session_path, method: :delete,
               form: { class: "inline" }, class: "btn btn--ghost btn--sm" %>
         <% else %>
-          <%= link_to root_path, class: "app-nav-brand" do %>hifumi<span class="tld">.dev</span><% end %>
+          <%= link_to root_path, class: "app-nav-brand" do %><span class="kanji" aria-hidden="true">一二三</span>hifumi<span class="tld">.dev</span><% end %>
           <%= link_to "Log in", new_user_session_path %>
           <span class="app-nav-sep">·</span>
           <%= link_to "Sign up", new_user_registration_path, class: "btn btn--accent btn--sm" %>

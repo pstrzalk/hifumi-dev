@@ -85,7 +85,7 @@ that consume it.
 | `.msg-bubble`, `.msg-role`, `.msg-pill` | same | messages/_message |
 | `.composer`, `.suggestion-chip` | same | messages/_form, suggestions/_frame, projects/new |
 | `.preview-pane` (+ header / body / empty / error) + `.preview-frame` | same | previews/_pane, _running, _starting, _stopped, _failed |
-| `.h-display`, `.h-section`, `.lede`, `.eyebrow`, `.numeral`, `.kanji`, `.mono` | same | home/index (display + lede + kanji), projects/* (eyebrow + section), studio |
+| `.h-display`, `.h-section`, `.lede`, `.eyebrow`, `.numeral`, `.kanji`, `.mono` | same | home/index (display + lede + kanji), projects/* (eyebrow + section), studio, layouts (nav brand kanji) |
 | `.pipeline`, `.pipeline-step` | same | home/index (一 / 二 / 三 stages) |
 
 ---
@@ -122,8 +122,8 @@ Verbs are always **lowercase in source**, **uppercase via CSS
 - Status verbs lowercase: pending, generating, completed, failed,
   starting, running, stopped.
 - Decorative kanji **一 二 三** in Source Serif 4 at display sizes for
-  landing / empty states / pipeline diagrams. Decorative only — never
-  load-bearing as the only label.
+  landing / empty states / pipeline diagrams / top-nav brand.
+  Decorative only — never load-bearing as the only label.
 
 ---
 

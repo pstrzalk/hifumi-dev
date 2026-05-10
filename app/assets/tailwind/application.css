@@ -202,6 +202,7 @@ body {
   background: var(--bg);
   border-bottom: 1px solid var(--rule);
   height: 60px;
+  padding: 0 24px;
 }
 .app-nav-inner {
   max-width: 1600px;
@@ -210,7 +211,6 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 0 24px;
   font-family: var(--hi-font-sans);
   font-size: 22px;
   color: var(--fg);
@@ -231,6 +231,10 @@ body {
   font-weight: 500;
   color: var(--fg-muted);
   margin-left: 1px;
+}
+.app-nav-brand .kanji {
+  color: var(--accent);
+  margin-right: 0.4em;
 }
 .app-nav-sep { color: var(--fg-faint); }
 .app-nav-link.active { color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 4px; }
