@@ -68,15 +68,15 @@ class ProjectsControllerShowTest < ActionDispatch::IntegrationTest
     assert_select "nav.tab-nav[role=tablist][aria-label=?]", "studio sections", 1
     assert_select "nav.tab-nav button.tab-button[data-tab-name=build]" do
       assert_select "span.tab-button__numeral.kanji", text: "一"
-      assert_select "span.tab-button__label", text: /hi · 01 · build/i
+      assert_select "span.tab-button__label", text: /build/i
     end
     assert_select "nav.tab-nav button.tab-button[data-tab-name=preview]" do
       assert_select "span.tab-button__numeral.kanji", text: "二"
-      assert_select "span.tab-button__label", text: /fu · 02 · preview/i
+      assert_select "span.tab-button__label", text: /preview/i
     end
     assert_select "nav.tab-nav button.tab-button[data-tab-name=export]" do
       assert_select "span.tab-button__numeral.kanji", text: "三"
-      assert_select "span.tab-button__label", text: /mi · 03 · export/i
+      assert_select "span.tab-button__label", text: /export/i
     end
   end
 

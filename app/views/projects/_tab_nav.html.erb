@@ -11,9 +11,9 @@
 %>
 <nav class="tab-nav" role="tablist" aria-label="studio sections" aria-orientation="horizontal">
   <% [
-    [:build,   "一", "hi · 01 · build"],
-    [:preview, "二", "fu · 02 · preview"],
-    [:export,  "三", "mi · 03 · export"]
+    [:build,   "一", "build"],
+    [:preview, "二", "preview"],
+    [:export,  "三", "export"]
   ].each do |name, glyph, label| %>
     <% active = (name == :build) %>
     <button type="button"
