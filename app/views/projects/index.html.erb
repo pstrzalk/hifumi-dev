@@ -8,7 +8,7 @@
   </div>
 
   <% if @projects.any? %>
-    <ul class="flex flex-col" style="gap: 10px; padding: 0; margin: 0; list-style: none;">
+    <ul class="project-list">
       <% @projects.each do |project| %>
         <li class="project-card project-card--<%= project.preview_state %>">
           <div class="project-card__stripe"></div>
@@ -19,6 +19,21 @@
               <span class="dot">·</span>
               <span>created <%= time_ago_in_words(project.created_at) %> ago</span>
             </div>
+            <div class="project-card__sub">
+              <span>active <%= time_ago_in_words(project.updated_at) %> ago</span>
+              <% if project.preview_running? %>
+                <span class="dot">·</span>
+                <%= link_to "open preview ↗", project.preview_url, target: "_blank", rel: "noopener" %>
+              <% end %>
+              <% if project.github_repo_full_name.present? %>
+                <span class="dot">·</span>
+                <%= link_to "github ↗", project.github_repo_url, target: "_blank", rel: "noopener" %>
+              <% end %>
+              <% if project.preview_state == "failed" && project.preview_error.present? %>
+                <span class="dot">·</span>
+                <span class="project-card__error">last error: <%= project.preview_error.truncate(60) %></span>
+              <% end %>
+            </div>
           </div>
           <div class="project-card__actions">
             <%= button_to "delete", project, method: :delete,
@@ -28,9 +43,9 @@
       <% end %>
     </ul>
   <% else %>
-    <div class="project-card" style="padding: 0;">
+    <div class="project-card">
       <div class="project-card__stripe"></div>
-      <div class="project-card__body" style="padding: 24px;">
+      <div class="project-card__body">
         <p style="margin: 0; color: var(--fg-muted);">
           No projects yet.
           <%= link_to "Create your first one", new_project_path,

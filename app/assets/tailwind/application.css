@@ -467,6 +467,15 @@ body {
 /* ============================================================
    PROJECT CARD — outlined, status stripe + mono tag
    ============================================================ */
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
 .project-card {
   display: grid;
   grid-template-columns: 4px 1fr auto;
@@ -478,10 +487,10 @@ body {
 }
 .project-card__stripe { background: var(--ink-200); }
 .project-card__body {
-  padding: 12px 14px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
 }
 .project-card__name {
@@ -505,6 +514,30 @@ body {
   color: var(--fg-muted);
 }
 .project-card__meta .dot { color: var(--fg-faint); }
+
+.project-card__sub {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--hi-font-mono);
+  font-size: 18px;
+  color: var(--fg-muted);
+  min-width: 0;
+}
+.project-card__sub .dot { color: var(--fg-faint); }
+.project-card__sub a {
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+.project-card__sub a:hover { color: var(--accent); }
+.project-card__sub .project-card__error {
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .project-card__actions {
   display: flex;
   align-items: stretch;
