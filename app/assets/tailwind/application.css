@@ -188,7 +188,8 @@ body {
    APP CHROME
    ============================================================ */
 .app-shell {
-  min-height: 100vh;
+  min-height: 100vh;             /* fallback for browsers without dvh support */
+  min-height: 100dvh;            /* tracks visual viewport — handles iOS soft keyboard */
   background: var(--bg);
   display: flex;
   flex-direction: column;
@@ -637,10 +638,59 @@ body {
 /* ============================================================
    COMPOSER
    ============================================================ */
+.composer-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;                   /* below the sticky nav (z-index: 30) */
+  background: var(--bg);
+  padding-top: 12px;
+  padding-bottom: 16px;
+  margin-top: 16px;              /* replaces the old inline margin-top: 16px */
+}
+
+/* Sentinel breathing room above the sticky dock.
+   scroll-margin-bottom outsets the scroll snap area on the target itself,
+   so scrollIntoView({ block: 'end' }) leaves room for the dock without
+   needing the body/html to be a scroll container with scroll-padding. */
+.messages-end { scroll-margin-bottom: 140px; }
+
+.composer-dock__jump {
+  /* Absolutely positioned so toggling its visibility doesn't change
+     .composer-dock's height — otherwise the dock-height change would shift
+     the sentinel and oscillate IO state between "at bottom" and "not". */
+  position: absolute;
+  bottom: 100%;                     /* sit just above the dock */
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;                /* gap between button and composer card */
+  appearance: none;
+  background: var(--paper-0);
+  color: var(--fg);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard),
+              border-color var(--dur-fast) var(--ease-standard);
+}
+.composer-dock__jump:hover {
+  background: var(--paper-50);
+  border-color: var(--accent);
+}
+.composer-dock__jump:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* native [hidden] disables flex layout — button cleanly drops out of layout */
+
 .composer {
   display: flex;
   gap: 8px;
-  align-items: stretch;
+  align-items: flex-end;
   background: var(--paper-0);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
@@ -657,6 +707,7 @@ body {
   background: transparent;
   border: 0;
   padding: 8px 10px;
+  resize: none;
 }
 .composer .field-input:focus {
   border-color: transparent;

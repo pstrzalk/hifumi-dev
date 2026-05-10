@@ -93,4 +93,9 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
       post project_messages_path(@project), params: { message: { content: "" } }
     end
   end
+
+  test "POST with multiline content preserves newlines" do
+    post project_messages_path(@project), params: { message: { content: "line one\nline two" } }
+    assert_equal "line one\nline two", @project.chat.messages.order(:created_at).last.content
+  end
 end

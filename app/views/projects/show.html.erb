@@ -16,7 +16,8 @@
          aria-labelledby="tab_build"
          tabindex="0"
          data-tabs-target="pane"
-         data-tab-name="build">
+         data-tab-name="build"
+         data-controller="chat-scroll">
       <div id="messages" class="flex flex-col" style="gap: 12px; margin-bottom: 16px;">
         <% @chat_events.each do |event| %>
           <% case event %>
@@ -27,7 +28,20 @@
           <% end %>
         <% end %>
       </div>
-      <div style="margin-top: 16px;">
+      <div id="messages_end" data-chat-scroll-target="sentinel" aria-hidden="true" class="messages-end"></div>
+      <div class="composer-dock">
+        <button type="button"
+                class="composer-dock__jump"
+                data-chat-scroll-target="jumpButton"
+                data-action="click->chat-scroll#jumpToEnd"
+                aria-label="Scroll to latest"
+                hidden>
+          <svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true">
+            <path fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round"
+                  d="M3 6l5 5 5-5"/>
+          </svg>
+        </button>
         <%= render "messages/form", project: @project %>
       </div>
     </div>

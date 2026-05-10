@@ -1,9 +1,16 @@
-<%= form_with url: project_messages_path(project), id: dom_id(project, :message_form), class: "composer" do |f| %>
-  <%= f.text_field :content,
+<%= form_with url: project_messages_path(project),
+              id: dom_id(project, :message_form),
+              class: "composer",
+              data: { controller: "composer",
+                      composer_min_rows_value: 2,
+                      composer_max_rows_value: 5 } do |f| %>
+  <%= f.text_area :content,
       id: "message_content_input",
       name: "message[content]",
+      rows: 2,
       placeholder: "Continue the conversation…",
       class: "field-input",
-      autofocus: true %>
+      data: { composer_target: "input",
+              action: "input->composer#resize keydown->composer#submit" } %>
   <%= f.submit "Send", class: "btn btn--primary" %>
 <% end %>
