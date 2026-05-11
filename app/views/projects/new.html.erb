@@ -1,5 +1,5 @@
 <section style="max-width: 1600px; margin: 0 auto;" data-controller="suggestions">
-  <div class="eyebrow">projects · new</div>
+  <div class="eyebrow">studio · <span class="mono">new project</span></div>
   <h1 class="h-section" style="margin: 4px 0 24px;">Describe the app you want to build</h1>
 
   <% if @error %>
@@ -10,6 +10,13 @@
       <div></div>
     </div>
   <% end %>
+
+  <nav class="tab-nav" aria-label="current step" style="border-bottom: 1px solid var(--rule);">
+    <div class="tab-button is-active" aria-current="step" style="flex: 0 0 33.3333%; cursor: default;">
+      <span class="tab-button__numeral kanji" aria-hidden="true">一</span>
+      <span class="tab-button__label">new</span>
+    </div>
+  </nav>
 
   <%= form_with model: @project, url: projects_path, class: "flex flex-col", style: "gap: 16px; max-width: 720px;" do |f| %>
     <div>
