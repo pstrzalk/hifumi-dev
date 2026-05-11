@@ -1,6 +1,8 @@
 <section style="max-width: 1600px; margin: 0 auto;" data-controller="suggestions">
-  <div class="eyebrow">studio · <span class="mono">new project</span></div>
-  <h1 class="h-section" style="margin: 4px 0 24px;">Describe the app you want to build</h1>
+  <div class="flex items-baseline" style="gap: 12px; margin-bottom: 16px;">
+    <div class="eyebrow">studio · <span class="mono">new project</span></div>
+  </div>
+  <h1 class="h-section" style="margin: 0 0 24px;">Describe the app you want to build</h1>
 
   <% if @error %>
     <div class="notice-strip notice-strip--err" style="max-width: 720px; margin-bottom: 16px;">
@@ -18,31 +20,44 @@
     </div>
   </nav>
 
-  <%= form_with model: @project, url: projects_path, class: "flex flex-col", style: "gap: 16px; max-width: 720px;" do |f| %>
-    <div>
-      <label class="field-label" for="project_description">Project description</label>
-      <%= f.text_area :description,
-          rows: 5,
-          id: "project_description",
-          placeholder: "a flower shop page, with full payment system",
-          class: "field-textarea",
-          data: { suggestions_target: "textarea" } %>
-    </div>
+  <%= form_with model: @project, url: projects_path do |f| %>
+    <div class="form-grid">
+      <div>
+        <label class="field-label" for="project_description">Project description</label>
+        <%= f.text_area :description,
+            rows: 8,
+            id: "project_description",
+            placeholder: "a yoga studio site. Class schedule, online booking, member accounts with class packs, instructor logins, an admin panel, and a calm minimal theme",
+            class: "field-textarea",
+            data: { suggestions_target: "textarea" } %>
+        <div style="margin-top: 24px;">
+          <%= f.submit "Start building", class: "btn btn--accent", style: "font-size: 24px; padding: 12px 28px;" %>
+        </div>
+      </div>
 
-    <div class="hidden">
-      <div class="eyebrow" style="margin-bottom: 8px;">starting points</div>
-      <div class="composer-suggestions" style="margin-top: 0;">
-        <% [ "Flower shop with checkout", "Todo list with Tailwind", "Team standup tracker" ].each do |suggestion| %>
-          <button type="button"
-                  class="suggestion-chip"
-                  data-action="click->suggestions#prefill"
-                  data-suggestions-value-param="<%= suggestion %>">
-            <%= suggestion %>
-          </button>
-        <% end %>
+      <div>
+        <div class="eyebrow" style="margin-bottom: 8px;">or pick a starting point</div>
+        <div class="suggestion-grid suggestion-grid--column">
+          <% [
+            "Flower shop with checkout",
+            "Todo list with Tailwind",
+            "Team standup tracker",
+            "Blog with posts and comments",
+            "Bookmark manager with accounts and admin panel",
+            "Habit tracker with streaks and cyberpunk theme",
+            "Event RSVP page with host login and minimalist look",
+            "Reading list with notes and magazine-style layout",
+          ].each do |suggestion| %>
+            <button type="button"
+                    class="suggestion-card"
+                    data-action="click->suggestions#prefill"
+                    data-suggestions-value-param="<%= suggestion %>">
+              <span class="suggestion-card__stripe" aria-hidden="true"></span>
+              <span class="suggestion-card__body"><%= suggestion %></span>
+            </button>
+          <% end %>
+        </div>
       </div>
     </div>
-
-    <%= f.submit "Start", class: "btn btn--primary mt-4", style: "align-self: flex-start; mt-" %>
   <% end %>
 </section>
