@@ -1,9 +1,9 @@
-<section style="max-width: 1280px; margin: 0 auto;" data-controller="suggestions">
+<section style="max-width: 1600px; margin: 0 auto;" data-controller="suggestions">
   <div class="eyebrow">projects · new</div>
   <h1 class="h-section" style="margin: 4px 0 24px;">Describe the app you want to build</h1>
 
   <% if @error %>
-    <div class="notice-strip notice-strip--err">
+    <div class="notice-strip notice-strip--err" style="max-width: 720px; margin-bottom: 16px;">
       <div class="notice-strip__stripe"></div>
       <div class="notice-strip__tag">error</div>
       <div class="notice-strip__body"><%= @error %></div>
@@ -11,7 +11,7 @@
     </div>
   <% end %>
 
-  <%= form_with model: @project, url: projects_path, class: "flex flex-col", style: "gap: 16px;" do |f| %>
+  <%= form_with model: @project, url: projects_path, class: "flex flex-col", style: "gap: 16px; max-width: 720px;" do |f| %>
     <div>
       <label class="field-label" for="project_description">Project description</label>
       <%= f.text_area :description,
@@ -22,7 +22,7 @@
           data: { suggestions_target: "textarea" } %>
     </div>
 
-    <div>
+    <div class="hidden">
       <div class="eyebrow" style="margin-bottom: 8px;">starting points</div>
       <div class="composer-suggestions" style="margin-top: 0;">
         <% [ "Flower shop with checkout", "Todo list with Tailwind", "Team standup tracker" ].each do |suggestion| %>
@@ -36,6 +36,6 @@
       </div>
     </div>
 
-    <%= f.submit "Start", class: "btn btn--primary", style: "align-self: flex-start;" %>
+    <%= f.submit "Start", class: "btn btn--primary mt-4", style: "align-self: flex-start; mt-" %>
   <% end %>
 </section>
