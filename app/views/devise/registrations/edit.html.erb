@@ -1,4 +1,5 @@
-<section style="max-width: 1280px; margin: 0 auto;">
+<section style="max-width: 1600px; margin: 0 auto;">
+  <div style="max-width: 1280px;">
   <div class="eyebrow">account · profile</div>
   <h2 class="h-section" style="margin: 4px 0 24px;">Edit account</h2>
 
@@ -64,9 +65,11 @@
 
     <%= f.submit "Update account", class: "btn btn--accent", style: "align-self: flex-start;" %>
   <% end %>
+  </div>
 </section>
 
-<section style="max-width: 1280px; margin: 32px auto 0;">
+<section style="max-width: 1600px; margin: 32px auto 0;">
+  <div style="max-width: 1280px;">
   <hr class="section-rule" style="margin: 0 0 24px;">
   <div class="eyebrow">account · github</div>
   <h2 class="h-section" style="margin: 4px 0 16px;">GitHub connection</h2>
@@ -87,9 +90,11 @@
       Required to export projects to your GitHub account. Grants access to your repositories (<code style="font-family: var(--hi-font-mono);">repo</code> scope).
     </p>
   <% end %>
+  </div>
 </section>
 
-<section style="max-width: 1280px; margin: 32px auto 0;">
+<section style="max-width: 1600px; margin: 32px auto 0;">
+  <div style="max-width: 1280px;">
   <hr class="section-rule" style="margin: 0 0 24px;">
   <div class="eyebrow">account · danger zone</div>
   <h2 class="h-section" style="margin: 4px 0 16px;">Cancel my account</h2>
@@ -99,4 +104,5 @@
   </p>
   <%= button_to "Cancel my account", registration_path(resource_name), method: :delete,
         data: { turbo_confirm: "Are you sure?" }, class: "btn btn--danger" %>
+  </div>
 </section>

@@ -237,6 +237,17 @@ body {
   margin-right: 0.4em;
 }
 .app-nav-sep { color: var(--fg-faint); }
+.app-nav-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--fg);
+  text-decoration: none;
+  cursor: pointer;
+}
+.app-nav-link:hover { color: var(--accent); }
 .app-nav-link.active { color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 4px; }
 
 /* ============================================================
