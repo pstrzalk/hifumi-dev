@@ -593,7 +593,7 @@ body {
 }
 .revision-row {
   display: grid;
-  grid-template-columns: 4px 56px 110px 1fr 120px;
+  grid-template-columns: 4px 56px 160px 1fr 120px;
   align-items: stretch;
   border-bottom: 1px solid var(--border);
   min-height: 38px;
