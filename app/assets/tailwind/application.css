@@ -884,9 +884,11 @@ body {
   display: grid;
   gap: 24px;
   text-align: center;
-  max-width: 720px;
+  max-width: 1080px;
   margin: 0 auto;
 }
+.hero .h-display { text-wrap: balance; }
+.hero .lede { max-width: 720px; margin: 0 auto; }
 .hero .eyebrow { display: inline-block; }
 .hero-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
 
