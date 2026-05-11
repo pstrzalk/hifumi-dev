@@ -16,10 +16,12 @@ env:
   secret:
     - RAILS_MASTER_KEY
     - SMTP_PASSWORD              # Resend SMTP key today; provider-neutral name keeps swap trivial
+    - GITHUB_CLIENT_SECRET
   clear:
     SOLID_QUEUE_IN_PUMA: true
     PREVIEW_DOMAIN: hifumi.dev
     RAILS_APP_GENERATOR_WORKSPACE_ROOT: /var/lib/rails-app-generator/workspaces
+    GITHUB_CLIENT_ID: Ov23liLp77TT9zMsowk3
 
 volumes:
   - "rails_app_generator_storage:/rails/storage"
