@@ -19,6 +19,7 @@ require "shellwords"
 require_relative "verify_revision"
 require_relative "auto_remediate"
 require_relative "workflow_env"
+require_relative "stat_cap"
 
 # Defaults, overrides, and validation live in Roast::WorkflowEnv so they're
 # unit-testable without loading the workflow file.
@@ -287,6 +288,7 @@ execute do
   # is a constrained summarization, not an exploration.
   agent(:update_docs) do
     diff_stat = `cd #{Shellwords.escape(WORKSPACE)} && git show --stat HEAD`
+    diff_stat = StatCap.call(diff_stat)
     diff_body = `cd #{Shellwords.escape(WORKSPACE)} && git show HEAD`
     # Cap the diff body at a generous but bounded size — large changes still
     # get a structural summary via stat, full bodies for small ones.
