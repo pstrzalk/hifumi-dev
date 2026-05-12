@@ -29,3 +29,14 @@
 
 # Ignore master key for decrypting credentials and more.
 /config/master.key
+
+# Ignore installed dependency trees. The generator runs `git add -A` at W2.5
+# with no path filter; any tree under these paths would otherwise enter the
+# commit diff and bloat the W2.6 update_docs prompt
+# (see thoughts/shared/research/2026-05-11/update-docs-prompt-too-long-instruction-13.md).
+/vendor/bundle/
+/node_modules/
+/.yarn/cache/
+/.yarn/install-state.gz
+/app/assets/builds/*
+!/app/assets/builds/.keep
