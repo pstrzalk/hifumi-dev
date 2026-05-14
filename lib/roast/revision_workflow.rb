@@ -20,6 +20,7 @@ require_relative "verify_revision"
 require_relative "auto_remediate"
 require_relative "workflow_env"
 require_relative "stat_cap"
+require_relative "revision_prompt"
 
 # Defaults, overrides, and validation live in Roast::WorkflowEnv so they're
 # unit-testable without loading the workflow file.
@@ -144,61 +145,14 @@ execute do
   end
 
   # W2.2: Build prompt with app manifest + revision notes
+  # Extracted to RevisionPrompt module for unit-testability — see
+  # lib/roast/revision_prompt.rb. The Roast DSL block just threads kwargs in.
   ruby(:build_prompt) do
-    docs_dir = File.join(WORKSPACE, "docs")
-    manifest = Dir.glob("#{docs_dir}/{architecture,conventions,domain,frontend}.md")
-                  .map { |f| "### #{File.basename(f)}\n\n#{File.read(f)}" }
-                  .join("\n\n")
-    notes_path = File.join(docs_dir, "revision_notes.md")
-    revision_notes = File.exist?(notes_path) ? File.read(notes_path) : ""
-
-    # Pre-feed a structural snapshot (controllers, models, routes file,
-    # application_controller content) so the agent doesn't spend turns
-    # globbing / reading these on every revision. These are small and
-    # deterministic; cheaper as input tokens than as tool round-trips.
-    snapshot_parts = []
-    %w[app/controllers app/models].each do |dir|
-      files = Dir.glob("#{WORKSPACE}/#{dir}/**/*.rb").sort.map { |f| f.sub("#{WORKSPACE}/", "") }
-      snapshot_parts << "**#{dir}/** — #{files.empty? ? '(empty)' : files.join(', ')}"
-    end
-    routes_path = File.join(WORKSPACE, "config/routes.rb")
-    if File.exist?(routes_path)
-      snapshot_parts << "**config/routes.rb**\n```ruby\n#{File.read(routes_path)}```"
-    end
-    app_ctrl_path = File.join(WORKSPACE, "app/controllers/application_controller.rb")
-    if File.exist?(app_ctrl_path)
-      snapshot_parts << "**app/controllers/application_controller.rb**\n```ruby\n#{File.read(app_ctrl_path)}```"
-    end
-    snapshot = snapshot_parts.join("\n\n")
-
-    parts = []
-    parts << "## Task\n\n#{kwarg(:revision_prompt)}"
-    parts << "## Summary (git commit message)\n\n#{kwarg(:revision_summary)}"
-
-    unless manifest.empty?
-      parts << "## Current application state (manifest)\n\n#{manifest}"
-    end
-
-    parts << "## Workspace snapshot\n\n#{snapshot}" unless snapshot.empty?
-
-    unless revision_notes.empty?
-      parts << "## Context from previous revisions\n\n#{revision_notes}"
-    end
-
-    parts << <<~RULES
-      ## Rules
-      - Rails Way: conventions, generators, built-in solutions
-      - Tailwind CSS for styling
-      - Follow `docs/frontend.md` (palette, fonts, density, class snippets) for every view. Don't ship default Rails scaffold markup or unstyled forms — apply the template's class snippets to buttons, inputs, cards, navs, alerts. Inline hex values in arbitrary-value brackets (`bg-[#00FFCC]`) are fine.
-      - Hotwire (Turbo + Stimulus), no React/Vue
-      - Minitest, not RSpec
-      - Write tests for new functionality
-      - Don't create empty directories or files that aren't needed
-      - You are working in #{WORKSPACE} — all paths are relative to this directory
-      - The snapshot above is current. Don't glob or list directories to discover what already exists; only read a specific file when you actually need its contents to make the change.
-    RULES
-
-    parts.join("\n\n")
+    RevisionPrompt.build(
+      workspace: WORKSPACE,
+      revision_prompt: kwarg(:revision_prompt),
+      revision_summary: kwarg(:revision_summary)
+    )
   end
 
   # W2.3: Implement — Claude CLI generates the code
