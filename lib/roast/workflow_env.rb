@@ -14,14 +14,14 @@ module Roast
   module WorkflowEnv
     # Required. Path to the Rails workspace this revision will operate on.
     def self.workspace(env = ENV)
-      env.fetch("RAILS_APP_GENERATOR_WORKSPACE") do
-        raise "RAILS_APP_GENERATOR_WORKSPACE env var is required (path to Rails workspace)."
+      env.fetch("HIFUMI_DEV_WORKSPACE") do
+        raise "HIFUMI_DEV_WORKSPACE env var is required (path to Rails workspace)."
       end
     end
 
     # Model used for the main code-generation and fix agents.
     def self.claude_model(env = ENV)
-      env.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet")
+      env.fetch("HIFUMI_DEV_MODEL", "sonnet")
     end
 
     # Model used for update_docs. Haiku because it's a summarization step
@@ -29,7 +29,7 @@ module Roast
     # Switching this back to sonnet would re-introduce the ~$0.5/revision
     # regression that 13f22a8 cut.
     def self.docs_model(env = ENV)
-      env.fetch("RAILS_APP_GENERATOR_DOCS_MODEL", "haiku")
+      env.fetch("HIFUMI_DEV_DOCS_MODEL", "haiku")
     end
 
     # Per-iteration $ ceiling on agent(:fix). The W2.R loop runs up to 2
@@ -40,11 +40,11 @@ module Roast
     # tmp/simple_application_run_kamal.log rev 14).
     #
     # Validated as a float at workflow load so a bad env value
-    # (`RAILS_APP_GENERATOR_FIX_BUDGET_USD=hello`) crashes here with a
+    # (`HIFUMI_DEV_FIX_BUDGET_USD=hello`) crashes here with a
     # clear ArgumentError instead of reaching claude CLI as
     # `--max-budget-usd hello` and producing an opaque mid-run failure.
     def self.fix_budget_usd(env = ENV)
-      raw = env.fetch("RAILS_APP_GENERATOR_FIX_BUDGET_USD", "0.50")
+      raw = env.fetch("HIFUMI_DEV_FIX_BUDGET_USD", "0.50")
       Float(raw)
       raw
     end

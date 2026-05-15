@@ -83,8 +83,8 @@ class Project < ApplicationRecord
   # filesystems (generator / generated apps) cleanly separated. Default is
   # a sibling of the generator repo; tests override via env var.
   def self.workspace_root
-    ENV.fetch("RAILS_APP_GENERATOR_WORKSPACE_ROOT") do
-      File.join(Dir.home, "projects", "rails-app-generator-workspaces")
+    ENV.fetch("HIFUMI_DEV_WORKSPACE_ROOT") do
+      File.join(Dir.home, "projects", "hifumi-dev-workspaces")
     end
   end
 end

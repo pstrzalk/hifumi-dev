@@ -16,9 +16,9 @@ class PreviewLifecycleTest < ActionDispatch::IntegrationTest
   setup do
     skip "set E2E_PREVIEW=1 to enable (real docker build/run, ~60-180s)" unless ENV["E2E_PREVIEW"] == "1"
 
-    @workspace_root = Dir.mktmpdir("rails-app-generator-preview-test-")
-    @prev_workspace_root = ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"]
-    ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] = @workspace_root
+    @workspace_root = Dir.mktmpdir("hifumi-dev-preview-test-")
+    @prev_workspace_root = ENV["HIFUMI_DEV_WORKSPACE_ROOT"]
+    ENV["HIFUMI_DEV_WORKSPACE_ROOT"] = @workspace_root
 
     @project = Project.create!(name: "preview_test_#{Time.now.to_i}", user: users(:owner))
     # `fixtures :all` (test_helper.rb) seeds the projects table with hashed
@@ -33,9 +33,9 @@ class PreviewLifecycleTest < ActionDispatch::IntegrationTest
     Preview::PreviewManager.new.stop(@project) rescue nil if @project
     FileUtils.rm_rf(@workspace_root) if @workspace_root
     if @prev_workspace_root
-      ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] = @prev_workspace_root
+      ENV["HIFUMI_DEV_WORKSPACE_ROOT"] = @prev_workspace_root
     else
-      ENV.delete("RAILS_APP_GENERATOR_WORKSPACE_ROOT")
+      ENV.delete("HIFUMI_DEV_WORKSPACE_ROOT")
     end
   end
 

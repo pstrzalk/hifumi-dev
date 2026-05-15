@@ -7,13 +7,13 @@
 # Aligned with ../../docs/02-architecture/01-workflows-and-decisions.md (W2.1–W2.8 + W2.R remediation + W2.F failure path).
 #
 # Run:
-#   RAILS_APP_GENERATOR_WORKSPACE=/path/to/app bundle exec roast revision_workflow.rb -- \
+#   HIFUMI_DEV_WORKSPACE=/path/to/app bundle exec roast revision_workflow.rb -- \
 #     revision_id=1 \
 #     revision_summary="Add Todo model" \
 #     revision_prompt="Create Todo model with title, body, done. Migration + tests."
 #
 # Model override via ENV:
-#   RAILS_APP_GENERATOR_MODEL=haiku RAILS_APP_GENERATOR_WORKSPACE=... bundle exec roast revision_workflow.rb -- ...
+#   HIFUMI_DEV_MODEL=haiku HIFUMI_DEV_WORKSPACE=... bundle exec roast revision_workflow.rb -- ...
 
 require "shellwords"
 require_relative "verify_revision"

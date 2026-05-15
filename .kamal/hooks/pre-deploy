@@ -30,16 +30,16 @@ ssh "$HOST" 'set -e
 # 3. Build preview-base:latest on the host. ~25s warm (layer cache) when
 #    Gemfile.lock unchanged; ~5min cold (first deploy, or bundle invalidation).
 echo "[pre-deploy] Syncing lib/preview/ to host build context"
-ssh "$HOST" 'mkdir -p /var/lib/rails-app-generator/preview-base-context'
+ssh "$HOST" 'mkdir -p /var/lib/hifumi-dev/preview-base-context'
 rsync -az --delete \
   lib/preview/ \
-  "$HOST:/var/lib/rails-app-generator/preview-base-context/"
+  "$HOST:/var/lib/hifumi-dev/preview-base-context/"
 
 echo "[pre-deploy] Building preview-base:latest on host"
 ssh "$HOST" "docker build \
   -t preview-base:latest \
   --build-arg RUBY_VERSION='$RUBY_VERSION' \
-  -f /var/lib/rails-app-generator/preview-base-context/Dockerfile.base \
-  /var/lib/rails-app-generator/preview-base-context"
+  -f /var/lib/hifumi-dev/preview-base-context/Dockerfile.base \
+  /var/lib/hifumi-dev/preview-base-context"
 
 echo "[pre-deploy] Bootstrap complete"

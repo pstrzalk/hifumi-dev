@@ -3,8 +3,8 @@ require "tmpdir"
 
 # Test workspaces must live OUTSIDE the generator repo: `rails new` walks up
 # from cwd via inside_application? and refuses if it finds a parent Rails app.
-TEST_WORKSPACES_ROOT = File.join(Dir.tmpdir, "rails-app-generator-test-workspaces")
-ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] ||=
+TEST_WORKSPACES_ROOT = File.join(Dir.tmpdir, "hifumi-dev-test-workspaces")
+ENV["HIFUMI_DEV_WORKSPACE_ROOT"] ||=
   File.join(TEST_WORKSPACES_ROOT, "pid_#{Process.pid}")
 
 require_relative "../config/environment"
@@ -19,7 +19,7 @@ module ActiveSupport
     # never collide on the same project_<id>/ filesystem path (parallel tests
     # isolate DBs per worker, but the filesystem is shared by default).
     parallelize_setup do |worker|
-      ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] =
+      ENV["HIFUMI_DEV_WORKSPACE_ROOT"] =
         File.join(TEST_WORKSPACES_ROOT, "worker_#{worker}")
     end
 

@@ -31,12 +31,12 @@ class ProjectTest < ActiveSupport::TestCase
     FileUtils.rm_rf(ws) if ws
   end
 
-  test "workspace_root honors RAILS_APP_GENERATOR_WORKSPACE_ROOT env var" do
-    original = ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"]
-    ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] = "/tmp/custom_ws_root"
+  test "workspace_root honors HIFUMI_DEV_WORKSPACE_ROOT env var" do
+    original = ENV["HIFUMI_DEV_WORKSPACE_ROOT"]
+    ENV["HIFUMI_DEV_WORKSPACE_ROOT"] = "/tmp/custom_ws_root"
     assert_equal "/tmp/custom_ws_root", Project.workspace_root
   ensure
-    ENV["RAILS_APP_GENERATOR_WORKSPACE_ROOT"] = original
+    ENV["HIFUMI_DEV_WORKSPACE_ROOT"] = original
   end
 
   test "has one chat and many instructions/revisions" do

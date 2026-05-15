@@ -1,4 +1,4 @@
-# Allow this generated app to be embedded in the rails-app-generator preview
+# Allow this generated app to be embedded in the hifumi-dev preview
 # iframe. The generator runs at http://localhost:3000; this app runs at
 # http://localhost:#{3000 + project.id}. Different ports = different origins,
 # so the default X-Frame-Options=SAMEORIGIN blocks framing.

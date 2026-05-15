@@ -1,4 +1,4 @@
-# Rails App Generator
+# hifumi.dev
 
 Generate a complete Rails application from a natural-language prompt. Output is a clean Rails repo (your own git history, your own dependencies — no vendor lock-in).
 
@@ -68,7 +68,7 @@ Open <http://localhost:3000>:
 1. Click **New project** and describe what to build, e.g. *"Personal blog with posts and comments"*.
 2. The chat assistant streams a reply. If it asks for clarification, answer briefly.
 3. Once it calls `start_generation`, three or more revision cards appear and run live (`pending → generating → completed`).
-4. Final `✅ Generation finished.` Output lives at `~/projects/rails-app-generator-workspaces/project_<id>/`.
+4. Final `✅ Generation finished.` Output lives at `~/projects/hifumi-dev-workspaces/project_<id>/`.
 
 ## Running previews locally
 
@@ -193,10 +193,10 @@ E2E_PREVIEW=1  bin/rails test test/integration/preview_lifecycle_test.rb
 
 ## Inspect generated output
 
-Generated apps live at `$RAILS_APP_GENERATOR_WORKSPACE_ROOT/project_<id>/` (default: `~/projects/rails-app-generator-workspaces/project_<id>/`).
+Generated apps live at `$HIFUMI_DEV_WORKSPACE_ROOT/project_<id>/` (default: `~/projects/hifumi-dev-workspaces/project_<id>/`).
 
 ```sh
-WS=~/projects/rails-app-generator-workspaces/project_42
+WS=~/projects/hifumi-dev-workspaces/project_42
 
 cd "$WS" && git log --oneline       # one commit per revision + scaffolding baseline + rails-new initial
 cd "$WS" && bin/rails test          # generated app's own test suite
@@ -212,7 +212,7 @@ cat "$WS/docs/revision_notes.md"    # per-revision decision log
 | What | How |
 |------|-----|
 | Dev DB | `bin/rails db:drop db:setup` |
-| One generated app | `rm -rf ~/projects/rails-app-generator-workspaces/project_<id>` |
+| One generated app | `rm -rf ~/projects/hifumi-dev-workspaces/project_<id>` |
 | Stuck instruction | `bin/rails runner "Instruction.find(N).update!(phase: :failed)"` |
 | Solid Queue jobs | `bin/rails runner "SolidQueue::Job.delete_all"` |
 
@@ -220,8 +220,8 @@ cat "$WS/docs/revision_notes.md"    # per-revision decision log
 
 | Env var | Default | Purpose |
 |---------|---------|---------|
-| `RAILS_APP_GENERATOR_WORKSPACE_ROOT` | `~/projects/rails-app-generator-workspaces` | Where generated apps live. The test suite overrides to `Dir.tmpdir`. |
-| `RAILS_APP_GENERATOR_MODEL` | `sonnet` | Claude model for the per-revision Roast subprocess. |
+| `HIFUMI_DEV_WORKSPACE_ROOT` | `~/projects/hifumi-dev-workspaces` | Where generated apps live. The test suite overrides to `Dir.tmpdir`. |
+| `HIFUMI_DEV_MODEL` | `sonnet` | Claude model for the per-revision Roast subprocess. |
 | `E2E_GENERATE` | unset | Set to `1` to opt the gated end-to-end generation test in. |
 | `E2E_PREVIEW` | unset | Set to `1` to opt the gated preview-lifecycle Docker test in. |
 | `OPENROUTER_API_KEY` | unset | Required by `bin/roast-openrouter`. |
@@ -248,7 +248,7 @@ Issues and pull requests are welcome — especially on the **rougher edges**: wo
 ## Links
 
 - **Hosted**: [hifumi.dev](https://hifumi.dev)
-- **Source**: [github.com/pstrzalk/rails-app-generator](https://github.com/pstrzalk/rails-app-generator)
+- **Source**: [github.com/pstrzalk/hifumi-dev](https://github.com/pstrzalk/hifumi-dev)
 - **Design system**: [`docs/02-architecture/04-design-system.md`](docs/02-architecture/04-design-system.md)
 
 ## License

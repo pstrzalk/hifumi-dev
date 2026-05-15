@@ -1,5 +1,5 @@
-service: hifumi-generator
-image: hifumi-generator
+service: hifumi-dev
+image: hifumi-dev
 
 servers:
   web:
@@ -20,12 +20,12 @@ env:
   clear:
     SOLID_QUEUE_IN_PUMA: true
     PREVIEW_DOMAIN: hifumi.dev
-    RAILS_APP_GENERATOR_WORKSPACE_ROOT: /var/lib/rails-app-generator/workspaces
+    HIFUMI_DEV_WORKSPACE_ROOT: /var/lib/hifumi-dev/workspaces
     GITHUB_CLIENT_ID: Ov23liLp77TT9zMsowk3
 
 volumes:
-  - "rails_app_generator_storage:/rails/storage"
-  - "/var/lib/rails-app-generator/workspaces:/var/lib/rails-app-generator/workspaces"
+  - "hifumi_dev_storage:/rails/storage"
+  - "/var/lib/hifumi-dev/workspaces:/var/lib/hifumi-dev/workspaces"
   - "/var/run/docker.sock:/var/run/docker.sock"
 
 asset_path: /rails/public/assets

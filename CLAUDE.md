@@ -1,4 +1,4 @@
-# Rails App Generator
+# hifumi.dev
 
 Ruby on Rails application generator — equivalent of Lovable/bolt.new for the Rails ecosystem. Output: clean Rails repo, zero vendor lock-in.
 

@@ -238,10 +238,10 @@ W2 example in Roast — **kept in sync with the working `../../spikes/roast/revi
 ```ruby
 # workflows/revision_workflow.rb
 # Run: roast revision_workflow.rb -- revision_id=123 revision_summary="..." revision_prompt="..."
-# Workspace via ENV: RAILS_APP_GENERATOR_WORKSPACE=/path/to/project
+# Workspace via ENV: HIFUMI_DEV_WORKSPACE=/path/to/project
 
-WORKSPACE = ENV.fetch("RAILS_APP_GENERATOR_WORKSPACE")
-CLAUDE_MODEL = ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet")
+WORKSPACE = ENV.fetch("HIFUMI_DEV_WORKSPACE")
+CLAUDE_MODEL = ENV.fetch("HIFUMI_DEV_MODEL", "sonnet")
 
 # Shared state between steps. Roast DSL blocks do NOT share `metadata` or
 # instance variables — the only reliable way to pass data between steps
@@ -318,7 +318,7 @@ end
 - `metadata[:key] = ...` inside `ruby(:...)` blocks **blows up** with `NameError: undefined local variable 'metadata' for Roast::CogInputContext`. Workaround: module-level `WORKFLOW_STATE = {}`.
 - `ruby(:verify).error` after `fail!` **is not available** — errors must be captured manually before `fail!`.
 - An agent without `skip_permissions!` times out in batch mode (prompts for `--dangerously-skip-permissions`). Acceptable because the workspace is isolated — but confirms the need for preview isolation (containers) in production.
-- W1 does not call W2 natively via Roast composition. Pattern: a **Ruby wrapper** (`new_app_driver.rb` in the spike — equivalent of the future Solid Queue job) invokes `bin/roast revision_workflow.rb` per revision via `system()`. ENV hygiene (`RAILS_APP_GENERATOR_WORKSPACE`, `RAILS_APP_GENERATOR_MODEL`) passed via env, per-revision parameters via `kwarg=value`.
+- W1 does not call W2 natively via Roast composition. Pattern: a **Ruby wrapper** (`new_app_driver.rb` in the spike — equivalent of the future Solid Queue job) invokes `bin/roast revision_workflow.rb` per revision via `system()`. ENV hygiene (`HIFUMI_DEV_WORKSPACE`, `HIFUMI_DEV_MODEL`) passed via env, per-revision parameters via `kwarg=value`.
 
 ## Technology split
 

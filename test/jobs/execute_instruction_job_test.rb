@@ -124,7 +124,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   # --- skeleton seed ----------------------------------------------------
 
   test "init_rails_app seeds workspace from skeleton + overlay (RailsApplication module, executable preview-entrypoint)" do
-    Dir.mktmpdir("rails-app-generator-init-test-") do |root|
+    Dir.mktmpdir("hifumi-dev-init-test-") do |root|
       ws = File.join(root, "project_test")
       ExecuteInstructionJob.new.send(:init_rails_app, ws)
 
@@ -139,7 +139,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   end
 
   test "init_rails_app pre-touches log/{development,test}.log so `rails generate` doesn't emit 'Unable to access log file' WARN" do
-    Dir.mktmpdir("rails-app-generator-log-touch-") do |root|
+    Dir.mktmpdir("hifumi-dev-log-touch-") do |root|
       ws = File.join(root, "project_log_touch")
       ExecuteInstructionJob.new.send(:init_rails_app, ws)
 
@@ -158,7 +158,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     refute File.exist?(skeleton_root.join("config/credentials.yml.enc")),
            "skeleton must NOT ship credentials.yml.enc"
 
-    Dir.mktmpdir("rails-app-generator-key-test-") do |root|
+    Dir.mktmpdir("hifumi-dev-key-test-") do |root|
       ws_a = File.join(root, "project_a")
       ws_b = File.join(root, "project_b")
       ExecuteInstructionJob.new.send(:init_rails_app, ws_a)
@@ -203,7 +203,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   end
 
   test "init_docs_baseline leaves docs/ world-writable so the agent (running as generator) can edit them" do
-    Dir.mktmpdir("rails-app-generator-docs-perm-") do |root|
+    Dir.mktmpdir("hifumi-dev-docs-perm-") do |root|
       ws = File.join(root, "project_docs_perm")
       FileUtils.mkdir_p(ws)
       Dir.chdir(ws) { system("git init -q && git commit -q --allow-empty -m bootstrap") }
@@ -220,7 +220,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   end
 
   test "relax_workspace_permissions keeps master.key locked at 0600 even though the rest goes world-writable" do
-    Dir.mktmpdir("rails-app-generator-relax-perm-") do |root|
+    Dir.mktmpdir("hifumi-dev-relax-perm-") do |root|
       ws = File.join(root, "project_relax_perm")
       FileUtils.mkdir_p(File.join(ws, "config"))
       master_key = File.join(ws, "config/master.key")
@@ -238,7 +238,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
 
   # --- seam shape --------------------------------------------------------
 
-  test "run_roast_subprocess receives RAILS_APP_GENERATOR_* env and bin/roast workflow args" do
+  test "run_roast_subprocess receives HIFUMI_DEV_* env and bin/roast workflow args" do
     first_call = nil
     with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
       ExecuteInstructionJob.perform_now(@instruction.id)
@@ -246,9 +246,9 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     end
 
     expected_ws = @project.workspace_path
-    assert_equal expected_ws, first_call[:env]["RAILS_APP_GENERATOR_WORKSPACE"]
-    assert_equal ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet"),
-                 first_call[:env]["RAILS_APP_GENERATOR_MODEL"]
+    assert_equal expected_ws, first_call[:env]["HIFUMI_DEV_WORKSPACE"]
+    assert_equal ENV.fetch("HIFUMI_DEV_MODEL", "sonnet"),
+                 first_call[:env]["HIFUMI_DEV_MODEL"]
 
     assert_equal Rails.root.join("bin/roast-claudesubscription").to_s, first_call[:args][0]
     assert_equal Rails.root.join("lib/roast/revision_workflow.rb").to_s, first_call[:args][1]

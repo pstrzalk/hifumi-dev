@@ -171,8 +171,8 @@ class ExecuteInstructionJob < ApplicationJob
     # the claude CLI, and any rails-generate the agent invokes) so workspace
     # commands land in development.
     env = {
-      "RAILS_APP_GENERATOR_WORKSPACE" => workspace,
-      "RAILS_APP_GENERATOR_MODEL" => ENV.fetch("RAILS_APP_GENERATOR_MODEL", "sonnet"),
+      "HIFUMI_DEV_WORKSPACE" => workspace,
+      "HIFUMI_DEV_MODEL" => ENV.fetch("HIFUMI_DEV_MODEL", "sonnet"),
       "OPENROUTER_API_KEY" => api_key,
       "RAILS_ENV" => "development"
     }

@@ -2,7 +2,7 @@ require "test_helper"
 
 class WorkspaceAuthorshipTest < ActiveSupport::TestCase
   test "init_rails_app sets repo-local user.email/name to hifumi.dev identity" do
-    Dir.mktmpdir("rails-app-generator-authorship-") do |root|
+    Dir.mktmpdir("hifumi-dev-authorship-") do |root|
       ws = File.join(root, "project_authorship")
       ExecuteInstructionJob.new.send(:init_rails_app, ws)
 
@@ -15,7 +15,7 @@ class WorkspaceAuthorshipTest < ActiveSupport::TestCase
   end
 
   test "init_rails_app's first commit is authored as hifumi.dev <code@hifumi.dev>" do
-    Dir.mktmpdir("rails-app-generator-authorship-commit-") do |root|
+    Dir.mktmpdir("hifumi-dev-authorship-commit-") do |root|
       ws = File.join(root, "project_authorship_commit")
       ExecuteInstructionJob.new.send(:init_rails_app, ws)
 
@@ -28,7 +28,7 @@ class WorkspaceAuthorshipTest < ActiveSupport::TestCase
   end
 
   test "init_rails_app pins initial branch to main regardless of host init.defaultBranch" do
-    Dir.mktmpdir("rails-app-generator-authorship-branch-") do |root|
+    Dir.mktmpdir("hifumi-dev-authorship-branch-") do |root|
       ws = File.join(root, "project_authorship_branch")
       ExecuteInstructionJob.new.send(:init_rails_app, ws)
 
