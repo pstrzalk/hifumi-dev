@@ -1,0 +1,22 @@
+default: &default
+  name: ~
+  tax_id: ~
+  business_registration_url: ~
+  contact_email: ~
+
+development:
+  <<: *default
+  name: "Local Dev Operator"
+  contact_email: "dev@example.com"
+
+test:
+  <<: *default
+  name: "Test Operator"
+  contact_email: "test@example.com"
+
+production:
+  <<: *default
+  name: <%= ENV["HIFUMI_OPERATOR_NAME"] %>
+  tax_id: <%= ENV["HIFUMI_OPERATOR_TAX_ID"] %>
+  business_registration_url: <%= ENV["HIFUMI_OPERATOR_BUSINESS_URL"] %>
+  contact_email: <%= ENV["HIFUMI_OPERATOR_EMAIL"] %>

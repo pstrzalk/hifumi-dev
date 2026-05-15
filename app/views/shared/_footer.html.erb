@@ -1,0 +1,20 @@
+<footer class="app-footer">
+  <div class="app-footer__inner">
+    <nav class="app-footer__row" aria-label="Footer">
+      <%= link_to "Privacy", privacy_path, class: "app-footer__link" %>
+      <span class="app-footer__sep">·</span>
+      <%= link_to "Contact", contact_path, class: "app-footer__link" %>
+      <span class="app-footer__sep">·</span>
+      <%= link_to "GitHub", "https://github.com/pstrzalk/hifumi-dev",
+            class: "app-footer__link", target: "_blank", rel: "noopener" %>
+      <span class="app-footer__sep">·</span>
+      <%= link_to "License", "https://github.com/pstrzalk/hifumi-dev/blob/main/LICENSE",
+            class: "app-footer__link", target: "_blank", rel: "noopener" %>
+    </nav>
+    <div class="app-footer__bottom">
+      <p class="app-footer__copyright">
+        &copy; <%= Date.current.year %><% if operator_configured? %> <%= operator[:name] %><% end %> — hifumi.dev
+      </p>
+    </div>
+  </div>
+</footer>

@@ -19,6 +19,12 @@ Rails.application.configure do
     end
   end
 
-  config.content_security_policy_nonce_generator = ->(request) { request.session.id.to_s }
+  # Nonce must be session-independent: anonymous visitors haven't written to
+  # the session yet, so `request.session.id` is nil/empty and the resulting
+  # `nonce-""` is rejected by browsers (blocks every inline script — importmap,
+  # Stimulus boot, csrf meta). Phase 4 will add `reset_session` for no-consent
+  # visitors, which would compound the issue. SecureRandom is computed once
+  # per request via ActionDispatch::ContentSecurityPolicy::Request memoization.
+  config.content_security_policy_nonce_generator = ->(_request) { SecureRandom.base64(16) }
   config.content_security_policy_nonce_directives = %w[script-src]
 end

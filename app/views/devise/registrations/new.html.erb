@@ -2,58 +2,62 @@
   <div class="eyebrow">auth · sign up</div>
   <h2 class="h-section" style="margin: 4px 0 24px;">Sign up</h2>
 
-  <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { class: "flex flex-col", style: "gap: 16px;" }) do |f| %>
-    <%= render "devise/shared/error_messages", resource: resource %>
+  <% if cookie_consent_given? %>
+    <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { class: "flex flex-col", style: "gap: 16px;" }) do |f| %>
+      <%= render "devise/shared/error_messages", resource: resource %>
 
-    <div>
-      <%= f.label :email, class: "field-label" %>
-      <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "field-input" %>
-    </div>
+      <div>
+        <%= f.label :email, class: "field-label" %>
+        <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "field-input" %>
+      </div>
 
-    <div>
-      <%= f.label :password, class: "field-label" %>
-      <%= f.password_field :password, autocomplete: "new-password", class: "field-input" %>
-      <% if @minimum_password_length %>
-        <p class="small" style="margin: 4px 0 0;">
-          <%= @minimum_password_length %> characters minimum.
-        </p>
+      <div>
+        <%= f.label :password, class: "field-label" %>
+        <%= f.password_field :password, autocomplete: "new-password", class: "field-input" %>
+        <% if @minimum_password_length %>
+          <p class="small" style="margin: 4px 0 0;">
+            <%= @minimum_password_length %> characters minimum.
+          </p>
+        <% end %>
+      </div>
+
+      <div>
+        <%= f.label :password_confirmation, class: "field-label" %>
+        <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "field-input" %>
+      </div>
+
+      <%= f.fields_for :profile do |pf| %>
+        <div>
+          <%= pf.label :first_name, class: "field-label" %>
+          <%= pf.text_field :first_name, class: "field-input" %>
+        </div>
+
+        <div>
+          <%= pf.label :last_name, class: "field-label" %>
+          <%= pf.text_field :last_name, class: "field-input" %>
+        </div>
+
+        <div>
+          <%= pf.label :openrouter_api_key, "OpenRouter API key", class: "field-label" %>
+          <%= pf.password_field :openrouter_api_key, autocomplete: "off", class: "field-input" %>
+          <p class="small" style="margin: 6px 0 0;">
+            Get one at
+            <a href="https://openrouter.ai/keys" target="_blank"
+               style="color: var(--accent); text-decoration: underline; text-underline-offset: 2px;">openrouter.ai/keys</a>.
+            Required — your key powers your projects.
+          </p>
+        </div>
       <% end %>
-    </div>
 
-    <div>
-      <%= f.label :password_confirmation, class: "field-label" %>
-      <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "field-input" %>
-    </div>
-
-    <%= f.fields_for :profile do |pf| %>
-      <div>
-        <%= pf.label :first_name, class: "field-label" %>
-        <%= pf.text_field :first_name, class: "field-input" %>
-      </div>
-
-      <div>
-        <%= pf.label :last_name, class: "field-label" %>
-        <%= pf.text_field :last_name, class: "field-input" %>
-      </div>
-
-      <div>
-        <%= pf.label :openrouter_api_key, "OpenRouter API key", class: "field-label" %>
-        <%= pf.password_field :openrouter_api_key, autocomplete: "off", class: "field-input" %>
-        <p class="small" style="margin: 6px 0 0;">
-          Get one at
-          <a href="https://openrouter.ai/keys" target="_blank"
-             style="color: var(--accent); text-decoration: underline; text-underline-offset: 2px;">openrouter.ai/keys</a>.
-          Required — your key powers your projects.
-        </p>
-      </div>
+      <%= f.submit "Sign up", class: "btn btn--accent", style: "align-self: flex-start;" %>
     <% end %>
 
-    <%= f.submit "Sign up", class: "btn btn--accent", style: "align-self: flex-start;" %>
+    <hr class="section-rule" style="margin: 24px 0;">
+
+    <div class="flex flex-col" style="gap: 6px; font-size: 20px;">
+      <%= render "devise/shared/links" %>
+    </div>
+  <% else %>
+    <%= render "shared/cookies_required", action: "create an account" %>
   <% end %>
-
-  <hr class="section-rule" style="margin: 24px 0;">
-
-  <div class="flex flex-col" style="gap: 6px; font-size: 20px;">
-    <%= render "devise/shared/links" %>
-  </div>
 </section>

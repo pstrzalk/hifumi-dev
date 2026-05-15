@@ -3,6 +3,10 @@ require "test_helper"
 class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
   include Devise::Test::IntegrationHelpers
 
+  setup do
+    cookies[:cookie_consent] = "accepted"
+  end
+
   test "GET /users/sign_up renders form with nested profile fields" do
     get new_user_registration_path
     assert_response :success

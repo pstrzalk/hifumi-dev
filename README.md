@@ -226,6 +226,19 @@ cat "$WS/docs/revision_notes.md"    # per-revision decision log
 | `E2E_PREVIEW` | unset | Set to `1` to opt the gated preview-lifecycle Docker test in. |
 | `OPENROUTER_API_KEY` | unset | Required by `bin/roast-openrouter`. |
 
+## Self-hosting
+
+The `/privacy` page surfaces operator (data controller) details. These are read from `Rails.application.config.operator`, which is fed by `config/operator.yml` from these production ENV vars:
+
+| Env var | Purpose |
+|---------|---------|
+| `HIFUMI_OPERATOR_NAME` | Legal name of the entity running this deployment. Surfaces on `/privacy` and in the footer copyright. |
+| `HIFUMI_OPERATOR_TAX_ID` | Optional. Tax / VAT identifier. Rendered on `/privacy` if set. |
+| `HIFUMI_OPERATOR_BUSINESS_URL` | Optional. Link to the public business registry entry. Rendered on `/privacy` if set. |
+| `HIFUMI_OPERATOR_EMAIL` | Optional. Contact email shown on `/privacy`. |
+
+If `HIFUMI_OPERATOR_NAME` is unset in production, `/privacy` renders a warning notice telling the deployer what to set. Forks should set these in their Kamal secrets (or whatever deploy environment they use) before pointing real users at the deployment. Per memory, `.kamal/secrets` pulls these from the deployer's shell at deploy time — scope them to the deploy shell, not generic dotfiles.
+
 ## Roast runner choice
 
 `ExecuteInstructionJob` picks one of two wrappers based on environment:

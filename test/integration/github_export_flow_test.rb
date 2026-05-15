@@ -2,6 +2,7 @@ require "test_helper"
 
 class GithubExportFlowTest < ActionDispatch::IntegrationTest
   setup do
+    cookies[:cookie_consent] = "accepted"
     @owner = create_user
     @project = @owner.projects.create!(name: "Exportable Project")
     @chat = @project.create_chat!

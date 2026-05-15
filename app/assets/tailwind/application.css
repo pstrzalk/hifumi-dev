@@ -960,3 +960,168 @@ body {
   line-height: 1.6;
   color: var(--fg-muted);
 }
+
+/* ============================================================
+   PROSE STACK — vertical-rhythm wrapper for static content
+   ============================================================ */
+.prose-stack {
+  max-width: 70ch;
+}
+.prose-stack p,
+.prose-stack ul {
+  margin-block: 12px 0;
+  line-height: 1.6;
+}
+.prose-stack ul {
+  padding-inline-start: 1.4em;
+  list-style: disc;
+}
+.prose-stack ul li + li {
+  margin-block-start: 6px;
+}
+.prose-stack code {
+  font-family: var(--hi-font-mono);
+  font-size: 0.92em;
+  background: var(--bg-sunken);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+}
+.prose-stack a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-stack a:hover {
+  color: var(--accent-hover);
+}
+.prose-stack strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+.prose-stack .h-section {
+  margin-block: 24px 4px;
+}
+
+/* ============================================================
+   COOKIE CONSENT BANNER
+   ============================================================ */
+.cookie-bar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 50;
+  pointer-events: none;
+}
+.cookie-bar__panel {
+  pointer-events: auto;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.cookie-bar__panel.is-hidden {
+  display: none;
+}
+.cookie-bar__inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+@media (min-width: 640px) {
+  .cookie-bar__inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+}
+.cookie-bar__copy {
+  color: var(--fg-muted);
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 0;
+}
+.cookie-bar__link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cookie-bar__link:hover {
+  color: var(--accent-hover);
+}
+.cookie-bar__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   COOKIES REQUIRED — fallback card for gated forms
+   ============================================================ */
+.cookies-required {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  padding: 24px;
+  border-radius: var(--radius-lg);
+  max-width: 720px;
+}
+.cookies-required__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+.cookies-required .is-hidden {
+  display: none;
+}
+
+/* ============================================================
+   GLOBAL FOOTER
+   ============================================================ */
+.app-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.app-footer__inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.app-footer__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--hi-font-mono);
+  font-size: 15px;
+  letter-spacing: var(--tracking-mono);
+}
+.app-footer__link {
+  color: var(--fg-muted);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color var(--dur-base) var(--ease-standard),
+              border-color var(--dur-base) var(--ease-standard);
+}
+.app-footer__link:hover {
+  color: var(--fg);
+  border-bottom-color: var(--border-strong);
+}
+.app-footer__sep {
+  color: var(--fg-faint);
+}
+.app-footer__bottom {
+  border-top: 1px solid var(--border-faint);
+  padding-top: 12px;
+}
+.app-footer__copyright {
+  color: var(--fg-faint);
+  font-size: 14px;
+  margin: 0;
+}

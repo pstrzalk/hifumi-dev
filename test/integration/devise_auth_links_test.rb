@@ -1,6 +1,10 @@
 require "test_helper"
 
 class DeviseAuthLinksTest < ActionDispatch::IntegrationTest
+  setup do
+    cookies[:cookie_consent] = "accepted"
+  end
+
   test "sign-up page shows log-in prompt and no GitHub button" do
     get new_user_registration_path
     assert_response :success

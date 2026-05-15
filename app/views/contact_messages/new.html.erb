@@ -1,0 +1,42 @@
+<% content_for(:title) { "Contact — hifumi.dev" } %>
+
+<section class="marketing-shell" style="max-width: 720px; margin: 0 auto;">
+  <header class="hero">
+    <h1 class="h-display">Contact</h1>
+    <p class="lede">Questions, bug reports, partnership ideas — drop a note.</p>
+  </header>
+
+  <% if cookie_consent_given? %>
+    <%= form_with model: @contact_message, url: contact_path, html: { class: "flex flex-col", style: "gap: 16px;" } do |f| %>
+      <% if @contact_message.errors.any? %>
+        <div class="notice-strip notice-strip--err">
+          <span class="notice-strip__stripe"></span>
+          <span class="notice-strip__tag">error</span>
+          <div class="notice-strip__body">
+            <ul>
+              <% @contact_message.errors.full_messages.each do |msg| %>
+                <li><%= msg %></li>
+              <% end %>
+            </ul>
+          </div>
+        </div>
+      <% end %>
+
+      <div>
+        <%= f.label :email, class: "field-label" %>
+        <%= f.email_field :email, class: "field-input", required: true,
+              placeholder: "you@example.com", autocomplete: "email", autofocus: true %>
+      </div>
+
+      <div>
+        <%= f.label :message, class: "field-label" %>
+        <%= f.text_area :message, class: "field-textarea", rows: 8, required: true,
+              placeholder: "What's on your mind?" %>
+      </div>
+
+      <%= f.submit "Send", class: "btn btn--accent", style: "align-self: flex-start;" %>
+    <% end %>
+  <% else %>
+    <%= render "shared/cookies_required", action: "send a message" %>
+  <% end %>
+</section>

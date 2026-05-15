@@ -1,0 +1,71 @@
+<% content_for(:title) { "Privacy — hifumi.dev" } %>
+
+<section class="marketing-shell" style="max-width: 1280px; margin: 0 auto;">
+  <header class="hero">
+    <h1 class="h-display">Privacy</h1>
+    <p class="lede">Last updated: <%= privacy_last_updated.strftime("%B %-d, %Y") %>.</p>
+  </header>
+
+  <article class="prose-stack">
+
+    <h2 class="h-section">Data controller</h2>
+    <% if operator_configured? %>
+      <p>This service is operated by <strong><%= operator[:name] %></strong>.</p>
+      <% if operator[:tax_id].present? %>
+        <p>Tax ID: <code><%= operator[:tax_id] %></code></p>
+      <% end %>
+      <% if operator[:business_registration_url].present? %>
+        <p>
+          Business registration:
+          <%= link_to "official registry", operator[:business_registration_url],
+              target: "_blank", rel: "noopener" %>
+        </p>
+      <% end %>
+      <% if operator[:contact_email].present? %>
+        <p>Contact: <%= mail_to operator[:contact_email] %></p>
+      <% end %>
+    <% else %>
+      <div class="notice-strip notice-strip--warn">
+        <span class="notice-strip__stripe"></span>
+        <span class="notice-strip__tag">notice</span>
+        <div class="notice-strip__body">
+          Operator details are not configured for this deployment. The deployer
+          should set <code>HIFUMI_OPERATOR_NAME</code>, <code>HIFUMI_OPERATOR_TAX_ID</code>,
+          <code>HIFUMI_OPERATOR_BUSINESS_URL</code>, and <code>HIFUMI_OPERATOR_EMAIL</code>
+          in the production environment — see <code>README.md</code>.
+        </div>
+      </div>
+    <% end %>
+
+    <h2 class="h-section">What we store</h2>
+    <p>hifumi.dev is a Rails app generator. To run it for you, we keep:</p>
+    <ul>
+      <li>Your account email and password hash (via Devise).</li>
+      <li>If you sign in with GitHub: your GitHub user id, login, name, and avatar URL.</li>
+      <li>Your OpenRouter API key, if you provide one (encrypted at rest via Rails <code>encrypts</code>).</li>
+      <li>The projects, chats, and messages you create — needed to render and resume them.</li>
+    </ul>
+    <p>We don't sell or share this data. We don't run analytics or tracking pixels.</p>
+
+    <h2 class="h-section">Cookies</h2>
+    <p>We ask before storing anything on your device. The banner at the bottom of the page lets you accept or decline.</p>
+    <p><strong>If you accept:</strong></p>
+    <ul>
+      <li>A session cookie keeps you signed in.</li>
+      <li>A <code>cookie_consent</code> cookie remembers your choice for a year.</li>
+    </ul>
+    <p><strong>If you decline:</strong></p>
+    <ul>
+      <li>You can browse the marketing pages and read this policy.</li>
+      <li>You cannot sign in or create an account — both require a session cookie.</li>
+    </ul>
+    <p>No third-party cookies. No tracking.</p>
+
+    <h2 class="h-section">Contact form</h2>
+    <p>If you send a message via <%= link_to "the contact form", contact_path %>, we store your email and message in our database so we can reply. We don't use it for marketing.</p>
+
+    <h2 class="h-section">Data deletion</h2>
+    <p>To request deletion of your account or a contact message, <%= link_to "send a request", contact_path %>.</p>
+
+  </article>
+</section>

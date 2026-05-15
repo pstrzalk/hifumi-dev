@@ -1,6 +1,10 @@
 require "test_helper"
 
 class HomeControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    cookies[:cookie_consent] = "accepted"
+  end
+
   test "anon at / renders welcome with both CTAs" do
     get root_path
     assert_response :success

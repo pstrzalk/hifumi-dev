@@ -4,6 +4,7 @@ class MessagesControllerTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 
   setup do
+    cookies[:cookie_consent] = "accepted"
     @project = projects(:flowers)
     sign_in users(:owner)
   end

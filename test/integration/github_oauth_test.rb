@@ -2,6 +2,7 @@ require "test_helper"
 
 class GithubOauthTest < ActionDispatch::IntegrationTest
   setup do
+    cookies[:cookie_consent] = "accepted"
     @user = create_user
     sign_in @user
 

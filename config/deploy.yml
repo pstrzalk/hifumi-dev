@@ -22,6 +22,11 @@ env:
     PREVIEW_DOMAIN: hifumi.dev
     HIFUMI_DEV_WORKSPACE_ROOT: /var/lib/hifumi-dev/workspaces
     GITHUB_CLIENT_ID: Ov23liLp77TT9zMsowk3
+    # Operator identity for /privacy. Public-facing legal display, so values
+    # live here (not .kamal/secrets). Tax ID and business URL intentionally
+    # unset — /privacy will skip those lines.
+    HIFUMI_OPERATOR_NAME: Paweł Strzałkowski
+    HIFUMI_OPERATOR_EMAIL: p.strzalkowski@visuality.pl
 
 volumes:
   - "hifumi_dev_storage:/rails/storage"

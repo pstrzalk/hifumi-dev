@@ -2,6 +2,7 @@ require "test_helper"
 
 class ProjectsControllerShowTest < ActionDispatch::IntegrationTest
   setup do
+    cookies[:cookie_consent] = "accepted"
     @user = create_user
     sign_in @user
     @project = @user.projects.create!(name: "Shop")

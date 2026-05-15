@@ -1,0 +1,12 @@
+<div class="cookies-required" data-controller="cookies-required">
+  <div class="cookies-required__inner">
+    <h3 class="h-section">Cookies required</h3>
+    <p>To <%= local_assigns[:action] || "continue" %>, you need to accept cookies — they keep you signed in.</p>
+    <button type="button"
+            class="btn btn--accent is-hidden"
+            data-cookies-required-target="button"
+            data-action="click->cookies-required#requestReopen">
+      Show cookie banner
+    </button>
+  </div>
+</div>

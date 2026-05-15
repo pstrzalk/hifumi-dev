@@ -9,6 +9,14 @@ Rails.application.routes.draw do
 
   get "up" => "rails/health#show", as: :rails_health_check
 
+  get  "contact"        => "contact_messages#new",    as: :contact
+  post "contact"        => "contact_messages#create"
+  get  "contact/thanks" => "contact_messages#thanks", as: :thanks_contact
+
+  get  "privacy"        => "pages#privacy",           as: :privacy
+
+  resource :cookie_consent, only: :create
+
   root "home#index"
 
   resources :projects, only: [ :index, :new, :create, :show, :destroy ] do

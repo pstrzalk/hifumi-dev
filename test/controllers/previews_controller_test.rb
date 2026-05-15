@@ -4,6 +4,7 @@ class PreviewsControllerTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestCase if false  # placeholder; ActiveJob assertions come from rails/test_help
 
   setup do
+    cookies[:cookie_consent] = "accepted"
     @user = create_user
     sign_in @user
     @project = @user.projects.create!(name: "Preview Controller Test")

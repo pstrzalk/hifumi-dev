@@ -1,0 +1,20 @@
+<div data-controller="cookie-consent" class="cookie-bar">
+  <div data-cookie-consent-target="banner" class="cookie-bar__panel is-hidden">
+    <div class="cookie-bar__inner">
+      <p class="cookie-bar__copy">
+        We use a session cookie to keep you signed in. Accept to enable login.
+        <%= link_to "Learn more", privacy_path, class: "cookie-bar__link" %>
+      </p>
+      <div class="cookie-bar__actions">
+        <button type="button" class="btn btn--outline btn--sm"
+                data-action="click->cookie-consent#decline">
+          Decline
+        </button>
+        <%= form_with url: cookie_consent_path, method: :post, html: { class: "inline" } do |f| %>
+          <%= f.submit "Accept", class: "btn btn--accent btn--sm",
+                       data: { action: "click->cookie-consent#accept" } %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
