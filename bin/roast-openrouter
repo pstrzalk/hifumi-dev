@@ -1,4 +1,7 @@
 #!/usr/bin/env sh
+# Dev/CI wrapper — invoked by ExecuteInstructionJob in production or when
+# FORCE_OPENROUTER=1 in development. Not for direct end-user use.
+#
 # Wrapper: roast via OpenRouter (Anthropic Skin) — PAID per-token.
 # For use when the subscription doesn't work.
 

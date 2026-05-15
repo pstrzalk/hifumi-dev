@@ -1,4 +1,7 @@
 #!/usr/bin/env sh
+# Dev wrapper — invoked by ExecuteInstructionJob in development (default).
+# Requires `claude login` to be configured locally. Not for direct end-user use.
+#
 # Wrapper: roast via local `claude -p` (Claude Code subscription).
 # No ANTHROPIC_API_KEY / OPENROUTER — Claude CLI uses OAuth from `claude login`.
 # For OpenRouter mode (paid): bin/roast-openrouter

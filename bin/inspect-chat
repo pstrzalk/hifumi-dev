@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# Maintainer/debug helper — not part of normal app flow.
+#
 # Dump the chat history for a project so we can spot why Anthropic rejects
 # the conversation with "tool_use_id without matching tool_use" errors.
 #
