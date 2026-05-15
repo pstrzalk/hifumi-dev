@@ -22,7 +22,11 @@ class ProjectsController < ApplicationController
     project = current_user.projects.create!(name: description.truncate(60))
     chat = GeneratorAgent.create!(project: project)
     first_message = chat.messages.create!(role: :user, content: description)
-    ChatRespondJob.perform_later(first_message.id)
+    # Delay so the redirected-to /projects/:id page can mount its Turbo Cable
+    # subscription before the assistant placeholder broadcasts; otherwise the
+    # browser misses the append and the later `replace message_<id>` no-ops.
+    # See docs/09-ideas/05-followups.md (2026-05-15: chat-on-new-project race).
+    ChatRespondJob.set(wait: 0.5.seconds).perform_later(first_message.id)
 
     redirect_to project
   end

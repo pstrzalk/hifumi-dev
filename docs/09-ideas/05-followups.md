@@ -95,3 +95,40 @@ end
 ```
 
 Tests to add (`test/integration/github_oauth_test.rb`): a happy-path reconnect (current user's existing connection refreshes), a fresh-connect (no prior connection), and the conflict case (a different user already owns the `github_user_id`).
+
+---
+
+### Chat-on-new-project race: first assistant turn invisible until refresh
+
+**File**: `app/controllers/projects_controller.rb:25` — current workaround in place: `ChatRespondJob.set(wait: 0.5.seconds).perform_later(first_message.id)`.
+
+**Symptom (seen on prod 2026-05-15 right after the footer/cookie-consent deploy)**: user submits a new project description, lands on `/projects/:id`, but the assistant's "working…" placeholder + final response never appear. Manual refresh re-renders from DB and both show up. Reproduced twice in a row at hifumi.dev; never reproducible on `localhost`.
+
+**Root cause** — Turbo Cable subscription cold-start race, exact timeline from prod Kamal log (see thread on 2026-05-15):
+```
+T=0.000s  POST /projects        → user message 141 created, ChatRespondJob enqueued
+T=0.118s  redirect 302 → /projects/22
+T=0.221s  GET /projects/22 starts
+T=0.249s  GET /projects/22 returns   ← page renders, message 142 doesn't exist yet
+T=0.262s  ChatRespondJob enqueues append broadcast for message 142 (placeholder)
+T=0.280s  server performs append message 142            ← browser hasn't subscribed yet
+T=0.377s  Turbo::StreamsChannel SUBSCRIBES to project's stream   ← 97ms too late
+T=2.986s  ChatRespondJob enqueues `replace message_142` (LLM response)
+          → no #message_142 in DOM → Turbo silently no-ops
+```
+
+The 500ms wait pushes the placeholder broadcast to ~T=0.762s, well past the ~T=0.377s WebSocket subscribe. Loopback connections subscribe in <10ms so the race is invisible locally.
+
+**Why this is a workaround, not a fix**: 500ms is empirical, not principled. A slow client on a flaky connection might still miss the subscribe deadline; a fast cluster might make the wait visible as UX latency. The race also resurfaces if anyone shortens or removes the wait without realising.
+
+**Real fixes, in order of cleanliness**:
+
+1. **Create the assistant placeholder synchronously in `ProjectsController#create` before the redirect.** The show action then renders message 142 from the DB; only the eventual `replace` arrives via WebSocket — and the page's subscription happens during normal load, with plenty of time before the LLM responds. Tricky bit: per memory `project_ruby_llm_message_lifecycle.md`, RubyLLM's `acts_as_chat` auto-creates the assistant row inside `on_new_message`, so the controller-created row needs to be the same row RubyLLM populates. Plumbing: pass the placeholder's id into `ChatRespondJob`, and have the job pre-bind it onto the RubyLLM chat (or update the placeholder when `on_end_message` fires).
+
+2. **One-shot reconciliation on `turbo:load`**: chat container Stimulus controller fetches `/projects/:id/messages.json` (or similar) once after page load, diffs against DOM, appends anything missing. Covers all flavours of this race, not just the new-project one. Slight extra request per page load.
+
+3. **Investigate kamal-proxy `--buffer-responses` impact on `/cable` upgrade**: unlikely culprit (proxy detects Upgrade and passes through), but worth a 10-minute look — if the buffer flag adds even 50ms to the WebSocket handshake, removing it (or scoping to non-`/cable`) gives breathing room.
+
+**MessagesController#create is unaffected** — that path doesn't redirect, the WebSocket subscription persists across the form-replace, broadcasts always arrive after subscription. Only `ProjectsController#create` has this race; the wait is scoped there.
+
+**Triggering on `main`**: clear localStorage + cookies (anon), accept cookies, sign in, submit a new project. Without the wait you'll see no assistant response until you refresh. With the wait it consistently renders.
