@@ -2,6 +2,23 @@
 
 Generate a complete Rails application from a natural-language prompt. Output is a clean Rails repo (your own git history, your own dependencies — no vendor lock-in).
 
+Inspired by Lovable, bolt.new, and v0 — built for the Rails ecosystem.
+
+**Hosted version: [hifumi.dev](https://hifumi.dev)** — try it without installing anything.
+
+## Mission
+
+The "describe an app, get a working app" experience has so far been concentrated in JavaScript-stack tools. Rails deserves the same magic: an AI generator that produces idiomatic, *Rails Way* applications a real team would be happy to maintain.
+
+This project exists to:
+
+- **Lower the barrier to entry for Rails.** Newcomers can pick up the framework through a working app instead of a tutorial, and see what "convention over configuration" actually buys you.
+- **Make the Rails ecosystem richer.** Generators are part of Rails' DNA — `rails new`, `rails generate` — and AI-driven generators are a natural continuation of that lineage.
+- **Keep new projects in Rails.** When developers reach for the trendiest AI generator, they end up on whatever stack it targets. A first-class Rails option keeps Rails on the table for the next generation of projects.
+- **Bring more people into the Rails community.** Faster bootstrapping means more side projects, more demos, more conference talks, more people who'd otherwise never have written a `Gemfile`.
+
+Output is intentionally a plain Rails repository: your own git history, your own gems, no proprietary runtime, no hosting lock-in. Push it to GitHub, run it wherever, hand it off to a team. You own the code from minute one.
+
 ## Requirements
 
 - Ruby 4.0.2 (pinned in `.ruby-version`; install with `frum install 4.0.2`)
@@ -223,3 +240,17 @@ cat "$WS/docs/revision_notes.md"    # per-revision decision log
 The generator is a Rails 8 app with RubyLLM + Solid Queue. Phase notes and the active plan live under `docs/`; start at `docs/03-plans/` for what's in flight. See `CLAUDE.md` for status, conventions, and the canonical reading order.
 
 The visible UI follows the **Hifumi design system** — warm paper background, IBM Plex stack, Rails-red accent, rectangular outlined status tags. Tokens and component classes live in `app/assets/tailwind/application.css`; the full reference (token map, component-to-view inventory, voice rules, anti-patterns) is at `docs/02-architecture/04-design-system.md`. Read it before redesigning any chrome.
+
+## Contributing
+
+Issues and pull requests are welcome — especially on the **rougher edges**: workflow prompts, the verify/remediation loop, the design system, and anything in `docs/09-ideas/`. Start with `CLAUDE.md` for the project's conventions and current phase status.
+
+## Links
+
+- **Hosted**: [hifumi.dev](https://hifumi.dev)
+- **Source**: [github.com/pstrzalk/rails-app-generator](https://github.com/pstrzalk/rails-app-generator)
+- **Design system**: [`docs/02-architecture/04-design-system.md`](docs/02-architecture/04-design-system.md)
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
