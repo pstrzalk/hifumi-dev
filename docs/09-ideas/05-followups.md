@@ -59,3 +59,39 @@ Pairs naturally with the prompt change — together they cover both "agent didn'
 
 - **`ProjectsControllerTest#test_GET_/projects/new_(signed_in)_renders_new_with_placeholder_text`** at `test/controllers/projects_controller_test.rb:43` has been failing on `main` since the projects/new redesign. Test expects `placeholder="a flower shop page, with full payment system"` but the textarea now uses different copy. 5-minute fix: update the assertion to match the current placeholder string (or remove it if placeholder content is no longer a contract worth pinning).
 - **Project 20 prod workspace cleanup** (only if the project resumes): 339 MB `vendor/bundle/` + bad commit `5bc7041` from before the skeleton `.gitignore` expansion (`a809a90`). Run `kamal app exec` to drop the tree + amend the commit's tree, or just leave it as historical noise.
+
+---
+
+## 2026-05-15
+
+### OAuth callback 500 when a GitHub account is already linked to another user
+
+**File**: `app/controllers/users/omniauth_callbacks_controller.rb:8`
+
+**Symptom (seen on prod during the rename + secret-rotation audit)**: signing up as a fresh user (User 3 = `pstrzalk+ghtest@gmail.com`) then hitting "Connect GitHub" raised `ActiveRecord::RecordNotUnique (SQLite3::ConstraintException: UNIQUE constraint failed: github_connections.github_user_id)` and returned 500. The OAuth handshake itself succeeded — token exchange completed, GitHub user info was retrieved — but the controller's `update!` violated the unique index because User 1 (`p.strzalkowski@visuality.pl`) already owned a `GithubConnection` for the same `github_user_id`.
+
+**Why it matters**: any second account on hifumi.dev that tries to connect a GitHub identity already linked elsewhere gets a raw 500. Today it was self-inflicted (same person, two accounts) but on a public site it would hit any pair of users sharing access to the same GitHub bot account, or anyone re-registering after deleting their old account.
+
+**The DB invariant is intentional** (one-to-one between GitHub identity and User), so the fix is purely in the controller. Two product choices:
+
+1. **Friendly flash, no transfer** (least surprise): rescue `ActiveRecord::RecordNotUnique`, redirect to `edit_user_registration_path` with `alert: "This GitHub account is already connected to a different hifumi.dev login. Sign in to that account, or disconnect there first."`
+2. **Transfer to current user** (most "it just works"): in the rescue, look up the existing connection by `github_user_id`, reassign `user_id` to `current_user.id`, save. Implicit data-ownership swap — fine for a single-user app, surprising on a multi-user one (the original owner silently loses their connection).
+
+Recommend (1) for now — explicit is better than magic.
+
+**Sketch**:
+
+```ruby
+def github
+  auth = request.env["omniauth.auth"]
+  connection = current_user.github_connection || current_user.build_github_connection
+  connection.update!(provider: "github_oauth", github_username: auth.info.nickname,
+                     github_user_id: auth.uid.to_i, access_token: auth.credentials.token)
+  redirect_to edit_user_registration_path, notice: "Connected as @#{connection.github_username}."
+rescue ActiveRecord::RecordNotUnique
+  redirect_to edit_user_registration_path,
+              alert: "This GitHub account is already connected to a different hifumi.dev login."
+end
+```
+
+Tests to add (`test/integration/github_oauth_test.rb`): a happy-path reconnect (current user's existing connection refreshes), a fresh-connect (no prior connection), and the conflict case (a different user already owns the `github_user_id`).
