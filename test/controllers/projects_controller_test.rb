@@ -44,7 +44,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
   test "GET /projects/new (signed in) renders new with placeholder text" do
     get new_project_path
     assert_response :success
-    assert_select "textarea[placeholder=?]", "a flower shop page, with full payment system"
+    assert_select "textarea[placeholder=?]", "a yoga studio site. Class schedule, online booking, member accounts with class packs, instructor logins, an admin panel, and a calm minimal theme"
   end
 
   test "GET /projects/new (signed in) renders the three suggestion buttons with their labels" do
