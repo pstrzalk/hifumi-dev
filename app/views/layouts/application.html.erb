@@ -35,17 +35,13 @@
           <span class="app-nav-sep">·</span>
           <%= button_to "Sign out", destroy_user_session_path, method: :delete,
               form: { class: "inline" }, class: "app-nav-link" %>
-          <span class="app-nav-sep">·</span>
-          <%= link_to "GitHub", "https://github.com/pstrzalk/hifumi-dev",
-              class: "app-nav-link", target: "_blank", rel: "noopener" %>
+          <%= render "shared/github_nav_link" %>
         <% else %>
           <%= link_to root_path, class: "app-nav-brand" do %><span class="kanji" aria-hidden="true">一二三</span>hifumi<span class="tld">.dev</span><% end %>
-          <%= link_to "GitHub", "https://github.com/pstrzalk/hifumi-dev",
-              class: "app-nav-link", target: "_blank", rel: "noopener" %>
-          <span class="app-nav-sep">·</span>
           <%= link_to "Log in", new_user_session_path %>
           <span class="app-nav-sep">·</span>
           <%= link_to "Sign up", new_user_registration_path, class: "btn btn--accent btn--sm" %>
+          <%= render "shared/github_nav_link" %>
         <% end %>
       </div>
     </nav>

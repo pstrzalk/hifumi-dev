@@ -249,6 +249,8 @@ body {
 }
 .app-nav-link:hover { color: var(--accent); }
 .app-nav-link.active { color: var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 4px; }
+.app-nav-link--icon { display: inline-flex; align-items: center; }
+.app-nav-link--icon svg { display: block; }
 
 /* ============================================================
    STUDIO TABS — kanji + mono label, accent underline on active
