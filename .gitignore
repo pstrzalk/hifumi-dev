@@ -47,5 +47,8 @@
 # Claude Code local settings.
 /.claude/settings.local.json
 
+# Local planning + research notes (rpi:* workflows write here).
+/thoughts/
+
 # macOS Finder metadata.
 .DS_Store

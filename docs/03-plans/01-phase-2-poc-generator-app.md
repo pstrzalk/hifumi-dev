@@ -185,8 +185,6 @@ Migrations, models (`Project`, `Instruction`, `Revision`, `Chat` extended with `
 
 ### Step 3 — Chat baseline without tools (half-day)
 
-**Detailed plan**: `../../thoughts/shared/plans/2026-04-18/phase-2-step-3-chat-baseline.md` (supersedes the sketch below — notably drops `Current.project` in favor of instance-scoped tools in Step 4, and bakes in streaming from the start).
-
 - `ProjectsController#new, create, show` — "describe the app" form → `Project.create!` + `Chat.create!` + `Message.create!(role: :user)` → redirect to `/projects/:id`
 - View `projects/show.html.erb` — Turbo Frame `chat`, partial `_message.html.erb`, input field
 - `app/models/current.rb`:

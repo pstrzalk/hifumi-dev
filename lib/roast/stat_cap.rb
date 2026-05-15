@@ -8,8 +8,6 @@
 # summary line is the most valuable single signal in a pathological case —
 # without it, a model handed a truncated stat would have no idea that the
 # revision was outside normal scale.
-#
-# Context: thoughts/shared/research/2026-05-11/update-docs-prompt-too-long-instruction-13.md
 module StatCap
   DEFAULT_LINE_THRESHOLD = 60
   DEFAULT_HEAD_LINES = 50
