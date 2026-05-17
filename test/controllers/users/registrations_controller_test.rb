@@ -173,4 +173,57 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     }
     assert_not_equal old_encrypted, user.reload.encrypted_password
   end
+
+  test "GET /users/edit renders Account header and three hi-fu-mi tabs" do
+    user = User.create!(
+      email: "tabs@example.com", password: "password123",
+      profile_attributes: { first_name: "Pat", last_name: "Smith",
+                            openrouter_api_key: "sk-or-tabs-123456789" }
+    )
+    sign_in user
+
+    get edit_user_registration_path
+    assert_response :success
+
+    assert_select "h1.h-section", text: "Account"
+    assert_select "nav.tab-nav[role=tablist]"
+    assert_select "button[role=tab]", count: 3
+    assert_select "#tab_profile[aria-selected=true]"
+    assert_select "#tab_integrations[aria-selected=false]"
+    assert_select "#tab_danger[aria-selected=false]"
+    assert_select "#tab_profile .tab-button__numeral", text: "一"
+    assert_select "#tab_integrations .tab-button__numeral", text: "二"
+    assert_select "#tab_danger .tab-button__numeral", text: "三"
+    assert_select "#pane_profile[role=tabpanel]"
+    assert_select "#pane_integrations[role=tabpanel]"
+    assert_select "#pane_danger[role=tabpanel]"
+  end
+
+  test "GET /users/edit puts OpenRouter key in its own form inside Integrations, not the profile form" do
+    user = User.create!(
+      email: "split@example.com", password: "password123",
+      profile_attributes: { first_name: "Pat", last_name: "Smith",
+                            openrouter_api_key: "sk-or-split-123456789" }
+    )
+    sign_in user
+
+    get edit_user_registration_path
+    assert_response :success
+
+    assert_select "#pane_profile input[name='user[email]']"
+    assert_select "#pane_profile input[name='user[profile_attributes][first_name]']"
+    assert_select "#pane_profile input[name='user[profile_attributes][openrouter_api_key]']", count: 0
+
+    assert_select "#pane_integrations input[name='user[profile_attributes][openrouter_api_key]']"
+    assert_select "#pane_integrations form#openrouter_key_form"
+
+    # The OpenRouter form's namespace: "or" must de-duplicate the hidden
+    # profile-id input that BOTH fields_for :profile blocks auto-emit.
+    assert_select "#pane_profile input#user_profile_attributes_id", count: 1
+    assert_select "#pane_integrations input#or_user_profile_attributes_id", count: 1
+    assert_select "#pane_integrations input#user_profile_attributes_id", count: 0
+    assert_select "#pane_integrations input#or_user_profile_attributes_openrouter_api_key"
+
+    assert_select "#pane_danger form[action=?]", user_registration_path
+  end
 end
