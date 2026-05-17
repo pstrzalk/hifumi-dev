@@ -1,0 +1,27 @@
+<section style="max-width: 1600px; margin: 0 auto;">
+  <div class="eyebrow">home · dashboard</div>
+  <div class="flex items-baseline justify-between" style="margin: 4px 0 8px;">
+    <h1 class="h-section" style="margin: 0;">Welcome back, <%= @first_name %></h1>
+    <%= link_to "+ New project", new_project_path, class: "btn btn--primary btn--sm" %>
+  </div>
+  <p class="small" style="margin: 0 0 28px;">Member since <%= @member_since.strftime("%B %Y") %></p>
+
+  <div class="dash-stats">
+    <div class="dash-stat">
+      <span class="dash-stat__num numeral"><%= @projects_count %></span>
+      <span class="dash-stat__label">projects</span>
+    </div>
+    <div class="dash-stat">
+      <span class="dash-stat__num numeral"><%= @running_count %></span>
+      <span class="dash-stat__label">running</span>
+    </div>
+    <div class="dash-stat">
+      <span class="dash-stat__num numeral"><%= @exported_count %></span>
+      <span class="dash-stat__label">exported</span>
+    </div>
+  </div>
+
+  <div class="dash-actions">
+    <%= dashboard_actions(@recent_project) %>
+  </div>
+</section>

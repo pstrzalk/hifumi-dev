@@ -71,9 +71,7 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
       user: { email: "signin@example.com", password: "password123" }
     }
     assert_redirected_to root_path
-    follow_redirect! # root_path → projects_path for signed-in users
-    assert_redirected_to projects_path
-    follow_redirect!
+    follow_redirect! # root_path now renders the dashboard for signed-in users
     assert_response :success
   end
 

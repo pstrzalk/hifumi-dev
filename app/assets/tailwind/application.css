@@ -584,6 +584,54 @@ body {
 .project-card--failed  .project-card__stripe { background: var(--accent); }
 
 /* ============================================================
+   DASHBOARD — logged-in landing summary
+   ============================================================ */
+.dash-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0 0 32px;
+}
+.dash-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+  padding: 20px 24px;
+  background: var(--paper-0);
+  border: 1px solid var(--border);
+}
+.dash-stat__num {
+  font-size: 44px;
+  line-height: 1;
+  color: var(--fg);
+}
+.dash-stat__label {
+  font-family: var(--hi-font-mono);
+  font-size: 16px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--fg-muted);
+}
+.dash-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-family: var(--hi-font-mono);
+  font-size: 18px;
+}
+.dash-cta {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+}
+.dash-cta:hover { text-decoration: underline; text-underline-offset: 2px; }
+.dash-link { color: var(--fg-muted); text-decoration: none; }
+.dash-link:hover { color: var(--accent); }
+
+/* ============================================================
    REVISION LIST — terminal frame, mono caps, status stripe + outlined tag
    ============================================================ */
 .revisions {

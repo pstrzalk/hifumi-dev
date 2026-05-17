@@ -85,8 +85,9 @@ that consume it.
 | `.msg-bubble`, `.msg-role`, `.msg-pill` | same | messages/_message |
 | `.composer`, `.suggestion-chip` | same | messages/_form, suggestions/_frame, projects/new |
 | `.preview-pane` (+ header / body / empty / error) + `.preview-frame` | same | previews/_pane, _running, _starting, _stopped, _failed |
-| `.h-display`, `.h-section`, `.lede`, `.eyebrow`, `.numeral`, `.kanji`, `.mono` | same | home/index (display + lede + kanji), projects/* (eyebrow + section), studio, layouts (nav brand kanji) |
+| `.h-display`, `.h-section`, `.lede`, `.eyebrow`, `.numeral`, `.kanji`, `.mono` | same | home/index (display + lede + kanji), projects/* (eyebrow + section), studio, layouts (nav brand kanji), home/dashboard (eyebrow + section + numeral) |
 | `.pipeline`, `.pipeline-step` | same | home/index (一 / 二 / 三 stages) |
+| `.dash-stats`, `.dash-stat` (+ `__num` `__label`), `.dash-actions`, `.dash-cta`, `.dash-link` | same | home/dashboard |
 
 ---
 
