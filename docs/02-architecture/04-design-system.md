@@ -85,7 +85,8 @@ that consume it.
 | `.msg-bubble`, `.msg-role`, `.msg-pill` | same | messages/_message |
 | `.composer`, `.suggestion-chip` | same | messages/_form, suggestions/_frame, projects/new |
 | `.preview-pane` (+ header / body / empty / error) + `.preview-frame` | same | previews/_pane, _running, _starting, _stopped, _failed |
-| `.h-display`, `.h-section`, `.lede`, `.eyebrow`, `.numeral`, `.kanji`, `.mono` | same | home/index (display + lede + kanji), projects/* (eyebrow + section), studio, layouts (nav brand kanji), home/dashboard (eyebrow + section + numeral) |
+| `.h-display`, `.h-section`, `.lede`, `.eyebrow`, `.numeral`, `.kanji`, `.mono` | same | home/index (display + lede + kanji), projects/* (eyebrow + section), studio, layouts (nav brand kanji), home/dashboard (eyebrow + section + numeral), devise/registrations/edit (account page: page-level `eyebrow` + `h1.h-section "Account"`) |
+| `.tab-nav`, `.tab-button` (+ `.is-active`), `.tab-button__numeral`, `.tab-button__label` | same | projects/show (via projects/_tab_nav: 一 build · 二 preview · 三 export), projects/new (inline, single 一 step), devise/registrations/edit (account page: inline 一 profile · 二 integrations · 三 danger zone, default profile, no URL state — same client-side `display`-toggle convention as Studio, driven by the shared `tabs` Stimulus controller; the OpenRouter rotate-key form lives in the Integrations tab and still posts to the Devise registration `update` endpoint) |
 | `.pipeline`, `.pipeline-step` | same | home/index (一 / 二 / 三 stages) |
 | `.dash-stats`, `.dash-stat` (+ `__num` `__label`), `.dash-actions`, `.dash-cta`, `.dash-link` | same | home/dashboard |
 
