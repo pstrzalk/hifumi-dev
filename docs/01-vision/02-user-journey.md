@@ -289,6 +289,22 @@ Revisions:     rev1 → rev2 → rev3                                           
 
 ---
 
+## Returning user — logged-in landing
+
+A signed-in visitor to `/` lands on the dashboard — there is no redirect. It is
+a deliberately minimal home: a branded welcome (first name + "member since"), a
+portfolio summary (total projects / running / exported), and quick actions —
+"+ new project", a link that opens the most-recently-active project (or "start
+your first project" when there are none), and "all projects" for the full list.
+Nothing else: no project list and no account-readiness signals — those live on
+`/projects` and the account page respectively. The counts are point-in-time on
+page load; no realtime channel.
+
+This supersedes the Phase 4d behavior — "a logged-in user at hifumi.dev is
+redirected to `/projects`" — as of 2026-05-17.
+
+---
+
 ## Step 1: New project
 
 ### What the user sees
