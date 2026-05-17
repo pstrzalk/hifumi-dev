@@ -54,16 +54,11 @@
           <% end %>
 
           <hr class="section-rule" style="margin: 8px 0;">
-          <div class="eyebrow">change password</div>
+          <div class="eyebrow">change password<% if @minimum_password_length %> (<%= @minimum_password_length %> characters minimum)<% end %></div>
 
           <div>
             <%= f.label :password, "New password", class: "field-label" %>
             <%= f.password_field :password, autocomplete: "new-password", class: "field-input" %>
-            <% if @minimum_password_length %>
-              <p style="margin: 6px 0 0; font-size: 20px; color: var(--fg-muted);">
-                <%= @minimum_password_length %> characters minimum.
-              </p>
-            <% end %>
           </div>
 
           <div>
@@ -74,11 +69,8 @@
           <hr class="section-rule" style="margin: 8px 0;">
 
           <div>
-            <%= f.label :current_password, class: "field-label" %>
+            <%= f.label :current_password, "Current password (only required when changing your email or password)", class: "field-label" %>
             <%= f.password_field :current_password, autocomplete: "current-password", class: "field-input" %>
-            <p style="margin: 6px 0 0; font-size: 20px; color: var(--fg-muted);">
-              Only required when changing your email or password.
-            </p>
           </div>
 
           <%= f.submit "Update account", class: "btn btn--accent", style: "align-self: flex-start;" %>
