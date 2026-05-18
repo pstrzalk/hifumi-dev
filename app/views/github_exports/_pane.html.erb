@@ -42,7 +42,7 @@
       <% if project.exportable? %>
         <div class="flex" style="gap: 8px; align-items: flex-start;">
           <%= button_to "Retry", project_github_export_path(project),
-                method: :post, class: "btn btn--accent btn--sm",
+                method: :post, class: "btn btn--primary btn--sm",
                 data: { turbo_frame: "github_export_pane" } %>
           <% if project.github_repo_full_name.present? %>
             <%= button_to "Create a new repository", project_github_export_path(project),

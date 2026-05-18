@@ -93,6 +93,25 @@ that consume it.
 
 ---
 
+## Button color semantics
+
+The `.btn` color modifier is **not** chosen per view — it follows one
+predicate. Pick by *what the action does*, not by which screen it sits on:
+
+| Modifier | Means | Representative buttons |
+|---|---|---|
+| `--accent` | **Create / begin / start** a new thing or operation | "Sign up", "Start building", "Start preview", "+ New project" |
+| `--primary` | Routine in-app submit (the dark default) | "Log in", "Update account", "Update key", "Change my password", "Send" (composer + contact), "Export to GitHub", "Retry", "Accept" |
+| `--outline` | Secondary / alternative next to a stronger action | "Stop", "Connect GitHub", "Push latest changes", "Create a new repository", "Decline" |
+| `--danger` | Destructive | "Disconnect GitHub", "Cancel my account", project-card "delete" |
+
+`--accent` maps to `--rails-500`, "the single saturated accent — use
+sparingly" (see Token map). The create/begin/start bucket *is* that sparing
+use: it should appear at most once per surface, on the one button that
+starts something new. Routine submits are `--primary`, never `--accent`.
+
+---
+
 ## Status vocabulary
 
 The eight status verbs in the codebase map to two display patterns:

@@ -11,7 +11,7 @@
           Decline
         </button>
         <%= form_with url: cookie_consent_path, method: :post, html: { class: "inline" } do |f| %>
-          <%= f.submit "Accept", class: "btn btn--accent btn--sm",
+          <%= f.submit "Accept", class: "btn btn--primary btn--sm",
                        data: { action: "click->cookie-consent#accept" } %>
         <% end %>
       </div>
