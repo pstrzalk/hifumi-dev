@@ -58,6 +58,7 @@ CDN via `<link>` tags in `app/views/layouts/application.html.erb`.
 | `--paper-0` | `#FFFFFF` | Cards on paper. |
 | `--steel-900` | `#0F1216` | Code surfaces only. |
 | `--ok-line` `--info-fg` `--warn-line` `--err-fg` | desaturated greens/blues/ambers/reds | Status tags + notice stripes. |
+| `--err-fg` / `--err-strong` | `#8C1B10` / `#6E150C` | Solid `.btn--danger` fill / its hover. Brick-red — distinct from the brighter `--rails-500` accent. |
 | `--hi-font-sans` | IBM Plex Sans | UI body, headings, buttons. |
 | `--hi-font-mono` | IBM Plex Mono | Labels, IDs, status pills, code, eyebrows. |
 | `--hi-font-serif` | Source Serif 4 | Display moments only — marketing hero, kanji numerals. |
@@ -103,7 +104,7 @@ predicate. Pick by *what the action does*, not by which screen it sits on:
 | `--accent` | **Create / begin / start** a new thing or operation | "Sign up", "Start building", "Start preview", "+ New project" |
 | `--primary` | Routine in-app submit (the dark default) | "Log in", "Update account", "Update key", "Connect GitHub", "Change my password", "Send" (composer + contact), "Export to GitHub", "Retry", "Accept" |
 | `--outline` | Secondary / alternative next to a stronger action | "Stop", "Push latest changes", "Create a new repository", "Decline" |
-| `--danger` | Destructive | "Disconnect GitHub", "Cancel my account", project-card "delete" |
+| `--danger` | Destructive — **solid brick-red fill** (`--err-fg`, white text), not just red text | "Disconnect GitHub", "Cancel my account", project-card "delete" |
 
 `--accent` maps to `--rails-500`, "the single saturated accent — use
 sparingly" (see Token map). The create/begin/start bucket *is* that sparing

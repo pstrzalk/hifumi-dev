@@ -57,6 +57,7 @@
   --warn-line:#B47A00;
   --err-bg:   #FBDBD6;
   --err-fg:   #8C1B10;
+  --err-strong: #6E150C;
 
   /* Semantic */
   --bg:           var(--paper-100);
@@ -400,8 +401,8 @@ body {
 .btn--outline { border-color: var(--border-strong); color: var(--fg); background: transparent; }
 .btn--outline:hover { background: var(--bg-sunken); }
 
-.btn--danger { color: var(--err-fg); background: transparent; }
-.btn--danger:hover { background: var(--err-bg); }
+.btn--danger { background: var(--err-fg); color: var(--fg-on-accent); }
+.btn--danger:hover { background: var(--err-strong); }
 
 .btn--sm { font-size: 20px; padding: 10px 14px; }
 .btn--lg { font-size: 24px; padding: 16px 32px; }
