@@ -568,7 +568,9 @@ body {
   display: flex;
   align-items: center;
 }
-.project-card__actions button {
+/* :not(.btn) — a .btn delete (Phase 4) keeps its own danger styling; this
+   legacy bare-button look only applies to non-.btn card actions. */
+.project-card__actions button:not(.btn) {
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -579,7 +581,7 @@ body {
   color: var(--fg-muted);
   padding: 0 16px;
 }
-.project-card__actions button:hover { color: var(--accent); background: var(--bg-elevated); }
+.project-card__actions button:not(.btn):hover { color: var(--accent); background: var(--bg-elevated); }
 
 .project-card--running .project-card__stripe { background: var(--ok-line); }
 .project-card--starting .project-card__stripe { background: var(--info-fg); }
