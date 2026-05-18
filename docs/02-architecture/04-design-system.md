@@ -77,7 +77,8 @@ that consume it.
 |---|---|---|
 | `.app-nav`, `.app-nav-brand` | tailwind/application.css | layouts/application.html.erb |
 | `.notice-strip` (`--ok` `--info` `--warn` `--err`) | same | layouts/application.html.erb, shared/_chat_notice, devise/shared/_error_messages |
-| `.btn` (`--primary` `--accent` `--outline` `--ghost` `--danger` `--sm`) | same | every interactive view |
+| `.btn` (`--primary` `--accent` `--outline` `--danger` `--sm` `--lg`) | same | every interactive view |
+| `.form-actions` | same | wraps every `f.submit` `.btn` (devise/*, projects/new, contact_messages/new, github_exports/_form) |
 | `.field-input`, `.field-textarea`, `.field-label` | same | projects/new, devise/* |
 | `.tag` (`--pending` `--gen` `--ok` `--err` `--running` `--starting` `--stopped` `--failed`) + `.tag-dot` | same | revisions/_revision, projects/index, previews/_* |
 | `.project-card` (+ stripe + status modifier) | same | projects/index |

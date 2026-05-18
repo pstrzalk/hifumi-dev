@@ -375,7 +375,7 @@ body {
   font-size: 22px;
   font-weight: 500;
   line-height: 1;
-  padding: 8px 14px;
+  padding: 12px 18px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   background: transparent;
@@ -400,13 +400,11 @@ body {
 .btn--outline { border-color: var(--border-strong); color: var(--fg); background: transparent; }
 .btn--outline:hover { background: var(--bg-sunken); }
 
-.btn--ghost { color: var(--fg); background: transparent; }
-.btn--ghost:hover { background: var(--bg-sunken); }
-
 .btn--danger { color: var(--err-fg); background: transparent; }
 .btn--danger:hover { background: var(--err-bg); }
 
-.btn--sm { font-size: 20px; padding: 6px 10px; }
+.btn--sm { font-size: 20px; padding: 10px 14px; }
+.btn--lg { font-size: 24px; padding: 16px 32px; }
 
 /* ============================================================
    FORMS
@@ -443,6 +441,11 @@ body {
   box-shadow: var(--focus-ring);
 }
 .field-textarea { resize: vertical; min-height: 96px; }
+
+/* Owns form-submit layout. Block-level so a flex-column form stretches the
+   wrapper (harmless) while the inline-flex .btn inside sits at its natural
+   width, left-aligned — no per-call align-self needed. */
+.form-actions { margin-top: 16px; }
 
 /* ============================================================
    STATUS TAGS — rectangular outlined boxes, mono caps, no emoji
