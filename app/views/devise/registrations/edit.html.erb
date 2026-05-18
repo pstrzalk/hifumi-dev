@@ -120,7 +120,7 @@
             </p>
             <%= button_to "Disconnect GitHub", github_connection_path, method: :delete,
                   data: { turbo_confirm: "Disconnect from GitHub? You'll need to reauthorize before exporting again." },
-                  class: "btn btn--danger" %>
+                  class: "danger-link" %>
           <% else %>
             <%= button_to "Connect GitHub", user_github_omniauth_authorize_path, method: :post,
                   data: { turbo: false }, class: "btn btn--primary" %>
@@ -142,7 +142,7 @@
             Deletes your account and all associated projects. This cannot be undone.
           </p>
           <%= button_to "Cancel my account", registration_path(resource_name), method: :delete,
-                data: { turbo_confirm: "Are you sure?" }, class: "btn btn--danger" %>
+                data: { turbo_confirm: "Are you sure?" }, class: "danger-link" %>
         </div>
       </div>
     </div>

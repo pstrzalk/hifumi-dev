@@ -27,7 +27,7 @@
       </p>
       <% if project.exportable? %>
         <%= button_to "Push latest changes", project_github_export_path(project),
-              method: :post, class: "btn btn--outline btn--sm",
+              method: :post, class: "btn btn--primary btn--sm",
               data: { turbo_frame: "github_export_pane" } %>
       <% elsif !project.user.github_connection&.connected? %>
         <p class="small" style="margin: 0; color: var(--fg-muted);">
@@ -46,7 +46,7 @@
                 data: { turbo_frame: "github_export_pane" } %>
           <% if project.github_repo_full_name.present? %>
             <%= button_to "Create a new repository", project_github_export_path(project),
-                  method: :delete, class: "btn btn--outline btn--sm",
+                  method: :delete, class: "btn btn--primary btn--sm",
                   data: { turbo_frame: "github_export_pane",
                           turbo_confirm: "Disconnect from #{project.github_repo_full_name} on GitHub? The repo will stay on GitHub — you can keep, archive, or delete it manually. The next export will create a fresh repo." } %>
           <% end %>

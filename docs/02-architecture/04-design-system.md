@@ -58,7 +58,6 @@ CDN via `<link>` tags in `app/views/layouts/application.html.erb`.
 | `--paper-0` | `#FFFFFF` | Cards on paper. |
 | `--steel-900` | `#0F1216` | Code surfaces only. |
 | `--ok-line` `--info-fg` `--warn-line` `--err-fg` | desaturated greens/blues/ambers/reds | Status tags + notice stripes. |
-| `--err-fg` / `--err-strong` | `#8C1B10` / `#6E150C` | Solid `.btn--danger` fill / its hover. Brick-red — distinct from the brighter `--rails-500` accent. |
 | `--hi-font-sans` | IBM Plex Sans | UI body, headings, buttons. |
 | `--hi-font-mono` | IBM Plex Mono | Labels, IDs, status pills, code, eyebrows. |
 | `--hi-font-serif` | Source Serif 4 | Display moments only — marketing hero, kanji numerals. |
@@ -78,7 +77,8 @@ that consume it.
 |---|---|---|
 | `.app-nav`, `.app-nav-brand` | tailwind/application.css | layouts/application.html.erb |
 | `.notice-strip` (`--ok` `--info` `--warn` `--err`) | same | layouts/application.html.erb, shared/_chat_notice, devise/shared/_error_messages |
-| `.btn` (`--primary` `--accent` `--outline` `--danger` `--sm` `--lg`) | same | every interactive view |
+| `.btn` (`--primary` `--accent` `--sm` `--lg`) | same | every interactive view |
+| `.danger-link` | same | destructive `button_to`s — projects/index "delete", devise/registrations/edit "Disconnect GitHub" + "Cancel my account" |
 | `.form-actions` | same | wraps every `f.submit` `.btn` (devise/*, projects/new, contact_messages/new, github_exports/_form) |
 | `.field-input`, `.field-textarea`, `.field-label` | same | projects/new, devise/* |
 | `.tag` (`--pending` `--gen` `--ok` `--err` `--running` `--starting` `--stopped` `--failed`) + `.tag-dot` | same | revisions/_revision, projects/index, previews/_* |
@@ -96,20 +96,31 @@ that consume it.
 
 ## Button color semantics
 
-The `.btn` color modifier is **not** chosen per view — it follows one
-predicate. Pick by *what the action does*, not by which screen it sits on:
+**Every button is either black or red — there is no in-between** (no
+outlined, ghost, or tinted buttons). The `.btn` color modifier is **not**
+chosen per view — it follows one predicate. Pick by *what the action does*,
+not by which screen it sits on:
 
 | Modifier | Means | Representative buttons |
 |---|---|---|
-| `--accent` | **Create / begin / start** a new thing or operation | "Sign up", "Start building", "Start preview", "+ New project" |
-| `--primary` | Routine in-app submit (the dark default) | "Log in", "Update account", "Update key", "Connect GitHub", "Change my password", "Send" (composer + contact), "Export to GitHub", "Retry", "Accept" |
-| `--outline` | Secondary / alternative next to a stronger action | "Stop", "Push latest changes", "Create a new repository", "Decline" |
-| `--danger` | Destructive — **solid brick-red fill** (`--err-fg`, white text), not just red text | "Disconnect GitHub", "Cancel my account", project-card "delete" |
+| `--accent` (red) | **Create / begin / start** a new thing or operation | "Sign up", "Start building", "Start preview", "+ New project" |
+| `--primary` (black) | Everything else that is a button — routine submits *and* secondary actions | "Log in", "Update account", "Update key", "Connect GitHub", "Change my password", "Send" (composer + contact), "Export to GitHub", "Retry", "Accept", "Stop", "Push latest changes", "Create a new repository", "Decline" |
 
 `--accent` maps to `--rails-500`, "the single saturated accent — use
 sparingly" (see Token map). The create/begin/start bucket *is* that sparing
 use: it should appear at most once per surface, on the one button that
-starts something new. Routine submits are `--primary`, never `--accent`.
+starts something new. Everything else that is a button is `--primary`
+(black), never `--accent`.
+
+### Destructive actions are red links, not buttons
+
+Delete / remove / disconnect actions (project-card "delete", "Cancel my
+account", "Disconnect GitHub") are **not buttons**. They render as a text
+link in the brand accent red via `.danger-link` (resets `button_to` chrome;
+`color: var(--accent)`, underline on hover) — the *same* red as the red
+buttons, deliberately **not** a separate brick/error red. Rationale: a
+destructive action should never carry the visual weight of a filled button;
+the red text is the warning, the link affordance keeps it low-commitment.
 
 ### One button in the nav
 
@@ -129,7 +140,8 @@ with `.btn` (or, for navigation, the link family):
   wrapped in `.form-actions` — *unless* the form lives in a self-laying-out
   component that already owns submit placement (see exceptions).
 - **State-changing action outside a form** (POST / PATCH / DELETE) →
-  `button_to` + `.btn`.
+  `button_to`; **destructive** (delete / remove / disconnect) → `.danger-link`
+  (red text link), everything else → `.btn`.
 - **Navigation (GET)** → `link_to`; a primary navigational CTA may carry
   `.btn` (e.g. "+ New project"), otherwise the navigation-link family
   (`.app-nav-link`, `.dash-cta`, `.dash-link`, `↗`-suffixed anchors,

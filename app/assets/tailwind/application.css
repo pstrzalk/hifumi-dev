@@ -57,7 +57,6 @@
   --warn-line:#B47A00;
   --err-bg:   #FBDBD6;
   --err-fg:   #8C1B10;
-  --err-strong: #6E150C;
 
   /* Semantic */
   --bg:           var(--paper-100);
@@ -398,14 +397,28 @@ body {
 .btn--accent { background: var(--accent); color: #fff; }
 .btn--accent:hover { background: var(--accent-hover); color: #fff; }
 
-.btn--outline { border-color: var(--border-strong); color: var(--fg); background: transparent; }
-.btn--outline:hover { background: var(--bg-sunken); }
-
-.btn--danger { background: var(--err-fg); color: var(--fg-on-accent); }
-.btn--danger:hover { background: var(--err-strong); }
-
 .btn--sm { font-size: 20px; padding: 10px 14px; }
 .btn--lg { font-size: 24px; padding: 16px 32px; }
+
+/* Destructive actions (delete project, delete account, disconnect) are NOT
+   buttons — they read as a text link in the brand accent red. Resets
+   button_to chrome so a POST/DELETE form-button looks like a link. */
+.danger-link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+.danger-link:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 /* ============================================================
    FORMS
@@ -569,20 +582,9 @@ body {
   display: flex;
   align-items: center;
 }
-/* :not(.btn) — a .btn delete (Phase 4) keeps its own danger styling; this
-   legacy bare-button look only applies to non-.btn card actions. */
-.project-card__actions button:not(.btn) {
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font-family: var(--hi-font-mono);
-  font-size: 18px;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--fg-muted);
-  padding: 0 16px;
-}
-.project-card__actions button:not(.btn):hover { color: var(--accent); background: var(--bg-elevated); }
+/* The card's "delete" is a .danger-link (red text link); it just needs
+   horizontal breathing room inside the bordered actions cell. */
+.project-card__actions .danger-link { padding: 0 16px; }
 
 .project-card--running .project-card__stripe { background: var(--ok-line); }
 .project-card--starting .project-card__stripe { background: var(--info-fg); }
