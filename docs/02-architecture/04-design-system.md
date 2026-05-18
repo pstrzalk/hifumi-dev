@@ -110,6 +110,15 @@ sparingly" (see Token map). The create/begin/start bucket *is* that sparing
 use: it should appear at most once per surface, on the one button that
 starts something new. Routine submits are `--primary`, never `--accent`.
 
+### One button in the nav
+
+The top nav contains **exactly one** `.btn`: the signed-out "Sign up"
+(`btn btn--accent btn--sm`), the single conversion CTA. Every other nav item
+— "Log in", "Projects", "Account", "Sign out", the GitHub icon — is a
+navigation link in the `.app-nav-link` family, never a `.btn`. Signed-in,
+the nav has **zero** `.btn`s. "Log in" is a link, not a button, even though
+it pairs visually with the "Sign up" button.
+
 ---
 
 ## Status vocabulary

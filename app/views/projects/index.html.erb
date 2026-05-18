@@ -37,6 +37,7 @@
           </div>
           <div class="project-card__actions">
             <%= button_to "delete", project, method: :delete,
+                  class: "btn btn--danger btn--sm",
                   form: { data: { turbo_confirm: "Delete \"#{project.name}\"?" } } %>
           </div>
         </li>

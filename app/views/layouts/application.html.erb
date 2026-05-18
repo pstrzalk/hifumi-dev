@@ -39,7 +39,7 @@
           <%= render "shared/github_nav_link" %>
         <% else %>
           <%= link_to root_path, class: "app-nav-brand" do %><span class="kanji" aria-hidden="true">一二三</span>hifumi<span class="tld">.dev</span><% end %>
-          <%= link_to "Log in", new_user_session_path %>
+          <%= link_to "Log in", new_user_session_path, class: "app-nav-link" %>
           <span class="app-nav-sep">·</span>
           <%= link_to "Sign up", new_user_registration_path, class: "btn btn--accent btn--sm" %>
           <span class="app-nav-sep">·</span>
