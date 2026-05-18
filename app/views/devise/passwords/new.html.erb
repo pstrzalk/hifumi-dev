@@ -11,7 +11,9 @@
         <%= f.email_field :email, autofocus: true, autocomplete: "email", class: "field-input" %>
       </div>
 
-      <%= f.submit "Send me password reset instructions", class: "btn btn--primary", style: "align-self: flex-start;" %>
+      <div class="form-actions">
+        <%= f.submit "Send me password reset instructions", class: "btn btn--primary" %>
+      </div>
     <% end %>
 
     <hr class="section-rule" style="margin: 24px 0;">

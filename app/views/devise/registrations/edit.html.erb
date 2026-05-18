@@ -73,7 +73,9 @@
             <%= f.password_field :current_password, autocomplete: "current-password", class: "field-input" %>
           </div>
 
-          <%= f.submit "Update account", class: "btn btn--primary", style: "align-self: flex-start;" %>
+          <div class="form-actions">
+            <%= f.submit "Update account", class: "btn btn--primary" %>
+          </div>
         <% end %>
       </div>
     </div>
@@ -87,7 +89,7 @@
           <%= form_for(resource, as: resource_name, url: registration_path(resource_name),
                 namespace: "or",
                 html: { id: "openrouter_key_form", method: :put,
-                        class: "flex flex-col", style: "gap: 8px; margin: 8px 0 0;" }) do |f| %>
+                        class: "flex flex-col", style: "gap: 16px; margin: 8px 0 0;" }) do |f| %>
             <%= f.fields_for :profile do |pf| %>
               <div>
                 <%= pf.label :openrouter_api_key, "OpenRouter API key", class: "field-label" %>
@@ -100,8 +102,9 @@
                 </p>
               </div>
             <% end %>
-            <%= f.submit "Update key", class: "btn btn--primary",
-                  style: "align-self: flex-start; margin-top: 8px;" %>
+            <div class="form-actions">
+              <%= f.submit "Update key", class: "btn btn--primary" %>
+            </div>
           <% end %>
         </div>
 

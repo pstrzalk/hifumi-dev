@@ -34,7 +34,9 @@
               placeholder: "What's on your mind?" %>
       </div>
 
-      <%= f.submit "Send", class: "btn btn--primary", style: "align-self: flex-start;" %>
+      <div class="form-actions">
+        <%= f.submit "Send", class: "btn btn--primary" %>
+      </div>
     <% end %>
   <% else %>
     <%= render "shared/cookies_required", action: "send a message" %>

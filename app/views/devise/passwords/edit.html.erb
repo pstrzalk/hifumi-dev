@@ -22,7 +22,9 @@
         <%= f.password_field :password_confirmation, autocomplete: "new-password", class: "field-input" %>
       </div>
 
-      <%= f.submit "Change my password", class: "btn btn--primary", style: "align-self: flex-start;" %>
+      <div class="form-actions">
+        <%= f.submit "Change my password", class: "btn btn--primary" %>
+      </div>
     <% end %>
 
     <hr class="section-rule" style="margin: 24px 0;">
