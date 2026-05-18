@@ -123,7 +123,7 @@
                   class: "btn btn--danger" %>
           <% else %>
             <%= button_to "Connect GitHub", user_github_omniauth_authorize_path, method: :post,
-                  data: { turbo: false }, class: "btn btn--outline" %>
+                  data: { turbo: false }, class: "btn btn--primary" %>
             <p style="margin: 8px 0 0; font-size: 20px; color: var(--fg-muted);">
               Required to export projects to your GitHub account. Grants access to your repositories (<code style="font-family: var(--hi-font-mono);">repo</code> scope).
             </p>

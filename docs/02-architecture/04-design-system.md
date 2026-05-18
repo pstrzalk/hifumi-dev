@@ -101,8 +101,8 @@ predicate. Pick by *what the action does*, not by which screen it sits on:
 | Modifier | Means | Representative buttons |
 |---|---|---|
 | `--accent` | **Create / begin / start** a new thing or operation | "Sign up", "Start building", "Start preview", "+ New project" |
-| `--primary` | Routine in-app submit (the dark default) | "Log in", "Update account", "Update key", "Change my password", "Send" (composer + contact), "Export to GitHub", "Retry", "Accept" |
-| `--outline` | Secondary / alternative next to a stronger action | "Stop", "Connect GitHub", "Push latest changes", "Create a new repository", "Decline" |
+| `--primary` | Routine in-app submit (the dark default) | "Log in", "Update account", "Update key", "Connect GitHub", "Change my password", "Send" (composer + contact), "Export to GitHub", "Retry", "Accept" |
+| `--outline` | Secondary / alternative next to a stronger action | "Stop", "Push latest changes", "Create a new repository", "Decline" |
 | `--danger` | Destructive | "Disconnect GitHub", "Cancel my account", project-card "delete" |
 
 `--accent` maps to `--rails-500`, "the single saturated accent — use
