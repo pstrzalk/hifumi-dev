@@ -119,6 +119,44 @@ navigation link in the `.app-nav-link` family, never a `.btn`. Signed-in,
 the nav has **zero** `.btn`s. "Log in" is a link, not a button, even though
 it pairs visually with the "Sign up" button.
 
+### Choosing the button helper
+
+Pick the Rails helper by *what kind of interaction it is* — then style it
+with `.btn` (or, for navigation, the link family):
+
+- **Form submit** (inside `form_for` / `form_with`) → `f.submit` + `.btn`,
+  wrapped in `.form-actions` — *unless* the form lives in a self-laying-out
+  component that already owns submit placement (see exceptions).
+- **State-changing action outside a form** (POST / PATCH / DELETE) →
+  `button_to` + `.btn`.
+- **Navigation (GET)** → `link_to`; a primary navigational CTA may carry
+  `.btn` (e.g. "+ New project"), otherwise the navigation-link family
+  (`.app-nav-link`, `.dash-cta`, `.dash-link`, `↗`-suffixed anchors,
+  `devise/shared/_links`).
+- **Client-side-only control** (Stimulus, no server round-trip) → raw
+  `<button type="button">` + its own component class, **never** `.btn`
+  (`.suggestion-card`, `.tab-button`, `.composer-dock__jump`,
+  `.notice-strip__close`) — *unless* it sits in an action group beside a
+  server-submitting `.btn` and must read as its visual pair (see exceptions).
+
+Every interactive element is one of the four above. The narrow, deliberate
+exceptions — each kept consistent in code so canon doesn't lag:
+
+- **Self-laying-out form components own their submit.** The composer
+  ("Send", `messages/_form`) and the cookie bar ("Accept",
+  `shared/_cookie_consent`) are horizontal flex docks; their `f.submit` is a
+  `.btn` but *not* wrapped in `.form-actions` (a block `margin-top` wrapper
+  would break the inline layout). `.form-actions` is only for stacked
+  column forms.
+- **Paired client-side controls use `.btn` for visual parity.** The cookie
+  bar "Decline" and the cookies-required "Show cookie banner" are
+  Stimulus-only (no server round-trip) yet carry `.btn` so they read as the
+  matched pair of the adjacent server-submitting button. Standalone JS
+  controls still use their own component class.
+- **"Sign out" is a `button_to` styled as a nav link.** Logout must be a
+  POST/DELETE, but it lives in the nav, so it uses `.app-nav-link`, not
+  `.btn` (see *One button in the nav*).
+
 ---
 
 ## Status vocabulary
