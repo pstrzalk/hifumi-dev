@@ -64,6 +64,29 @@ class Project < ApplicationRecord
     File.exist?(File.join(workspace_path, "Gemfile"))
   end
 
+  # Derived, read-time project build state — the basis of the dashboard
+  # breakdown, the projects-list card tag, and the project-page header tag.
+  # Builds run strictly one at a time (the create/modify tool refuses a
+  # second while one is active), so the latest instruction's phase IS the
+  # project's build state — no scanning needed.
+  #   no instructions     → :new
+  #   latest not terminal → :generating
+  #   latest completed    → :ready
+  #   latest failed       → :failed   (also cancelled — unreachable today)
+  #
+  # Ordering by [created_at, id]: id breaks created_at ties deterministically
+  # so the dashboard counts are stable. Uses the in-memory `instructions`
+  # association — eager-load it (`includes(:instructions)`) wherever
+  # build_state is called in bulk; HomeController#load_dashboard and
+  # ProjectsController#index do.
+  def build_state
+    latest = instructions.max_by { |i| [ i.created_at, i.id ] }
+    return :new unless latest
+    return :generating unless latest.terminal?
+
+    latest.completed? ? :ready : :failed
+  end
+
   # Short natural-language summary of generation state, injected into the
   # GeneratorAgent's system prompt each turn. Selects between STATE A (no
   # build running) and STATE B (build running) — the prompt's lettered sections.

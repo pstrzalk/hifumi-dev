@@ -174,7 +174,7 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_not_equal old_encrypted, user.reload.encrypted_password
   end
 
-  test "GET /users/edit renders Account header and three hi-fu-mi tabs" do
+  test "GET /users/edit renders the account breadcrumb and three hi-fu-mi tabs" do
     user = User.create!(
       email: "tabs@example.com", password: "password123",
       profile_attributes: { first_name: "Pat", last_name: "Smith",
@@ -185,7 +185,8 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     get edit_user_registration_path
     assert_response :success
 
-    assert_select "h1.h-section", text: "Account"
+    assert_select ".page-head .eyebrow", text: "account"
+    assert_select "h1.h-section", false
     assert_select "nav.tab-nav[role=tablist]"
     assert_select "button[role=tab]", count: 3
     assert_select "#tab_profile[aria-selected=true]"

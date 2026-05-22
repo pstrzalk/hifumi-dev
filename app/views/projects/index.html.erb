@@ -1,21 +1,18 @@
 <section style="max-width: 1600px; margin: 0 auto;">
-  <div class="flex items-baseline" style="gap: 12px; margin-bottom: 16px;">
-    <div class="eyebrow">projects · index</div>
-  </div>
-  <div class="flex items-baseline justify-between" style="margin: 0 0 24px;">
-    <h1 class="h-section" style="margin: 0;">Your projects</h1>
+  <div class="page-head page-head--spread">
+    <div class="eyebrow">projects</div>
     <%= link_to "+ New project", new_project_path, class: "btn btn--accent btn--sm" %>
   </div>
 
   <% if @projects.any? %>
     <ul class="project-list">
       <% @projects.each do |project| %>
-        <li class="project-card project-card--<%= project.preview_state %>">
+        <li class="project-card project-card--<%= project.build_state %>">
           <div class="project-card__stripe"></div>
           <div class="project-card__body">
             <%= link_to project.name, project, class: "project-card__name" %>
             <div class="project-card__meta">
-              <span class="tag tag--<%= project.preview_state %>"><%= project.preview_state %></span>
+              <%= project_state_tag(project) %>
               <span class="dot">·</span>
               <span>created <%= time_ago_in_words(project.created_at) %> ago</span>
             </div>

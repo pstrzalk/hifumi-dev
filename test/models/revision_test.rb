@@ -64,4 +64,22 @@ class RevisionTest < ActiveSupport::TestCase
     assert_not revision.valid?
     assert_includes revision.errors[:prompt], "can't be blank"
   end
+
+  test "saving a revision touches its project but NOT its instruction" do
+    revision = revisions(:flowers_v1_step2)
+    project = revision.project
+    instruction = revision.instruction
+
+    travel_to 1.hour.from_now do
+      project_before     = project.reload.updated_at
+      instruction_before = instruction.reload.updated_at
+
+      revision.update!(status: :completed)
+
+      assert_not_equal project_before, project.reload.updated_at,
+                       "saving a revision should touch the project"
+      assert_equal instruction_before, instruction.reload.updated_at,
+                   "saving a revision must NOT touch the instruction (phantom-row ordering)"
+    end
+  end
 end

@@ -9,11 +9,11 @@ class HomeController < ApplicationController
   private
 
   def load_dashboard
-    projects        = current_user.projects
+    projects        = current_user.projects.includes(:instructions).to_a
+    counts          = projects.group_by(&:build_state).transform_values(&:size)
     @first_name     = current_user.profile.first_name
-    @projects_count = projects.count
-    @running_count  = projects.where(preview_state: :running).count
-    @exported_count = projects.where(export_state: :exported).count
-    @recent_project = projects.order(updated_at: :desc).first
+    @projects_count = projects.size
+    @state_counts   = %i[new generating failed ready].index_with { |s| counts[s] || 0 }
+    @recent_project = projects.max_by(&:updated_at)
   end
 end

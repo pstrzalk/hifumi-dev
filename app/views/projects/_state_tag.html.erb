@@ -1,0 +1,4 @@
+<%# Build-state tag for the project-page header. The stable dom id makes it
+    the target of the Turbo `replace` broadcast on every build transition
+    (see config/initializers/event_subscribers.rb). %>
+<span id="<%= dom_id(project, :state_tag) %>"><%= project_state_tag(project) %></span>

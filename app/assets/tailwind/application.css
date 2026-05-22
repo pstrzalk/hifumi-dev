@@ -160,6 +160,24 @@ body {
   color: var(--fg-muted);
   font-weight: 500;
 }
+/* A linked breadcrumb crumb inside an eyebrow (studio page): inherits the
+   muted eyebrow look, turns accent on hover like every other link. */
+.eyebrow a { color: inherit; text-decoration: none; }
+.eyebrow a:hover { color: var(--accent); }
+
+/* Page head: the fixed-height bar holding a page's breadcrumb eyebrow plus
+   an optional button or status tag. min-height matches .btn--sm — the
+   tallest thing that ever sits here — and align-items:center so the
+   breadcrumb lands at the same vertical position on every page, whether or
+   not a button shares the row. */
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 42px;
+  margin: 0 0 24px;
+}
+.page-head--spread { justify-content: space-between; }
 
 .small {
   font-family: var(--hi-font-mono);
@@ -488,6 +506,9 @@ body {
 .tag--starting  { color: var(--info-fg); }
 .tag--stopped   { color: var(--fg-muted); }
 .tag--failed    { color: var(--accent); }
+.tag--new        { color: var(--fg-muted); }
+.tag--generating { color: var(--info-fg); }
+.tag--ready      { color: var(--ok-line); }
 
 .tag-dot {
   width: 6px;
@@ -586,10 +607,11 @@ body {
    horizontal breathing room inside the bordered actions cell. */
 .project-card__actions .danger-link { padding: 0 16px; }
 
-.project-card--running .project-card__stripe { background: var(--ok-line); }
-.project-card--starting .project-card__stripe { background: var(--info-fg); }
-.project-card--stopped .project-card__stripe { background: var(--ink-300); }
-.project-card--failed  .project-card__stripe { background: var(--accent); }
+/* Card stripe is keyed on the project's build state (see projects/index). */
+.project-card--new        .project-card__stripe { background: var(--ink-300); }
+.project-card--generating .project-card__stripe { background: var(--info-fg); }
+.project-card--ready      .project-card__stripe { background: var(--ok-line); }
+.project-card--failed     .project-card__stripe { background: var(--accent); }
 
 /* ============================================================
    DASHBOARD — logged-in landing summary
@@ -600,6 +622,9 @@ body {
   gap: 16px;
   margin: 0 0 32px;
 }
+/* The projects total sits on its own row, tight above the build-state
+   breakdown — the two read as one grouped block. */
+.dash-stats--total { margin-bottom: 16px; }
 .dash-stat {
   display: flex;
   flex-direction: column;

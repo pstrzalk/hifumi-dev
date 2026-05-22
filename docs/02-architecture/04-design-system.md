@@ -81,16 +81,17 @@ that consume it.
 | `.danger-link` | same | destructive `button_to`s — projects/index "delete", devise/registrations/edit "Disconnect GitHub" + "Cancel my account" |
 | `.form-actions` | same | wraps every `f.submit` `.btn` (devise/*, projects/new, contact_messages/new, github_exports/_form) |
 | `.field-input`, `.field-textarea`, `.field-label` | same | projects/new, devise/* |
-| `.tag` (`--pending` `--gen` `--ok` `--err` `--running` `--starting` `--stopped` `--failed`) + `.tag-dot` | same | revisions/_revision, projects/index, previews/_* |
+| `.tag` (`--pending` `--gen` `--ok` `--err` `--running` `--starting` `--stopped` `--failed` `--new` `--generating` `--ready`) + `.tag-dot` | same | revisions/_revision, projects/index, projects/show, projects/_state_tag, previews/_* — the build-state variants (`--new` `--generating` `--ready` `--failed`) via the `project_state_tag` helper (app/helpers/projects_helper.rb) |
 | `.project-card` (+ stripe + status modifier) | same | projects/index |
 | `.revisions`, `.revision-row` (+ `--ok` `--gen` `--pend` `--err`) | same | revisions/_list, _revision |
 | `.msg-bubble`, `.msg-role`, `.msg-pill` | same | messages/_message |
 | `.composer`, `.suggestion-chip` | same | messages/_form, suggestions/_frame, projects/new |
 | `.preview-pane` (+ header / body / empty / error) + `.preview-frame` | same | previews/_pane, _running, _starting, _stopped, _failed |
-| `.h-display`, `.h-section`, `.lede`, `.eyebrow`, `.numeral`, `.kanji`, `.mono` | same | home/index (display + lede + kanji), projects/* (eyebrow + section), studio, layouts (nav brand kanji), home/dashboard (eyebrow + section + numeral), devise/registrations/edit (account page: page-level `eyebrow` + `h1.h-section "Account"`) |
+| `.h-display`, `.h-section`, `.lede`, `.eyebrow`, `.numeral`, `.kanji`, `.mono` | same | home/index (display + lede + kanji), layouts (nav brand kanji), home/dashboard (the one remaining `h-section` "Welcome back" + eyebrow + numeral). `.eyebrow` doubles as the page **breadcrumb** on projects/index ("projects"), projects/new + projects/show (`<nav aria-label="breadcrumb">` — parent link · current crumb), and devise/registrations/edit ("account"); a linked crumb (`.eyebrow a`) inherits the muted look, hovers accent. These pages dropped their `h1.h-section` heading in favour of the breadcrumb. `.eyebrow` also labels in-form sub-sections (devise account, projects/new). |
 | `.tab-nav`, `.tab-button` (+ `.is-active`), `.tab-button__numeral`, `.tab-button__label` | same | projects/show (via projects/_tab_nav: 一 build · 二 preview · 三 export), projects/new (inline, single 一 step), devise/registrations/edit (account page: inline 一 profile · 二 integrations · 三 danger zone, default profile, no URL state — same client-side `display`-toggle convention as Studio, driven by the shared `tabs` Stimulus controller; the OpenRouter rotate-key form lives in the Integrations tab and still posts to the Devise registration `update` endpoint) |
 | `.pipeline`, `.pipeline-step` | same | home/index (一 / 二 / 三 stages) |
-| `.dash-stats`, `.dash-stat` (+ `__num` `__label`), `.dash-actions`, `.dash-cta`, `.dash-link` | same | home/dashboard |
+| `.dash-stats` (+ `--total`), `.dash-stat` (+ `__num` `__label`), `.dash-actions`, `.dash-cta`, `.dash-link` | same | home/dashboard |
+| `.page-head` (+ `--spread`) | same | the fixed-height breadcrumb/eyebrow bar — home/dashboard, projects/index + new + show, devise/registrations/edit |
 
 ---
 
@@ -174,7 +175,7 @@ exceptions — each kept consistent in code so canon doesn't lag:
 
 ## Status vocabulary
 
-The eight status verbs in the codebase map to two display patterns:
+The status verbs in the codebase map to two display patterns:
 
 | Verb | Where | Stripe color | Tag color | Live? |
 |---|---|---|---|---|
@@ -182,10 +183,16 @@ The eight status verbs in the codebase map to two display patterns:
 | `generating` | revision | `--info-fg` | `--info-fg` | dot blinks |
 | `completed` | revision | `--ok-line` | `--ok-line` | – |
 | `failed` | revision, preview | `--accent` | `--accent` | – |
-| `stopped` | preview, project card | `--ink-300` | `--fg-muted` | – |
-| `starting` | preview, project card | `--info-fg` | `--info-fg` | dot blinks |
-| `running` | preview, project card | `--ok-line` | `--ok-line` | dot blinks |
-| `failed` | preview, project card | `--accent` | `--accent` | – |
+| `stopped` | preview | `--ink-300` | `--fg-muted` | – |
+| `starting` | preview | `--info-fg` | `--info-fg` | dot blinks |
+| `running` | preview | `--ok-line` | `--ok-line` | dot blinks |
+| `failed` | preview, project card (build-failed) | `--accent` | `--accent` | – |
+| `new` | project card | `--ink-300` | `--fg-muted` | – |
+| `generating` | project card (build state — CSS class `--generating`, distinct from the revision `--gen`) | `--info-fg` | `--info-fg` | dot blinks |
+| `ready` | project card | `--ok-line` | `--ok-line` | – |
+
+The four build-state verbs (`new` / `generating` / `failed` / `ready`) also
+appear as `.dash-stat__label` text on the dashboard build-state breakdown.
 
 Verbs are always **lowercase in source**, **uppercase via CSS
 `text-transform`** in the rendered tag — never title-cased in copy.

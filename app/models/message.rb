@@ -1,5 +1,10 @@
 class Message < ApplicationRecord
-  acts_as_message
+  # touch_chat: a new message bumps Chat.updated_at, which (Chat belongs_to
+  # :project, touch: true) cascades to Project.updated_at — so "active … ago"
+  # reflects chat activity. Streaming token writes use update_columns
+  # (chat_respond_job.rb), which bypasses callbacks, so this fires once on
+  # create and once on the message's final save, not per token.
+  acts_as_message(touch_chat: true)
   has_many_attached :attachments
 
   after_create_commit :broadcast_append_message

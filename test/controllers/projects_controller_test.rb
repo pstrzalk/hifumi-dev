@@ -21,6 +21,22 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_select "p", /No projects yet/
   end
 
+  test "GET /projects header is a 'projects' breadcrumb with the new-project cta, no section heading" do
+    get projects_path
+    assert_response :success
+    assert_select ".eyebrow", text: "projects"
+    assert_select "a.btn[href=?]", new_project_path, text: "+ New project"
+    assert_select "h1.h-section", false
+  end
+
+  test "GET /projects/new header is a 'projects · new project' breadcrumb, no section heading" do
+    get new_project_path
+    assert_response :success
+    assert_select "nav[aria-label=breadcrumb] a[href=?]", projects_path, text: /projects/i
+    assert_select "nav[aria-label=breadcrumb]", text: /new project/i
+    assert_select "h1.h-section", false
+  end
+
   test "GET /projects (signed in, 2 projects) renders both names newest-first" do
     older = @user.projects.create!(name: "Older", created_at: 2.hours.ago)
     newer = @user.projects.create!(name: "Newer", created_at: 1.minute.ago)
@@ -188,5 +204,67 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     end
     assert_redirected_to root_path
     assert_equal "Not your project", flash[:alert]
+  end
+
+  # --- build state on list cards ----------------------------------------
+
+  test "GET /projects shows NEW build state for a project with no instructions" do
+    @user.projects.create!(name: "Untouched")
+    get projects_path
+    assert_response :success
+    assert_select "li.project-card.project-card--new .tag.tag--new"
+  end
+
+  test "GET /projects shows GENERATING with a blinking dot for a mid-build project" do
+    project_with_build("Building", phase: :implementing)
+    get projects_path
+    assert_response :success
+    assert_select "li.project-card.project-card--generating" do
+      assert_select ".tag.tag--generating .tag-dot"
+    end
+  end
+
+  test "GET /projects shows FAILED build state when the latest instruction failed" do
+    project_with_build("Broken", phase: :failed)
+    get projects_path
+    assert_response :success
+    assert_select "li.project-card.project-card--failed .tag.tag--failed"
+  end
+
+  test "GET /projects shows READY build state when the latest instruction completed" do
+    project_with_build("Done", phase: :completed)
+    get projects_path
+    assert_response :success
+    assert_select "li.project-card.project-card--ready .tag.tag--ready"
+  end
+
+  test "GET /projects eager-loads instructions in a single query regardless of project count" do
+    3.times { |i| project_with_build("Build #{i}", phase: :completed) }
+    assert_equal 1, instruction_query_count { get projects_path },
+                 "expected one eager-loaded Instruction Load, not one per project"
+  end
+
+  private
+
+  # A project owned by @user whose latest (only) instruction sits in `phase`.
+  def project_with_build(name, phase:)
+    project = @user.projects.create!(name: name)
+    message = project.create_chat!.messages.create!(role: :user, content: "build it")
+    project.instructions.create!(
+      user_intent: "x", description: "x", phase: phase, anchor_message: message
+    )
+    project
+  end
+
+  # Count of "Instruction Load" queries Rails issues during the block. Filters
+  # on the framework's own query label (`payload[:name]`) — DB-agnostic, no SQL
+  # parsing — to pin the index's `includes(:instructions)`: one query, not N.
+  def instruction_query_count
+    count = 0
+    callback = lambda do |*, payload|
+      count += 1 if payload[:name] == "Instruction Load" && !payload[:cached]
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    count
   end
 end

@@ -1,7 +1,7 @@
 class Chat < ApplicationRecord
   acts_as_chat
 
-  belongs_to :project
+  belongs_to :project, touch: true
 
   # `acts_as_chat` (use_new_acts_as = true) delegates with_temperature /
   # with_thinking / with_params / with_headers / with_schema to to_llm but

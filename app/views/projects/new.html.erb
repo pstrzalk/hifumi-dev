@@ -1,8 +1,7 @@
 <section style="max-width: 1600px; margin: 0 auto;" data-controller="suggestions">
-  <div class="flex items-baseline" style="gap: 12px; margin-bottom: 16px;">
-    <div class="eyebrow">studio · <span class="mono">new project</span></div>
+  <div class="page-head">
+    <nav class="eyebrow" aria-label="breadcrumb"><%= link_to "projects", projects_path %> · new project</nav>
   </div>
-  <h1 class="h-section" style="margin: 0 0 24px;">Describe the app you want to build</h1>
 
   <% if @error %>
     <div class="notice-strip notice-strip--err" style="max-width: 720px; margin-bottom: 16px;">

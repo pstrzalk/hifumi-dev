@@ -54,4 +54,12 @@ class MessageTest < ActiveSupport::TestCase
       @chat.messages.create!(role: :user, content: "hi", system_injected: true)
     end
   end
+
+  test "creating a message touches the chat's project (bumps active timestamp)" do
+    travel_to 1.hour.from_now do
+      assert_changes -> { @project.reload.updated_at } do
+        @chat.messages.create!(role: :user, content: "hello")
+      end
+    end
+  end
 end

@@ -17,6 +17,30 @@ class ProjectsControllerShowTest < ActionDispatch::IntegrationTest
     assert_select "div#active_revisions *", false
   end
 
+  test "header renders the build-state tag in a stable dom id — NEW with no instructions" do
+    get project_url(@project)
+    assert_response :success
+    assert_select "#state_tag_project_#{@project.id} .tag.tag--new"
+  end
+
+  test "header build-state tag shows GENERATING with a blinking dot mid-build" do
+    @project.instructions.create!(
+      user_intent: "x", description: "x",
+      phase: :implementing, anchor_message: @user_message
+    )
+    get project_url(@project)
+    assert_response :success
+    assert_select "#state_tag_project_#{@project.id} .tag.tag--generating .tag-dot"
+  end
+
+  test "header is a breadcrumb — projects link, project name — and drops the section heading" do
+    get project_url(@project)
+    assert_response :success
+    assert_select "nav[aria-label=breadcrumb] a[href=?]", projects_path, text: /projects/i
+    assert_select "nav[aria-label=breadcrumb]", text: /#{@project.name}/
+    assert_select "h1.h-section", false
+  end
+
   test "renders active_revisions list when an implementing instruction has revisions" do
     instruction = @project.instructions.create!(
       user_intent: "x", description: "x",

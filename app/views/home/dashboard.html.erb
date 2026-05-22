@@ -1,25 +1,25 @@
 <section style="max-width: 1600px; margin: 0 auto;">
-  <div class="flex items-baseline" style="gap: 12px; margin-bottom: 16px;">
-    <div class="eyebrow">home · dashboard</div>
+  <div class="page-head">
+    <div class="eyebrow">home</div>
   </div>
   <div class="flex items-baseline justify-between" style="margin: 0 0 24px;">
     <h1 class="h-section" style="margin: 0;">Welcome back, <%= @first_name %></h1>
     <%= link_to "+ New project", new_project_path, class: "btn btn--accent btn--sm" %>
   </div>
 
-  <div class="dash-stats">
+  <div class="dash-stats dash-stats--total">
     <div class="dash-stat">
       <span class="dash-stat__num numeral"><%= @projects_count %></span>
       <span class="dash-stat__label">projects</span>
     </div>
-    <div class="dash-stat">
-      <span class="dash-stat__num numeral"><%= @running_count %></span>
-      <span class="dash-stat__label">running</span>
-    </div>
-    <div class="dash-stat">
-      <span class="dash-stat__num numeral"><%= @exported_count %></span>
-      <span class="dash-stat__label">exported</span>
-    </div>
+  </div>
+  <div class="dash-stats">
+    <% @state_counts.each do |state, count| %>
+      <div class="dash-stat">
+        <span class="dash-stat__num numeral"><%= count %></span>
+        <span class="dash-stat__label"><%= state %></span>
+      </div>
+    <% end %>
   </div>
 
   <div class="dash-actions">

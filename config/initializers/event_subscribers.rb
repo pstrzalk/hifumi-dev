@@ -4,6 +4,18 @@
 # Subscribers MUST only enqueue jobs or broadcast Turbo Streams. No business
 # logic here — that lives in the tool/job handlers.
 
+# Re-render the project-page header build-state tag. Folded into the three
+# instruction lifecycle events below so the live header tag tracks the build:
+# requested → GENERATING, completed → READY, failed → FAILED.
+broadcast_state_tag = lambda do |project|
+  Turbo::StreamsChannel.broadcast_replace_to(
+    project,
+    target: ActionView::RecordIdentifier.dom_id(project, :state_tag),
+    partial: "projects/state_tag",
+    locals: { project: project }
+  )
+end
+
 ActiveSupport::Notifications.subscribe("instruction.requested") do |*, payload|
   ExecuteInstructionJob.perform_later(payload[:instruction_id])
 end
@@ -16,6 +28,7 @@ ActiveSupport::Notifications.subscribe("instruction.requested") do |*, payload|
     partial: "revisions/list",
     locals: { revisions: instruction.revisions.order(:position) }
   )
+  broadcast_state_tag.call(instruction.project)
 end
 
 # Auto-stop the preview as soon as a new instruction starts: production-mode
@@ -53,6 +66,7 @@ ActiveSupport::Notifications.subscribe("instruction.completed") do |*, payload|
     partial: "revisions/list",
     locals: { revisions: [] }
   )
+  broadcast_state_tag.call(instruction.project)
 end
 
 # After every completed instruction, fire one LLM turn to recap and ask the
@@ -112,4 +126,5 @@ ActiveSupport::Notifications.subscribe("instruction.failed") do |*, payload|
     partial: "revisions/list",
     locals: { revisions: [] }
   )
+  broadcast_state_tag.call(instruction.project)
 end

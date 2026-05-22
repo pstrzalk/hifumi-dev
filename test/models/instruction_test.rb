@@ -52,4 +52,30 @@ class InstructionTest < ActiveSupport::TestCase
     assert_nil instruction.user_intent
     assert instruction.valid?
   end
+
+  test "terminal? is true for completed, failed, and cancelled phases" do
+    instruction = instructions(:flowers_v1)
+    %w[completed failed cancelled].each do |phase|
+      instruction.phase = phase
+      assert instruction.terminal?, "expected phase #{phase} to be terminal"
+    end
+  end
+
+  test "terminal? is false for researching, planning, and implementing phases" do
+    instruction = instructions(:flowers_v1)
+    %w[researching planning implementing].each do |phase|
+      instruction.phase = phase
+      assert_not instruction.terminal?, "expected phase #{phase} to not be terminal"
+    end
+  end
+
+  test "saving an instruction touches its project (bumps active timestamp)" do
+    instruction = instructions(:flowers_v1)
+    project = instruction.project
+    travel_to 1.hour.from_now do
+      assert_changes -> { project.reload.updated_at } do
+        instruction.update!(phase: :completed)
+      end
+    end
+  end
 end

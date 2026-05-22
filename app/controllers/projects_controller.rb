@@ -3,7 +3,7 @@ class ProjectsController < ApplicationController
   before_action :load_project_and_authorize!, only: [:show, :destroy]
 
   def index
-    @projects = current_user.projects.order(created_at: :desc)
+    @projects = current_user.projects.includes(:instructions).order(created_at: :desc)
   end
 
   def new

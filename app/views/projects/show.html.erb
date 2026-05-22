@@ -1,10 +1,10 @@
 <section style="max-width: 1600px; margin: 0 auto;">
   <%= turbo_stream_from @project %>
 
-  <div class="flex items-baseline" style="gap: 12px; margin-bottom: 16px;">
-    <div class="eyebrow">studio · <span class="mono">project_<%= @project.id %></span></div>
+  <div class="page-head">
+    <nav class="eyebrow" aria-label="breadcrumb"><%= link_to "projects", projects_path %> · <%= @project.name %></nav>
+    <%= render "projects/state_tag", project: @project %>
   </div>
-  <h1 class="h-section" style="margin: 0 0 24px;"><%= @project.name %></h1>
 
   <%= render "shared/chat_notice" %>
 

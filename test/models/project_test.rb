@@ -91,4 +91,59 @@ class ProjectTest < ActiveSupport::TestCase
   ensure
     Rails.configuration.preview.domain = original
   end
+
+  # --- build state ------------------------------------------------------
+
+  test "build_state is :new for a project with no instructions" do
+    project = Project.create!(name: "Fresh", user: users(:owner))
+    assert_equal :new, project.build_state
+  end
+
+  test "build_state is :generating when the latest instruction is not terminal" do
+    project = project_with_chat
+    add_instruction(project, phase: :implementing)
+    assert_equal :generating, project.build_state
+  end
+
+  test "build_state is :failed when the latest instruction failed" do
+    project = project_with_chat
+    add_instruction(project, phase: :failed)
+    assert_equal :failed, project.build_state
+  end
+
+  test "build_state is :ready when the latest instruction completed" do
+    project = project_with_chat
+    add_instruction(project, phase: :completed)
+    assert_equal :ready, project.build_state
+  end
+
+  test "build_state follows the latest instruction — a newer failure overrides an older completion" do
+    project = project_with_chat
+    add_instruction(project, phase: :completed, created_at: 2.hours.ago)
+    add_instruction(project, phase: :failed, created_at: 1.hour.ago)
+    assert_equal :failed, project.build_state
+  end
+
+  test "build_state breaks identical-created_at ties by id — the higher-id instruction decides" do
+    project = project_with_chat
+    same_time = 1.hour.ago
+    add_instruction(project, phase: :completed, created_at: same_time)
+    add_instruction(project, phase: :failed, created_at: same_time)
+    assert_equal :failed, project.build_state
+  end
+
+  private
+
+  def project_with_chat
+    project = Project.create!(name: "Buildable", user: users(:owner))
+    project.create_chat!
+    project
+  end
+
+  def add_instruction(project, phase:, created_at: nil)
+    message = project.chat.messages.create!(role: :user, content: "do a thing")
+    attrs = { user_intent: "x", description: "x", phase: phase, anchor_message: message }
+    attrs[:created_at] = created_at if created_at
+    project.instructions.create!(attrs)
+  end
 end

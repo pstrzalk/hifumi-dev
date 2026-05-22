@@ -21,13 +21,18 @@ class EventSubscribersTest < ActiveSupport::TestCase
     @stream_name = @project.to_gid_param
   end
 
-  test "instruction.requested broadcasts the revisions list partial to active_revisions" do
-    assert_broadcasts(@stream_name, 1) do
+  test "instruction.requested broadcasts the revisions list partial and the header state tag" do
+    assert_broadcasts(@stream_name, 2) do
       ActiveSupport::Notifications.instrument(
         "instruction.requested",
         instruction_id: @instruction.id
       )
     end
+
+    state_tag = broadcasts(@stream_name).find { |b| b.to_s.include?("state_tag_project_") }
+    assert state_tag, "expected a broadcast targeting the project-page state tag"
+    assert_includes state_tag.to_s, "tag--generating",
+                    "a requested build flips the header tag to GENERATING"
   end
 
   test "instruction.requested also enqueues ExecuteInstructionJob" do
@@ -91,10 +96,10 @@ class EventSubscribersTest < ActiveSupport::TestCase
     end
   end
 
-  test "instruction.completed broadcasts an appended status_row partial and an empty revisions list" do
+  test "instruction.completed broadcasts an appended status_row partial, an empty revisions list, and the header state tag" do
     @instruction.update!(phase: :completed)
     perform_enqueued_jobs(except: ChatRespondJob) do
-      assert_broadcasts(@stream_name, 2) do
+      assert_broadcasts(@stream_name, 3) do
         ActiveSupport::Notifications.instrument(
           "instruction.completed",
           instruction_id: @instruction.id
@@ -106,6 +111,11 @@ class EventSubscribersTest < ActiveSupport::TestCase
     assert appended, "expected an append broadcast containing ✅ Built"
     assert_match(/target=\\?"messages\\?"/, appended.to_s)
     assert_match(/action=\\?"append\\?"/, appended.to_s)
+
+    state_tag = broadcasts(@stream_name).find { |b| b.to_s.include?("state_tag_project_") }
+    assert state_tag, "expected a broadcast targeting the project-page state tag"
+    assert_includes state_tag.to_s, "tag--ready",
+                    "a completed build flips the header tag to READY"
   end
 
   test "instruction.completed persists a hidden synthetic nudge user message" do
@@ -206,5 +216,21 @@ class EventSubscribersTest < ActiveSupport::TestCase
     assert appended, "expected an append broadcast containing Build failed"
     assert_includes appended.to_s, "❌ Build failed"
     refute_match(/Build failed:/, appended.to_s)
+  end
+
+  test "instruction.failed broadcasts the header state tag flipped to FAILED" do
+    @instruction.update!(phase: :failed)
+
+    perform_enqueued_jobs(except: ChatRespondJob) do
+      ActiveSupport::Notifications.instrument(
+        "instruction.failed",
+        instruction_id: @instruction.id
+      )
+    end
+
+    state_tag = broadcasts(@stream_name).find { |b| b.to_s.include?("state_tag_project_") }
+    assert state_tag, "expected a broadcast targeting the project-page state tag"
+    assert_includes state_tag.to_s, "tag--failed",
+                    "a failed build flips the header tag to FAILED"
   end
 end
