@@ -1,11 +1,33 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title><%= content_for(:title) || "hifumi.dev" %></title>
+    <% page_title       = content_for(:title).presence       || "hifumi.dev — build Rails apps from a chat prompt" %>
+    <% page_description = content_for(:description).presence || "Describe the app. Hifumi plans revisions, drives an LLM through implement → verify → commit, and hands you a clean Rails repo. Bring your own OpenRouter key. No vendor lock-in." %>
+    <% og_image_url     = "#{request.base_url}/og.png" %>
+    <title><%= page_title %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="hifumi.dev">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="description" content="<%= page_description %>">
+    <link rel="canonical" href="<%= request.base_url %><%= request.path %>">
+
+    <meta property="og:type"           content="website">
+    <meta property="og:site_name"      content="hifumi.dev">
+    <meta property="og:title"          content="<%= page_title %>">
+    <meta property="og:description"    content="<%= page_description %>">
+    <meta property="og:url"            content="<%= request.base_url %><%= request.path %>">
+    <meta property="og:image"          content="<%= og_image_url %>">
+    <meta property="og:image:width"    content="1200">
+    <meta property="og:image:height"   content="630">
+    <meta property="og:image:alt"      content="hifumi.dev — 一二三 (hi-fu-mi) wordmark">
+
+    <meta name="twitter:card"        content="summary_large_image">
+    <meta name="twitter:title"       content="<%= page_title %>">
+    <meta name="twitter:description" content="<%= page_description %>">
+    <meta name="twitter:image"       content="<%= og_image_url %>">
+    <meta name="twitter:image:alt"   content="hifumi.dev — 一二三 (hi-fu-mi) wordmark">
+
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
