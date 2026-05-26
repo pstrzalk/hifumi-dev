@@ -216,6 +216,29 @@ Verbs are always **lowercase in source**, **uppercase via CSS
 
 ---
 
+## Mobile and responsive behaviour
+
+The site is mobile-friendly via three rules:
+
+1. **One breakpoint set in `app/assets/tailwind/application.css`** —
+   `640 / 768 / 900`. Bespoke `@media` only, no Tailwind responsive
+   prefixes in views (see *Where the tokens live*).
+2. **Type ramp uses `clamp(MIN, A + Bvw, MAX)`** — fluid scaling between
+   a phone-readable floor and the desktop ceiling. The floor for
+   `.field-input` / `.field-textarea` is **17 px** (iOS Safari auto-zooms
+   form inputs below 16 px on focus).
+3. **Below `640 px`, the top nav collapses to a hamburger drawer.** The
+   brand stays visible alongside the Sign up CTA (signed-out only); every
+   other nav item lives in a slide-in panel driven by
+   `mobile_nav_controller.js`.
+
+When adding a new responsive rule, prefer `clamp()` for type and padding,
+`@media` for layout (column → row / hide → show). Any new `@media` should
+target one of the three canonical breakpoints; introducing a fourth is a
+design-system change, not a one-off.
+
+---
+
 ## Anti-patterns (don't ship)
 
 - **Gradients.** Anywhere. Solid fills only.
