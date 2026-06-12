@@ -62,7 +62,8 @@ class ExecuteInstructionJob < ApplicationJob
     # credentials:edit` inside the workspace.
     master_key_path = File.join(workspace, "config/master.key")
     File.write(master_key_path, ActiveSupport::EncryptedFile.generate_key)
-    File.chmod(0o600, master_key_path)
+    # 0644, matching relax_workspace_permissions — see the rationale there.
+    File.chmod(0o644, master_key_path)
 
     Bundler.with_unbundled_env do
       ok = system(
@@ -98,12 +99,18 @@ class ExecuteInstructionJob < ApplicationJob
   # `git config --system --add safe.directory '*'` (set in the Dockerfile)
   # silences ownership warnings for subsequent root-side git ops.
   #
-  # master.key stays 0600 (root-only) — generator never needs to decrypt
-  # credentials, only the preview container does, and that runs separately.
+  # master.key is pinned 0644: read-only for non-owners, but readable by every
+  # tenant-internal uid — Rails reads the key file whenever it exists (even
+  # with no credentials.yml.enc; e.g. Devise's railtie asks for
+  # secret_key_base at boot), so an unreadable key EACCESes the app inside
+  # the uid-1000 sandbox and the capless-root preview alike (issue #26).
+  # World-readable is no secrecy loss here: the rest of the workspace is
+  # already a+rw inside the tenant boundary and generated apps ship empty
+  # credentials.
   def relax_workspace_permissions(workspace)
     FileUtils.chmod_R("a+rwX", workspace)
     master_key_path = File.join(workspace, "config/master.key")
-    File.chmod(0o600, master_key_path) if File.exist?(master_key_path)
+    File.chmod(0o644, master_key_path) if File.exist?(master_key_path)
   end
 
   # Cwd for rails new / git / bundle is outside this repo (Project.workspace_root),

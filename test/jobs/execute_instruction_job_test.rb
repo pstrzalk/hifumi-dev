@@ -151,7 +151,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     end
   end
 
-  test "init_rails_app generates a fresh per-workspace master.key (mode 0600, not in skeleton)" do
+  test "init_rails_app generates a fresh per-workspace master.key (mode 0644, not in skeleton)" do
     skeleton_root = Rails.root.join("lib/preview/skeleton")
     refute File.exist?(skeleton_root.join("config/master.key")),
            "skeleton must NOT ship a master.key"
@@ -174,8 +174,10 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
       assert_match(/\A[0-9a-f]{32}\z/, key_a, "master.key must be 32-char hex")
       refute_equal key_a, key_b, "each workspace must get a unique master.key"
 
-      # 0600 — owner read/write only.
-      assert_equal 0o600, File.stat(key_a_path).mode & 0o777
+      # 0644 — only the owner writes, but every tenant-internal uid reads:
+      # the uid-1000 sandbox and the capless-root preview both boot Rails,
+      # which reads the key file whenever it exists (issue #26).
+      assert_equal 0o644, File.stat(key_a_path).mode & 0o777
     end
   end
 
@@ -219,7 +221,7 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     end
   end
 
-  test "relax_workspace_permissions keeps master.key locked at 0600 even though the rest goes world-writable" do
+  test "relax_workspace_permissions pins master.key to 0644 — readable everywhere, writable by nobody else" do
     Dir.mktmpdir("hifumi-dev-relax-perm-") do |root|
       ws = File.join(root, "project_relax_perm")
       FileUtils.mkdir_p(File.join(ws, "config"))
@@ -230,7 +232,8 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
 
       ExecuteInstructionJob.new.send(:relax_workspace_permissions, ws)
 
-      assert_equal 0o600, File.stat(master_key).mode & 0o777, "master.key must stay 0600"
+      assert_equal 0o644, File.stat(master_key).mode & 0o777,
+                   "an unreadable master.key EACCESes Rails boot in the uid-1000 sandbox (issue #26)"
       assert_equal 0o666, File.stat(File.join(ws, "Gemfile.lock")).mode & 0o777,
                    "non-secret files must be world-writable after relax"
     end
