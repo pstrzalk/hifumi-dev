@@ -46,9 +46,11 @@ RUN apt-get update -qq && \
 #   3. create a `generator` non-root user
 #   4. wrap `claude` so root invocations re-exec it as `generator` via runuser
 #
-# Runtime callers (ExecuteInstructionJob → bin/roast-openrouter → roast →
-# Open3.popen3 "claude") still run as root, but the CLI binary itself runs
-# as `generator`, which the CLI accepts.
+# The agent sandbox (lib/roast/sandbox.rb) runs this image as --user
+# generator, so the whole chain (roast → claude) is uid 1000 and the wrapper
+# takes its else branch — no runuser, no SETUID. The root→runuser branch
+# remains for direct invocations inside the generator container itself
+# (which runs as root), e.g. debugging via `kamal app exec`.
 RUN useradd -m -u 1000 -s /bin/bash generator && \
     curl -fsSL https://claude.ai/install.sh | bash && \
     mv /root/.local/share/claude /opt/claude && \

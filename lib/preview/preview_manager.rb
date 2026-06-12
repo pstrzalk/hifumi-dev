@@ -179,13 +179,14 @@ module Preview
 
     # The preview container runs as root with --cap-drop=ALL, which strips
     # CAP_DAC_OVERRIDE — so root inside the container follows ordinary file
-    # permission rules instead of bypassing them. The agent creates the SQLite
-    # DB during a revision via the claude CLI (runuser'd to UID 1000), leaving
-    # storage/development.sqlite3 mode 644 owned by 1000:1000. Without this
-    # chmod, the preview container's UID-0 process can read but not write the
-    # file, and the first INSERT fails with SQLITE_READONLY. ExecuteInstruction
-    # Job#relax_workspace_permissions only runs at init, not after revisions,
-    # so re-relax here right before each container boot.
+    # permission rules instead of bypassing them. The agent (uid 1000 — the
+    # whole sandbox runs as `generator` since issue #24) creates the SQLite DB
+    # during a revision, leaving storage/development.sqlite3 mode 644 owned by
+    # 1000:1000. Without this chmod, the preview container's UID-0 process can
+    # read but not write the file, and the first INSERT fails with
+    # SQLITE_READONLY. ExecuteInstructionJob relaxes the workspace before each
+    # sandboxed revision, but files the agent creates during that run land
+    # 0644 afterwards — so re-relax here right before each container boot.
     def ensure_storage_writable!(project)
       storage = File.join(project.workspace_path, "storage")
       return unless File.directory?(storage)
