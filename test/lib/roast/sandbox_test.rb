@@ -34,13 +34,17 @@ class Roast::SandboxTest < ActiveSupport::TestCase
       "the throwaway must not be able to reach the host Docker daemon"
   end
 
-  test "is not privileged and drops all capabilities except the SETUID/SETGID the claude wrapper needs" do
+  test "runs the whole container as the unprivileged generator user" do
+    assert_includes wrap, "--user=#{Roast::Sandbox::USER}"
+  end
+
+  test "is not privileged and drops every capability — no cap-adds at all" do
     argv = wrap
     assert_not argv.include?("--privileged")
     assert_includes argv, "--cap-drop=ALL"
     assert_includes argv, "--security-opt=no-new-privileges"
-    added = argv.grep(/\A--cap-add=/).map { |a| a.split("=", 2).last }
-    assert_equal %w[SETUID SETGID].sort, added.sort
+    assert_empty argv.grep(/\A--cap-add/),
+      "non-root + uniform uid needs no capabilities; SETUID/SETGID were only for the runuser path"
   end
 
   test "applies resource ceilings" do

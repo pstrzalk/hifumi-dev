@@ -8,6 +8,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/) (minor for new
 functionality, patch for fixes and internal changes).
 
+## [1.1.1] - 2026-06-12
+
+### Fixed
+
+- Sandboxed generation failed in production with "attempt to write a readonly
+  database": with all capabilities dropped, root loses its permission-bit
+  bypass, and the sandbox mixed a root-run workflow with a uid-1000 agent, so
+  neither could write files the other created. The sandbox now runs entirely
+  as the unprivileged generator user and the workspace is made writable before
+  every sandboxed run.
+
+### Security
+
+- The sandbox container keeps zero Linux capabilities — the SETUID/SETGID
+  pair previously retained for the root-to-generator privilege drop is no
+  longer needed now that the container starts unprivileged.
+
 ## [1.1.0] - 2026-06-12
 
 ### Added

@@ -67,7 +67,7 @@ job.send(:roast_model_env, project).each { |k, v| puts "  #{k}=#{v}" }
 puts
 
 probe = <<~SH
-  echo "agent-uid: $(runuser -p -u generator -- id -un 2>&1)"
+  echo "agent-uid: $(id -un 2>&1)"
   echo "claude:    $(/usr/local/bin/claude --version 2>&1 | head -1)"
   echo "ws-root:   $(ls #{root} 2>&1 | tr '\\n' ' ')"
   if ls #{sibling} >/dev/null 2>&1; then echo "sibling:   LEAK (#{sibling} readable)"; else echo "sibling:   denied"; fi

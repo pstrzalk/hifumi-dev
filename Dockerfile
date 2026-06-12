@@ -111,8 +111,13 @@ FROM base
 # effective root on the host anyway, and root simplifies workspace permissions
 # (UID alignment with the host bind mount path).
 
-# Copy built artifacts: gems, application
-COPY --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
+# Copy built artifacts: gems, application. The bundle is generator-owned so
+# the agent sandbox (the same image run as --user generator, see
+# lib/roast/sandbox.rb) can `bundle install` agent-added gems during verify /
+# AutoRemediate; root-owned 0755 would force bundler into a per-workspace
+# vendor/bundle fallback. The generator container itself runs as root and is
+# unaffected by the ownership.
+COPY --from=build --chown=1000:1000 "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --from=build /rails /rails
 
 # Entrypoint prepares the database.
