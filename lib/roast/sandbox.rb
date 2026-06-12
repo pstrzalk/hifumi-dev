@@ -24,6 +24,10 @@ module Roast
     MEMORY_LIMIT = "4g"
     CPU_LIMIT    = "2"
     PIDS_LIMIT   = 512
+    # The uid the entire throwaway runs as — same user the claude CLI needs
+    # anyway (it refuses --dangerously-skip-permissions as root). Must exist
+    # in the image's /etc/passwd (Dockerfile useradd).
+    USER = "generator"
 
     class MissingImage < StandardError; end
 
@@ -43,16 +47,18 @@ module Roast
       [
         "docker", "run", "--rm",
         "--name", name,
-        # Drop every Linux capability, then add back only the two the baked
-        # `claude` wrapper needs: it runs as root and re-execs the CLI as the
-        # unprivileged `generator` user via `runuser`, which requires SETUID/
-        # SETGID. (no-new-privileges + these two need a runtime smoke test on
-        # the Linux host. The tenant isolation does not depend on the cap set;
-        # it comes from the mount scoping below, so loosening caps if the agent
-        # fails to start is safe.)
+        # The whole container runs as the unprivileged `generator` user, every
+        # capability dropped. One uid for everything (roast, verify, bundler,
+        # git, the claude CLI) is load-bearing: with --cap-drop=ALL even root
+        # loses CAP_DAC_OVERRIDE and obeys plain permission bits, so a
+        # root-workflow/uid-1000-agent split deadlocks on any 0644 file the
+        # other side created — SQLite enforces 0644 on new databases regardless
+        # of umask, which broke verify in production (issue #24). Non-root also
+        # means the baked claude wrapper exec's the CLI directly (no runuser),
+        # so the previous SETUID/SETGID cap-adds are gone too. Docker resolves
+        # HOME=/home/generator from the image's /etc/passwd.
+        "--user=#{USER}",
         "--cap-drop=ALL",
-        "--cap-add=SETUID",
-        "--cap-add=SETGID",
         "--security-opt=no-new-privileges",
         "--memory=#{MEMORY_LIMIT}",
         "--memory-swap=#{MEMORY_LIMIT}",

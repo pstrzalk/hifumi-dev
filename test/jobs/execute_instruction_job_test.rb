@@ -536,6 +536,38 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     end
   end
 
+  test "sandboxed run re-relaxes workspace permissions before launching the throwaway" do
+    ws = @project.workspace_path
+    FileUtils.mkdir_p(File.join(ws, "storage"))
+    locked = File.join(ws, "storage/test.sqlite3")
+    File.write(locked, "")
+    FileUtils.chmod(0o600, locked)
+
+    with_env("FORCE_AGENT_SANDBOX" => "1", "HIFUMI_AGENT_IMAGE" => "registry/hifumi-dev:latest") do
+      with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do
+        ExecuteInstructionJob.perform_now(@instruction.id)
+      end
+    end
+
+    assert_equal 0o666, File.stat(locked).mode & 0o777,
+      "files another uid left 0600/0644 must become writable for the uid-1000 throwaway (issue #24)"
+  end
+
+  test "unsandboxed run leaves workspace permissions alone" do
+    ws = @project.workspace_path
+    FileUtils.mkdir_p(File.join(ws, "storage"))
+    locked = File.join(ws, "storage/test.sqlite3")
+    File.write(locked, "")
+    FileUtils.chmod(0o600, locked)
+
+    with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do
+      ExecuteInstructionJob.perform_now(@instruction.id)
+    end
+
+    assert_equal 0o600, File.stat(locked).mode & 0o777,
+      "dev runs are single-uid — no chmod churn outside the sandbox path"
+  end
+
   # --- subscriber wiring (initializer-driven) ---------------------------
 
   test "instruction.requested notification enqueues ExecuteInstructionJob on the generation queue" do

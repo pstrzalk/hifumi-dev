@@ -181,6 +181,13 @@ class ExecuteInstructionJob < ApplicationJob
       "RAILS_ENV" => "development"
     }.merge(roast_model_env(revision.instruction.project))
 
+    # The throwaway runs everything as uid 1000 with --cap-drop=ALL, so any
+    # root-owned 0644 file left by pre-sandbox runs (or by this job's own
+    # root-side git/init work) is unwritable inside it. Re-relax before every
+    # sandboxed run — init-time relaxing isn't enough because files keep being
+    # created between revisions. Mirrors PreviewManager#ensure_storage_writable!.
+    relax_workspace_permissions(workspace) if sandboxed?
+
     ok, exit_code, wall_seconds = run_roast_subprocess(env, revision_command(revision, workspace, env))
 
     metrics = {
