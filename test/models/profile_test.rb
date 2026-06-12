@@ -36,10 +36,16 @@ class ProfileTest < ActiveSupport::TestCase
 
   test "default_models_for_project maps each profile default onto its project column" do
     profile = create_user.profile
-    profile.update!(default_code_model: "anthropic/claude-opus-4.6")
+    profile.update!(
+      default_code_model: "anthropic/claude-opus-4.6",
+      default_chat_model: "anthropic/claude-sonnet-4.6"
+    )
 
     mapped = profile.default_models_for_project
-    assert_equal "anthropic/claude-opus-4.6", mapped[:code_model]
     assert_equal LLM::Stages.project_columns.sort, mapped.keys.sort
+    LLM::Stages::ALL.each do |stage|
+      assert_equal profile[stage.profile_column], mapped[stage.project_column],
+        "expected #{stage.project_column} to carry the #{stage.profile_column} value"
+    end
   end
 end

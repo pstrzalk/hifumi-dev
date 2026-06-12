@@ -560,16 +560,6 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
 
   private
 
-  # Set/clear ENV keys for the block's duration (nil deletes the key),
-  # restoring the originals afterwards.
-  def with_env(overrides)
-    originals = overrides.keys.to_h { |k| [ k, ENV[k] ] }
-    overrides.each { |k, v| v.nil? ? ENV.delete(k) : ENV[k] = v }
-    yield
-  ensure
-    originals.each { |k, v| v.nil? ? ENV.delete(k) : ENV[k] = v }
-  end
-
   def build_rev(position, summary, prompt, parent: nil)
     @instruction.revisions.create!(
       project: @project,

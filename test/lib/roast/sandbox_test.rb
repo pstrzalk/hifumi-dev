@@ -82,13 +82,4 @@ class Roast::SandboxTest < ActiveSupport::TestCase
     end
   end
 
-  private
-
-  def with_env(overrides)
-    originals = overrides.keys.to_h { |k| [ k, ENV[k] ] }
-    overrides.each { |k, v| v.nil? ? ENV.delete(k) : ENV[k] = v }
-    yield
-  ensure
-    originals.each { |k, v| v.nil? ? ENV.delete(k) : ENV[k] = v }
-  end
 end
