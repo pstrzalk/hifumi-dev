@@ -321,6 +321,58 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
     assert @runner.called?("docker", "exec", "kamal-proxy", "kamal-proxy", "deploy", "preview-#{@project.id}")
   end
 
+  test "start (remote): warms the public TLS endpoint after proxy registration, without -k" do
+    @runner.script("docker", "inspect", returns: Result.new(
+      ok: true, stdout: "172.99.0.5\n", stderr: "", exit_code: 0
+    ))
+    @runner.script("docker", "exec", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+
+    with_remote do
+      @manager.start(@project)
+    end
+
+    warm = @runner.calls.find { |c| c[:cmd].first == "curl" && c[:cmd].last.start_with?("https://") }
+    assert warm, "start must probe the public https URL so the cert is issued before the user's first visit"
+    assert_equal "https://#{@project.id}.preview.hifumi.dev/up", warm[:cmd].last
+    refute_includes warm[:cmd], "-k", "the probe must only pass on a browser-trustable cert"
+
+    deploy_idx = @runner.calls.index { |c| c[:cmd].include?("deploy") }
+    warm_idx   = @runner.calls.index(warm)
+    assert deploy_idx < warm_idx, "the warm probe must run after kamal-proxy registration"
+  end
+
+  test "start (remote): TLS warm timeout is non-fatal — preview still reaches running" do
+    @runner.script("docker", "inspect", returns: Result.new(
+      ok: true, stdout: "172.99.0.5\n", stderr: "", exit_code: 0
+    ))
+    @runner.script("docker", "exec", returns: Result.new(
+      ok: true, stdout: "", stderr: "", exit_code: 0
+    ))
+    # Host-side curl (the TLS probe) never verifies; in-container health
+    # checks use the `docker exec` prefix, so they stay green.
+    @runner.script("curl", returns: Result.new(ok: false, stdout: "", stderr: "SSL", exit_code: 60))
+
+    manager = Preview::PreviewManager.new(
+      runner: @runner,
+      health_timeout: 0.05, health_interval: 0.01, tls_warm_timeout: 0.05
+    )
+    with_remote do
+      manager.start(@project)
+    end
+
+    assert_equal "running", @project.reload.preview_state,
+      "a preview that works must never be failed over the cert warm-up"
+  end
+
+  test "start (dev): never probes a public https URL" do
+    @manager.start(@project)
+
+    refute @runner.calls.any? { |c| c[:cmd].any? { |a| a.start_with?("https://") } },
+      "local previews have no TLS endpoint to warm"
+  end
+
   test "start (dev): no kamal-proxy commands invoked" do
     @manager.start(@project)
 

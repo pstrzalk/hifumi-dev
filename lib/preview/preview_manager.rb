@@ -10,6 +10,9 @@ module Preview
     BUILD_TIMEOUT_SECONDS  = 8 * 60
     HEALTH_TIMEOUT_SECONDS = 60
     HEALTH_INTERVAL_SECONDS = 1
+    # Let's Encrypt issuance for a fresh preview host usually lands in
+    # single-digit seconds; 90 covers a slow ACME round-trip with margin.
+    TLS_WARM_TIMEOUT_SECONDS = 90
     ERROR_TRUNCATE = 2_000
 
     Result = Struct.new(:ok, :stdout, :stderr, :exit_code, keyword_init: true)
@@ -19,10 +22,12 @@ module Preview
     # dropped Object#stub, so per-instance overrides are the pattern).
     def initialize(runner: SystemRunner.new,
                    health_timeout: HEALTH_TIMEOUT_SECONDS,
-                   health_interval: HEALTH_INTERVAL_SECONDS)
-      @runner          = runner
-      @health_timeout  = health_timeout
-      @health_interval = health_interval
+                   health_interval: HEALTH_INTERVAL_SECONDS,
+                   tls_warm_timeout: TLS_WARM_TIMEOUT_SECONDS)
+      @runner           = runner
+      @health_timeout   = health_timeout
+      @health_interval  = health_interval
+      @tls_warm_timeout = tls_warm_timeout
     end
 
     # Idempotent. If a preview exists for this project, stop it first.
@@ -44,7 +49,10 @@ module Preview
       project.update!(preview_container_id: container_id)
 
       health_check!(project)
-      register_with_proxy!(project) if Preview::Config.remote?
+      if Preview::Config.remote?
+        register_with_proxy!(project)
+        wait_for_public_tls!(project)
+      end
 
       project.update!(preview_state: :running)
       ActiveSupport::Notifications.instrument(
@@ -292,11 +300,50 @@ module Preview
         "docker", "exec", "kamal-proxy",
         "kamal-proxy", "deploy", "preview-#{project.id}",
         "--target", "#{ip}:3000",
-        "--host", "#{project.id}.preview.#{Preview::Config.domain}",
+        "--host", public_preview_host(project),
         "--tls",
         capture: true
       )
       raise "kamal-proxy deploy failed: #{result.stderr}" unless result.ok
+    end
+
+    # kamal-proxy obtains the Let's Encrypt cert for a brand-new preview
+    # host on demand, triggered by the first TLS handshake for that
+    # hostname — without this wait, the user's first visit IS the trigger
+    # and lands on the proxy's self-signed fallback ("connection is not
+    # private") for the seconds the issuance takes (issue #28). Curl
+    # WITHOUT -k, so success requires a cert a browser would trust; certs
+    # persist in kamal-proxy, so restarts pass on the first probe.
+    #
+    # Non-fatal on timeout: the preview works either way, the user just
+    # risks the one-time cert interstitial — never fail a working preview
+    # over the warm-up (e.g. if the generator container can't hairpin to
+    # the host's public IP).
+    def wait_for_public_tls!(project)
+      deadline = Time.current + @tls_warm_timeout
+      until public_tls_ok?(project)
+        if Time.current > deadline
+          Rails.logger.warn(
+            "[PreviewManager] no browser-trustable cert on " \
+            "#{public_preview_host(project)} after #{@tls_warm_timeout}s — " \
+            "first visit may hit the TLS interstitial"
+          )
+          return
+        end
+        sleep @health_interval
+      end
+    end
+
+    def public_tls_ok?(project)
+      @runner.run(
+        "curl", "-fsS", "-o", "/dev/null", "-m", "5",
+        "https://#{public_preview_host(project)}/up",
+        capture: true
+      ).ok
+    end
+
+    def public_preview_host(project)
+      "#{project.id}.preview.#{Preview::Config.domain}"
     end
 
     def container_ip(container_name)
