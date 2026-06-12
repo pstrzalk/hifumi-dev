@@ -499,20 +499,16 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   end
 
   test "sandboxed? is true when FORCE_AGENT_SANDBOX is set in dev" do
-    original = ENV["FORCE_AGENT_SANDBOX"]
-    ENV["FORCE_AGENT_SANDBOX"] = "1"
-    assert ExecuteInstructionJob.new.send(:sandboxed?)
-  ensure
-    ENV["FORCE_AGENT_SANDBOX"] = original
+    with_env("FORCE_AGENT_SANDBOX" => "1") do
+      assert ExecuteInstructionJob.new.send(:sandboxed?)
+    end
   end
 
   test "sandboxing forces the OpenRouter transport (image has no host OAuth creds)" do
-    original = ENV["FORCE_AGENT_SANDBOX"]
-    ENV["FORCE_AGENT_SANDBOX"] = "1"
-    assert_equal Rails.root.join("bin/roast-openrouter").to_s,
-                 ExecuteInstructionJob.new.send(:roast_executable)
-  ensure
-    ENV["FORCE_AGENT_SANDBOX"] = original
+    with_env("FORCE_AGENT_SANDBOX" => "1") do
+      assert_equal Rails.root.join("bin/roast-openrouter").to_s,
+                   ExecuteInstructionJob.new.send(:roast_executable)
+    end
   end
 
   test "revision_command returns the bare roast invocation when not sandboxed" do
@@ -522,28 +518,22 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   end
 
   test "revision_command wraps the roast invocation in a docker run when sandboxed" do
-    original_sandbox = ENV["FORCE_AGENT_SANDBOX"]
-    original_image = ENV["HIFUMI_AGENT_IMAGE"]
-    ENV["FORCE_AGENT_SANDBOX"] = "1"
-    ENV["HIFUMI_AGENT_IMAGE"] = "registry/hifumi-dev:latest"
+    with_env("FORCE_AGENT_SANDBOX" => "1", "HIFUMI_AGENT_IMAGE" => "registry/hifumi-dev:latest") do
+      env = { "OPENROUTER_API_KEY" => "sk-or-secret", "HIFUMI_DEV_WORKSPACE" => @project.workspace_path }
+      args = ExecuteInstructionJob.new.send(:revision_command, @rev1, @project.workspace_path, env)
 
-    env = { "OPENROUTER_API_KEY" => "sk-or-secret", "HIFUMI_DEV_WORKSPACE" => @project.workspace_path }
-    args = ExecuteInstructionJob.new.send(:revision_command, @rev1, @project.workspace_path, env)
-
-    assert_equal %w[docker run --rm], args.first(3)
-    # the workspace is the only mount, the socket is never mounted
-    mounts = args.each_cons(2).select { |flag, _| flag == "-v" }.map(&:last)
-    assert_equal [ "#{@project.workspace_path}:#{@project.workspace_path}" ], mounts
-    assert_not args.any? { |a| a.include?("docker.sock") }
-    # the wrapped command (openrouter wrapper) sits after the image
-    image_idx = args.index("registry/hifumi-dev:latest")
-    assert_equal Rails.root.join("bin/roast-openrouter").to_s, args[image_idx + 1]
-    # the secret is forwarded by name, never as a value in argv
-    assert_includes args.each_cons(2).select { |f, _| f == "-e" }.map(&:last), "OPENROUTER_API_KEY"
-    assert_not args.any? { |a| a.include?("sk-or-secret") }
-  ensure
-    ENV["FORCE_AGENT_SANDBOX"] = original_sandbox
-    ENV["HIFUMI_AGENT_IMAGE"] = original_image
+      assert_equal %w[docker run --rm], args.first(3)
+      # the workspace is the only mount, the socket is never mounted
+      mounts = args.each_cons(2).select { |flag, _| flag == "-v" }.map(&:last)
+      assert_equal [ "#{@project.workspace_path}:#{@project.workspace_path}" ], mounts
+      assert_not args.any? { |a| a.include?("docker.sock") }
+      # the wrapped command (openrouter wrapper) sits after the image
+      image_idx = args.index("registry/hifumi-dev:latest")
+      assert_equal Rails.root.join("bin/roast-openrouter").to_s, args[image_idx + 1]
+      # the secret is forwarded by name, never as a value in argv
+      assert_includes args.each_cons(2).select { |f, _| f == "-e" }.map(&:last), "OPENROUTER_API_KEY"
+      assert_not args.any? { |a| a.include?("sk-or-secret") }
+    end
   end
 
   # --- subscriber wiring (initializer-driven) ---------------------------
