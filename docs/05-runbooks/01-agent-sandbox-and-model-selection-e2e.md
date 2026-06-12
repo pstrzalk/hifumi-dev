@@ -68,6 +68,22 @@ docker run --rm --user generator --cap-drop=ALL --security-opt=no-new-privileges
 ```
 **Pass:** `uid=1000(generator)`, `HOME=/home/generator`, a `claude` version print, and `bundle-writable` — the agent starts and bundler can install gems inside the locked-down container.
 
+**C3 — permission physics** (named volume; no app image, no tokens, ~10s). macOS bind mounts pass through VirtioFS, which fakes uid semantics — that is why issue #24 could not manifest in dev. Named volumes live on the Docker VM's real ext4, so the sandbox's permission model IS testable locally. Run this after any change to the sandbox's user/cap flags or the pre-run relax:
+
+```bash
+docker volume create capcheck >/dev/null
+docker run --rm -v capcheck:/ws alpine chmod 777 /ws  # what relax_workspace_permissions leaves
+# a 0644 file owned by another uid (SQLite's mode, regardless of umask):
+docker run --rm -v capcheck:/ws --user 1000:1000 alpine sh -c 'echo x > /ws/db && chmod 644 /ws/db'
+# capless ROOT writing it — the pre-#24 design — must be DENIED:
+docker run --rm -v capcheck:/ws --cap-drop=ALL alpine sh -c 'echo y >> /ws/db 2>/dev/null && echo WRITE-OK || echo WRITE-DENIED'
+# capless uid 1000 writing its own file — the shipped design — must be OK:
+docker run --rm -v capcheck:/ws --user 1000:1000 --cap-drop=ALL alpine sh -c 'echo y >> /ws/db 2>/dev/null && echo WRITE-OK || echo WRITE-DENIED'
+docker volume rm capcheck >/dev/null
+```
+
+**Pass:** `WRITE-DENIED` then `WRITE-OK`. The first line proves `--cap-drop=ALL` strips root's `CAP_DAC_OVERRIDE` (so a mixed-uid workspace deadlocks); the second proves the uniform-uid design survives the same file. Recorded 2026-06-12: both legs behaved as expected, plus the inverse (root-owned file vs capless uid 1000 → denied until `chmod -R a+rwX`, then ok).
+
 **Full sandboxed generation (optional):** `HIFUMI_AGENT_IMAGE=hifumi-dev:local FORCE_AGENT_SANDBOX=1 bin/generate execute --instruction-id <N>`, and while it runs, `docker ps --filter name=agent-revision` + `docker inspect`. On a Mac this exercises a Linux container over a macOS-bundled workspace (platform mismatch on gem reconciliation) — prefer the real Linux host for this one.
 
 ## Production verification — `kamal app exec`
