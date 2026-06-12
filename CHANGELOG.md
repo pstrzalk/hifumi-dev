@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/) (minor for new
 functionality, patch for fixes and internal changes).
 
+## [1.1.2] - 2026-06-12
+
+### Fixed
+
+- Generated apps with an existing master key failed to boot inside the
+  sandbox: the key file was kept readable by root only, and Rails reads it
+  whenever it exists — even with empty credentials — so verification died
+  with a permission error and the agent could not run Rails commands. The
+  key is now world-readable within the project workspace (still writable
+  only by its owner), which every container that legitimately boots the app
+  already had access to.
+
 ## [1.1.1] - 2026-06-12
 
 ### Fixed
