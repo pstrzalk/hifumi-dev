@@ -110,6 +110,26 @@
         <hr class="section-rule" style="margin: 24px 0;">
 
         <div>
+          <div class="eyebrow">default ai models</div>
+          <p style="margin: 8px 0 0; font-size: 20px; color: var(--fg-muted);">
+            Applied to every new project you create. Each project can change its own models in the build tab.
+          </p>
+          <%= form_for(resource, as: resource_name, url: registration_path(resource_name),
+                namespace: "models",
+                html: { id: "default_models_form", method: :put,
+                        class: "flex flex-col", style: "gap: 16px; margin: 16px 0 0;" }) do |f| %>
+            <%= f.fields_for :profile do |pf| %>
+              <%= render "model_selections/stage_fields", f: pf, column_method: :profile_column %>
+            <% end %>
+            <div class="form-actions">
+              <%= f.submit "Update default models", class: "btn btn--primary" %>
+            </div>
+          <% end %>
+        </div>
+
+        <hr class="section-rule" style="margin: 24px 0;">
+
+        <div>
           <div class="eyebrow" style="margin-bottom: 8px;">github</div>
           <% if current_user.github_connection&.connected? %>
             <p style="margin: 8px 0 12px; font-size: 20px; color: var(--fg-muted);">

@@ -17,26 +17,24 @@ module Templates
     SCHEMA = {
       "type" => "object",
       "additionalProperties" => false,
-      "required" => ["template", "reasoning"],
+      "required" => [ "template", "reasoning" ],
       "properties" => {
         "template"  => { "type" => "string", "enum" => Templates::NAMES },
         "reasoning" => { "type" => "string", "maxLength" => 200 }
       }
     }.freeze
 
-    MODEL = "anthropic/claude-haiku-4.5"
-
     class InvalidPick < StandardError; end
 
-    def self.call(workspace:, description:, openrouter_api_key:)
-      name = pick(description: description, openrouter_api_key: openrouter_api_key)
+    def self.call(workspace:, description:, openrouter_api_key:, model:)
+      name = pick(description: description, openrouter_api_key: openrouter_api_key, model: model)
       apply(workspace: workspace, name: name)
       name
     end
 
-    def self.pick(description:, openrouter_api_key:)
+    def self.pick(description:, openrouter_api_key:, model:)
       ctx = RubyLLM.context { |c| c.openrouter_api_key = openrouter_api_key }
-      chat = ctx.chat(model: MODEL)
+      chat = ctx.chat(model: model)
       chat.with_instructions(SYSTEM_PROMPT)
       content = chat.with_schema(SCHEMA).ask("Description: #{description}").content
       name = content.is_a?(Hash) ? content["template"] : nil

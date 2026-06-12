@@ -1,26 +1,31 @@
 class ProjectsController < ApplicationController
   before_action :authenticate_user!
-  before_action :load_project_and_authorize!, only: [:show, :destroy]
+  before_action :load_project_and_authorize!, only: [ :show, :destroy ]
 
   def index
     @projects = current_user.projects.includes(:instructions).order(created_at: :desc)
   end
 
   def new
-    @project = Project.new
+    @project = build_project
   end
 
   def create
     description = project_params[:description].to_s.strip
 
     if description.blank?
-      @project = Project.new
+      @project = build_project
       @error = "Please describe what you want to build."
       return render :new, status: :unprocessable_entity
     end
 
-    project = current_user.projects.create!(name: description.truncate(60))
-    chat = GeneratorAgent.create!(project: project)
+    @project = build_project(name: description.truncate(60))
+    unless @project.save
+      @error = @project.errors.full_messages.to_sentence
+      return render :new, status: :unprocessable_entity
+    end
+
+    chat = GeneratorAgent.create!(project: @project)
     first_message = chat.messages.create!(role: :user, content: description)
     # Delay so the redirected-to /projects/:id page can mount its Turbo Cable
     # subscription before the assistant placeholder broadcasts; otherwise the
@@ -28,7 +33,7 @@ class ProjectsController < ApplicationController
     # See docs/09-ideas/05-followups.md (2026-05-15: chat-on-new-project race).
     ChatRespondJob.set(wait: 0.5.seconds).perform_later(first_message.id)
 
-    redirect_to project
+    redirect_to @project
   end
 
   def show
@@ -72,7 +77,22 @@ class ProjectsController < ApplicationController
     end
   end
 
+  # New projects start from the owner's per-stage model defaults; an explicit
+  # selection posted from the new-project form wins over them.
+  def build_project(attrs = {})
+    current_user.projects.new(
+      current_user.profile.default_models_for_project
+        .merge(posted_model_selection)
+        .merge(attrs)
+    )
+  end
+
+  def posted_model_selection
+    return {} if params[:project].blank?
+    project_params.slice(*LLM::Stages.project_columns).to_h.symbolize_keys
+  end
+
   def project_params
-    params.require(:project).permit(:description)
+    params.require(:project).permit(:description, *LLM::Stages.project_columns)
   end
 end

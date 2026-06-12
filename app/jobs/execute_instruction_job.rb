@@ -1,5 +1,9 @@
 require "shellwords"
 require "open3"
+# lib/roast is excluded from autoload (config.autoload_lib) — the workflow DSL
+# files abort() at top level when run outside a roast subprocess. Sandbox is a
+# plain builder, safe to load, so require it explicitly.
+require Rails.root.join("lib/roast/sandbox").to_s
 
 class ExecuteInstructionJob < ApplicationJob
   queue_as :generation
@@ -132,7 +136,8 @@ class ExecuteInstructionJob < ApplicationJob
     Templates::Picker.call(
       workspace: workspace,
       description: description,
-      openrouter_api_key: api_key
+      openrouter_api_key: api_key,
+      model: instruction.project.template_model
     )
 
     relax_workspace_permissions(workspace) if File.directory?(workspace)
@@ -172,20 +177,11 @@ class ExecuteInstructionJob < ApplicationJob
     # commands land in development.
     env = {
       "HIFUMI_DEV_WORKSPACE" => workspace,
-      "HIFUMI_DEV_MODEL" => ENV.fetch("HIFUMI_DEV_MODEL", "sonnet"),
       "OPENROUTER_API_KEY" => api_key,
       "RAILS_ENV" => "development"
-    }
-    args = [
-      roast_executable,
-      Rails.root.join("lib/roast/revision_workflow.rb").to_s,
-      "--",
-      "revision_id=#{revision.id}",
-      "revision_summary=#{revision.summary}",
-      "revision_prompt=#{revision.prompt}"
-    ]
+    }.merge(roast_model_env(revision.instruction.project))
 
-    ok, exit_code, wall_seconds = run_roast_subprocess(env, args)
+    ok, exit_code, wall_seconds = run_roast_subprocess(env, revision_command(revision, workspace, env))
 
     metrics = {
       wall_seconds: wall_seconds,
@@ -234,18 +230,79 @@ class ExecuteInstructionJob < ApplicationJob
 
     ok = exit_code == 0
     wall = (Time.current - started).round(2)
-    [ok, exit_code, wall]
+    [ ok, exit_code, wall ]
   end
 
   def git_head(workspace)
     `cd #{Shellwords.escape(workspace)} && git rev-parse HEAD 2>/dev/null`.strip
   end
 
+  # The roast invocation for a revision. In production (and when explicitly
+  # forced) it is wrapped in a throwaway, single-tenant container so the
+  # codegen agent cannot reach other tenants' workspaces or the host Docker
+  # socket (see Roast::Sandbox). env is passed so the same keys are forwarded
+  # into the container by name; the values stay in the spawning process's
+  # environment (no argv/`ps` leak).
+  def revision_command(revision, workspace, env)
+    roast_command = [
+      roast_executable,
+      Rails.root.join("lib/roast/revision_workflow.rb").to_s,
+      "--",
+      "revision_id=#{revision.id}",
+      "revision_summary=#{revision.summary}",
+      "revision_prompt=#{revision.prompt}"
+    ]
+    return roast_command unless sandboxed?
+
+    Roast::Sandbox.wrap(
+      command: roast_command,
+      env_keys: env.keys,
+      workspace: workspace,
+      name: "agent-revision-#{revision.id}"
+    )
+  end
+
   def roast_executable
-    if Rails.env.production? || ENV["FORCE_OPENROUTER"].present?
+    if use_openrouter?
       Rails.root.join("bin/roast-openrouter").to_s
     else
       Rails.root.join("bin/roast-claudesubscription").to_s
     end
+  end
+
+  # Per-project model selection applies only on the OpenRouter path —
+  # bin/roast-claudesubscription (local dev) keeps the claude CLI's alias
+  # defaults, and an explicit HIFUMI_DEV_* var in the operator's ENV still
+  # wins on either path so a developer can pin models when testing.
+  #
+  # The claudesubscription branch deliberately omits HIFUMI_DEV_DOCS_MODEL:
+  # WorkflowEnv's "haiku" alias default covers the docs agent there, and a
+  # full OpenRouter id from the project would not resolve against the real
+  # Anthropic API the subscription transport talks to.
+  def roast_model_env(project)
+    unless use_openrouter?
+      return { "HIFUMI_DEV_MODEL" => ENV.fetch("HIFUMI_DEV_MODEL", "sonnet") }
+    end
+
+    {
+      "HIFUMI_DEV_MODEL" => ENV["HIFUMI_DEV_MODEL"].presence || project.code_model,
+      "HIFUMI_DEV_DOCS_MODEL" => ENV["HIFUMI_DEV_DOCS_MODEL"].presence || project.docs_model
+    }
+  end
+
+  # The OpenRouter transport (vs the dev Claude-subscription one) — also picks
+  # the roast wrapper and turns on per-project model selection. Sandboxing
+  # implies it: the throwaway image's bundled `claude` has no host OAuth creds,
+  # so a sandboxed run must go through OpenRouter.
+  def use_openrouter?
+    Rails.env.production? || ENV["FORCE_OPENROUTER"].present? || sandboxed?
+  end
+
+  # Multi-tenant isolation is a production concern. Dev is single-tenant and
+  # uses the Claude subscription transport (host OAuth, no container), so the
+  # default there is to run roast directly. FORCE_AGENT_SANDBOX exercises the
+  # container path locally (needs Docker + HIFUMI_AGENT_IMAGE + an OpenRouter key).
+  def sandboxed?
+    Rails.env.production? || ENV["FORCE_AGENT_SANDBOX"].present?
   end
 end

@@ -258,6 +258,52 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal "revision_prompt=prompt 1",                          first_call[:args][5]
   end
 
+  test "openrouter path: env carries the project's code and docs model selection" do
+    @project.update!(code_model: "anthropic/claude-opus-4.6", docs_model: "anthropic/claude-sonnet-4.6")
+
+    first_call = nil
+    with_env("FORCE_OPENROUTER" => "1", "HIFUMI_DEV_MODEL" => nil, "HIFUMI_DEV_DOCS_MODEL" => nil) do
+      with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
+        ExecuteInstructionJob.perform_now(@instruction.id)
+        first_call = spy[:subprocess_calls].first
+      end
+    end
+
+    assert_equal "anthropic/claude-opus-4.6",   first_call[:env]["HIFUMI_DEV_MODEL"]
+    assert_equal "anthropic/claude-sonnet-4.6", first_call[:env]["HIFUMI_DEV_DOCS_MODEL"]
+  end
+
+  test "openrouter path: operator HIFUMI_DEV_* env vars override the project selection" do
+    @project.update!(code_model: "anthropic/claude-opus-4.6", docs_model: "anthropic/claude-sonnet-4.6")
+
+    first_call = nil
+    with_env("FORCE_OPENROUTER" => "1", "HIFUMI_DEV_MODEL" => "pinned-code", "HIFUMI_DEV_DOCS_MODEL" => "pinned-docs") do
+      with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
+        ExecuteInstructionJob.perform_now(@instruction.id)
+        first_call = spy[:subprocess_calls].first
+      end
+    end
+
+    assert_equal "pinned-code", first_call[:env]["HIFUMI_DEV_MODEL"]
+    assert_equal "pinned-docs", first_call[:env]["HIFUMI_DEV_DOCS_MODEL"]
+  end
+
+  test "claudesubscription path: project selection is ignored, alias default kept, no docs key" do
+    @project.update!(code_model: "anthropic/claude-opus-4.6", docs_model: "anthropic/claude-sonnet-4.6")
+
+    first_call = nil
+    with_env("FORCE_OPENROUTER" => nil, "HIFUMI_DEV_MODEL" => nil, "HIFUMI_DEV_DOCS_MODEL" => nil) do
+      with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
+        ExecuteInstructionJob.perform_now(@instruction.id)
+        first_call = spy[:subprocess_calls].first
+      end
+    end
+
+    assert_equal "sonnet", first_call[:env]["HIFUMI_DEV_MODEL"]
+    assert_not first_call[:env].key?("HIFUMI_DEV_DOCS_MODEL"),
+      "claudesubscription path must leave docs model to the workflow's alias default"
+  end
+
   test "run_roast_subprocess env forces RAILS_ENV=development for workspace rails commands" do
     first_call = nil
     with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
@@ -308,6 +354,20 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal ws, call[:workspace]
     assert_equal "neon hacker dashboard for tracking exploits", call[:description]
     assert_equal "sk-or-test-fixture-1234567890ab", call[:openrouter_api_key]
+  end
+
+  test "pick_frontend_template threads the project's template model selection" do
+    @project.update!(template_model: "anthropic/claude-opus-4.6")
+    ws = @project.workspace_path
+    FileUtils.mkdir_p(ws)
+
+    picker_calls = nil
+    with_picker_call_stub do |calls|
+      ExecuteInstructionJob.new.send(:pick_frontend_template, ws, @instruction)
+      picker_calls = calls
+    end
+
+    assert_equal "anthropic/claude-opus-4.6", picker_calls.first[:model]
   end
 
   test "pick_frontend_template falls back to project.name when instruction.user_intent is blank" do
@@ -424,6 +484,68 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     ENV["FORCE_OPENROUTER"] = original
   end
 
+  # --- per-instruction container isolation ------------------------------
+
+  test "sandboxed? is false in dev/test (single-tenant, no container)" do
+    assert_not ExecuteInstructionJob.new.send(:sandboxed?)
+  end
+
+  test "sandboxed? is true in production" do
+    original_env = Rails.env
+    Rails.env = "production"
+    assert ExecuteInstructionJob.new.send(:sandboxed?)
+  ensure
+    Rails.env = original_env if original_env
+  end
+
+  test "sandboxed? is true when FORCE_AGENT_SANDBOX is set in dev" do
+    original = ENV["FORCE_AGENT_SANDBOX"]
+    ENV["FORCE_AGENT_SANDBOX"] = "1"
+    assert ExecuteInstructionJob.new.send(:sandboxed?)
+  ensure
+    ENV["FORCE_AGENT_SANDBOX"] = original
+  end
+
+  test "sandboxing forces the OpenRouter transport (image has no host OAuth creds)" do
+    original = ENV["FORCE_AGENT_SANDBOX"]
+    ENV["FORCE_AGENT_SANDBOX"] = "1"
+    assert_equal Rails.root.join("bin/roast-openrouter").to_s,
+                 ExecuteInstructionJob.new.send(:roast_executable)
+  ensure
+    ENV["FORCE_AGENT_SANDBOX"] = original
+  end
+
+  test "revision_command returns the bare roast invocation when not sandboxed" do
+    args = ExecuteInstructionJob.new.send(:revision_command, @rev1, @project.workspace_path, {})
+    assert_equal Rails.root.join("bin/roast-claudesubscription").to_s, args[0]
+    assert_equal Rails.root.join("lib/roast/revision_workflow.rb").to_s, args[1]
+  end
+
+  test "revision_command wraps the roast invocation in a docker run when sandboxed" do
+    original_sandbox = ENV["FORCE_AGENT_SANDBOX"]
+    original_image = ENV["HIFUMI_AGENT_IMAGE"]
+    ENV["FORCE_AGENT_SANDBOX"] = "1"
+    ENV["HIFUMI_AGENT_IMAGE"] = "registry/hifumi-dev:latest"
+
+    env = { "OPENROUTER_API_KEY" => "sk-or-secret", "HIFUMI_DEV_WORKSPACE" => @project.workspace_path }
+    args = ExecuteInstructionJob.new.send(:revision_command, @rev1, @project.workspace_path, env)
+
+    assert_equal %w[docker run --rm], args.first(3)
+    # the workspace is the only mount, the socket is never mounted
+    mounts = args.each_cons(2).select { |flag, _| flag == "-v" }.map(&:last)
+    assert_equal [ "#{@project.workspace_path}:#{@project.workspace_path}" ], mounts
+    assert_not args.any? { |a| a.include?("docker.sock") }
+    # the wrapped command (openrouter wrapper) sits after the image
+    image_idx = args.index("registry/hifumi-dev:latest")
+    assert_equal Rails.root.join("bin/roast-openrouter").to_s, args[image_idx + 1]
+    # the secret is forwarded by name, never as a value in argv
+    assert_includes args.each_cons(2).select { |f, _| f == "-e" }.map(&:last), "OPENROUTER_API_KEY"
+    assert_not args.any? { |a| a.include?("sk-or-secret") }
+  ensure
+    ENV["FORCE_AGENT_SANDBOX"] = original_sandbox
+    ENV["HIFUMI_AGENT_IMAGE"] = original_image
+  end
+
   # --- subscriber wiring (initializer-driven) ---------------------------
 
   test "instruction.requested notification enqueues ExecuteInstructionJob on the generation queue" do
@@ -437,6 +559,16 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   end
 
   private
+
+  # Set/clear ENV keys for the block's duration (nil deletes the key),
+  # restoring the originals afterwards.
+  def with_env(overrides)
+    originals = overrides.keys.to_h { |k| [ k, ENV[k] ] }
+    overrides.each { |k, v| v.nil? ? ENV.delete(k) : ENV[k] = v }
+    yield
+  ensure
+    originals.each { |k, v| v.nil? ? ENV.delete(k) : ENV[k] = v }
+  end
 
   def build_rev(position, summary, prompt, parent: nil)
     @instruction.revisions.create!(

@@ -21,7 +21,7 @@ class PlanApplicationModificationTest < ActiveSupport::TestCase
 
         def call(**kwargs)
           @received = kwargs
-          PlanApplicationModification::Result.new(instruction_description: "fake", revisions: [{ summary: "s", prompt: "p" }])
+          PlanApplicationModification::Result.new(instruction_description: "fake", revisions: [ { summary: "s", prompt: "p" } ])
         end
       end
     end
@@ -31,11 +31,12 @@ class PlanApplicationModificationTest < ActiveSupport::TestCase
       intent: "make banner green",
       clarifications: { "x" => "y" },
       context: { project_id: 1 },
-      openrouter_api_key: "sk-or-test"
+      openrouter_api_key: "sk-or-test",
+      model: "anthropic/claude-haiku-4.5"
     )
 
     assert_equal(
-      { intent: "make banner green", clarifications: { "x" => "y" }, context: { project_id: 1 }, openrouter_api_key: "sk-or-test" },
+      { intent: "make banner green", clarifications: { "x" => "y" }, context: { project_id: 1 }, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5" },
       fake.received
     )
   end
@@ -43,12 +44,12 @@ class PlanApplicationModificationTest < ActiveSupport::TestCase
   test "implementation= swaps the active implementation" do
     other = Module.new do
       def self.call(**)
-        PlanApplicationModification::Result.new(instruction_description: "other", revisions: [{ summary: "s", prompt: "p" }])
+        PlanApplicationModification::Result.new(instruction_description: "other", revisions: [ { summary: "s", prompt: "p" } ])
       end
     end
 
     PlanApplicationModification.implementation = other
-    result = PlanApplicationModification.call(intent: "x", openrouter_api_key: "sk-or-test")
+    result = PlanApplicationModification.call(intent: "x", openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
     assert_equal "other", result.instruction_description
   end
 end

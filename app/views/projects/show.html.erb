@@ -18,6 +18,7 @@
          data-tabs-target="pane"
          data-tab-name="build"
          data-controller="chat-scroll">
+      <%= render "model_selections/pane", project: @project %>
       <div id="messages" class="flex flex-col" style="gap: 12px; margin-bottom: 16px;">
         <% @chat_events.each do |event| %>
           <% case event %>

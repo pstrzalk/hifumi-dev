@@ -29,7 +29,8 @@ class ModifyApplication < RubyLLM::Tool
       intent: intent,
       clarifications: clarifications,
       context: { project_id: @project.id },
-      openrouter_api_key: @project.user.profile.openrouter_api_key
+      openrouter_api_key: @project.user.profile.openrouter_api_key,
+      model: @project.plan_modification_model
     )
 
     instruction = nil

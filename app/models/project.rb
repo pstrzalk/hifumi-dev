@@ -6,6 +6,8 @@ class Project < ApplicationRecord
   has_many :revisions, dependent: :destroy
 
   validates :name, presence: true
+  validates(*LLM::Stages.project_columns,
+    inclusion: { in: LLM::Stages::AVAILABLE_MODELS.keys, message: "is not an available model" })
 
   # Identity used for every commit made into a generated workspace —
   # written to repo-local .git/config at init time + applied as -c flags

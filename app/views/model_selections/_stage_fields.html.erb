@@ -1,0 +1,12 @@
+<%# locals: (f:, column_method:) -%>
+<%# One select per LLM stage. `column_method` picks the attribute set:
+    :project_column on a Project form, :profile_column on a Profile form. %>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+  <% LLM::Stages::ALL.each do |stage| %>
+    <% column = stage.public_send(column_method) %>
+    <div>
+      <%= f.label column, stage.label, class: "field-label" %>
+      <%= f.select column, model_select_options, {}, class: "field-input" %>
+    </div>
+  <% end %>
+</div>

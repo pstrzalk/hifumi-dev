@@ -5,14 +5,14 @@ class Templates::PickerTest < ActiveSupport::TestCase
 
   test "pick returns the name when LLM responds with a known template" do
     stub_pick("cyber") do
-      assert_equal "cyber", Templates::Picker.pick(description: "neon hacker tracker", openrouter_api_key: "sk-test")
+      assert_equal "cyber", Templates::Picker.pick(description: "neon hacker tracker", openrouter_api_key: "sk-test", model: "anthropic/claude-haiku-4.5")
     end
   end
 
   test "pick raises InvalidPick when LLM returns an unknown name" do
     stub_pick("brutalist") do
       assert_raises(Templates::Picker::InvalidPick) do
-        Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test")
+        Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test", model: "anthropic/claude-haiku-4.5")
       end
     end
   end
@@ -20,8 +20,15 @@ class Templates::PickerTest < ActiveSupport::TestCase
   test "pick raises InvalidPick when LLM returns nil/non-hash content" do
     stub_pick(nil) do
       assert_raises(Templates::Picker::InvalidPick) do
-        Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test")
+        Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test", model: "anthropic/claude-haiku-4.5")
       end
+    end
+  end
+
+  test "pick passes the selected model to the chat" do
+    stub_pick("cyber") do |captured|
+      Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test", model: "anthropic/claude-opus-4.6")
+      assert_equal "anthropic/claude-opus-4.6", captured[:chat_kwargs][:model]
     end
   end
 
@@ -97,12 +104,16 @@ class Templates::PickerTest < ActiveSupport::TestCase
     fake_chat.define_singleton_method(:with_schema)       { |_| self }
     fake_chat.define_singleton_method(:ask)               { |_| Struct.new(:content).new(fake_content) }
 
+    captured = {}
     fake_ctx = Object.new
-    fake_ctx.define_singleton_method(:chat) { |**| fake_chat }
+    fake_ctx.define_singleton_method(:chat) do |**kwargs|
+      captured[:chat_kwargs] = kwargs
+      fake_chat
+    end
 
     RubyLLM.singleton_class.alias_method(:__orig_context, :context)
     RubyLLM.define_singleton_method(:context) { |&_blk| fake_ctx }
-    yield
+    yield captured
   ensure
     RubyLLM.singleton_class.alias_method(:context, :__orig_context)
     RubyLLM.singleton_class.send(:remove_method, :__orig_context)

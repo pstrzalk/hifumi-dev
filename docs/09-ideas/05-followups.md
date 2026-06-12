@@ -132,3 +132,29 @@ The 500ms wait pushes the placeholder broadcast to ~T=0.762s, well past the ~T=0
 **MessagesController#create is unaffected** — that path doesn't redirect, the WebSocket subscription persists across the form-replace, broadcasts always arrive after subscription. Only `ProjectsController#create` has this race; the wait is scoped there.
 
 **Triggering on `main`**: clear localStorage + cookies (anon), accept cookies, sign in, submit a new project. Without the wait you'll see no assistant response until you refresh. With the wait it consistently renders.
+
+---
+
+## 2026-06-11
+
+### Post-launch review findings
+
+A full robustness/OSS-readiness review of the production deployment was done; findings recorded in `docs/04-reviews/01-post-launch-review.md` (CVE'd gems plus the candidate Phase 5 directions). Actioned since: the codegen agent now runs in a per-instruction isolated container — see the residuals below.
+
+### Per-project model selection — extension points
+
+Shipped 2026-06-11 (`feature/per-project-model-selection`): per-stage model columns on profiles (user defaults) + projects (per-project snapshot), selectors in the build tab / new-project form / account integrations pane, threaded through all six LLM stages via `LLM::Stages` (`lib/llm/stages.rb`). Deliberately deferred:
+
+- **Curated list is 3 Anthropic models.** `LLM::Stages::AVAILABLE_MODELS` is a hand-maintained hash. The dormant `models` table (`acts_as_model`, never populated) could back a full OpenRouter catalog picker instead — needs capability filtering per stage (`structured_outputs` for plan/template, `tools` for chat) and a refresh job hitting `GET openrouter.ai/api/v1/models`. See `thoughts/shared/research/2026-05-11/per-user-model-config-per-stage.md`.
+- **Code/docs stages are Anthropic-only by transport.** They run through the `claude` CLI's Anthropic API surface (`bin/roast-openrouter`); non-Anthropic ids have never been exercised there. The "direct-API Roast provider" Phase 5 candidate would lift this.
+- **No cost display.** The 2026-05-11 research scoped per-model pricing display next to each selector; AVAILABLE_MODELS would need pricing metadata (or the models table).
+
+### Agent sandbox — residuals to follow up
+
+The codegen agent now runs each revision in a per-instruction throwaway container (`Roast::Sandbox`, `lib/roast/sandbox.rb`) that mounts only that project's workspace and no Docker socket. Needs production verification (none of it runs on the macOS dev box) and has open follow-ups, in rough priority:
+
+1. **Verify on the host.** Confirm on the Linux host: the `claude` agent still starts under the dropped caps (`runuser` root→`generator` works with `--cap-drop=ALL --cap-add=SETUID,SETGID --security-opt=no-new-privileges`); the generated app's gems resolve in the throwaway; `HIFUMI_AGENT_IMAGE` points at the running release tag.
+2. **Generator-side Docker socket.** The generator container still runs `USER root` with `/var/run/docker.sock` bound — it has to, to launch throwaways + previews. The agent no longer runs there, but an RCE in the generator process itself is still host-root. Put a socket-proxy (e.g. tecnativa/docker-socket-proxy) in front, allowing only the `containers/images/networks` verbs PreviewManager + Sandbox use. (Already a Phase 5 candidate.)
+3. **Agent egress is unrestricted.** The throwaway uses the default bridge (needs OpenRouter + rubygems). It can therefore also reach the host's published ports / other bridge containers. Move it to a dedicated network that allows only the egress it needs (DNS + 443 to OpenRouter + the gem source), or front gem installs with a local mirror so the network can be `--internal`.
+4. **Bundle vendoring (perf).** The throwaway reconciles the app's gems via `AutoRemediate`'s `bundle install` on first verify, re-doing it per revision for agent-added gems. If first-revision wall time suffers (Step-7 budget is already near the edge), vendor the workspace bundle into `vendor/bundle` (already gitignored in the skeleton) so installed gems travel via the mount — but this requires untangling the `BUNDLE_PATH=/usr/local/bundle` global vs the workspace bundle (see the warning comment in `lib/roast/verify_revision.rb`), so it's deliberately deferred.
+5. **Dev/prod parity.** Sandboxing is prod-only; dev runs roast directly (no Docker, Claude-subscription transport). `FORCE_AGENT_SANDBOX=1` exercises the container path locally (needs Docker + `HIFUMI_AGENT_IMAGE` + an OpenRouter key) — wire it into CI or a manual smoke step once a Linux runner is available, since the macOS dev box can't run it.

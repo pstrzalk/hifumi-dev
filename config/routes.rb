@@ -23,5 +23,6 @@ Rails.application.routes.draw do
     resources :messages, only: [ :create ]
     resource  :preview,  only: [ :create, :destroy ]
     resource  :github_export, only: [ :create, :destroy ]
+    resource  :model_selection, only: [ :update ]
   end
 end

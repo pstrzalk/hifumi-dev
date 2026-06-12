@@ -132,6 +132,54 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  # --- per-stage model selection ----------------------------------------
+
+  test "GET /projects/new renders one selector per stage, preselected with the owner's defaults" do
+    @user.profile.update!(default_code_model: "anthropic/claude-opus-4.6")
+
+    get new_project_path
+    assert_response :success
+    assert_select "select[name^='project[']", count: LLM::Stages::ALL.size
+    assert_select "select#project_code_model option[selected][value=?]", "anthropic/claude-opus-4.6"
+  end
+
+  test "POST /projects persists an explicit model selection from the form" do
+    post projects_path, params: { project: {
+      description: "A todo list app",
+      code_model: "anthropic/claude-opus-4.6"
+    } }
+
+    assert_equal "anthropic/claude-opus-4.6", Project.order(:id).last.code_model
+  end
+
+  test "POST /projects without model params falls back to the owner's profile defaults" do
+    @user.profile.update!(default_chat_model: "anthropic/claude-sonnet-4.6")
+
+    post projects_path, params: { project: { description: "A todo list app" } }
+
+    assert_equal "anthropic/claude-sonnet-4.6", Project.order(:id).last.chat_model
+  end
+
+  test "POST /projects with a model outside the available list re-renders new with 422" do
+    assert_no_difference [ "Project.count", "Chat.count" ] do
+      post projects_path, params: { project: {
+        description: "A todo list app",
+        code_model: "openai/gpt-4o"
+      } }
+    end
+    assert_response :unprocessable_entity
+    assert_select "div.notice-strip--err .notice-strip__body", text: /is not an available model/
+  end
+
+  test "GET /projects/:id renders the model selection pane inside the build tab" do
+    project = @user.projects.create!(name: "With selectors")
+    project.create_chat!
+
+    get project_path(project)
+    assert_response :success
+    assert_select "#pane_build turbo-frame#model_selection_pane select", count: LLM::Stages::ALL.size
+  end
+
   test "GET /projects/:id (owner) with no messages renders 200 and empty messages container" do
     project = @user.projects.create!(name: "Empty")
     project.create_chat!

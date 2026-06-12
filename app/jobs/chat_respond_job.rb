@@ -13,7 +13,11 @@ class ChatRespondJob < ApplicationJob
     end
 
     agent = GeneratorAgent.find(user_message.chat_id)
-    agent.with_context(ctx).complete do |chunk|
+    agent.with_context(ctx)
+    # with_model costs a Model lookup + chat save + project touch — only pay
+    # it when the project's selection actually differs from the chat's model.
+    agent.with_model(project.chat_model) unless agent.model_id == project.chat_model
+    agent.complete do |chunk|
       delta = chunk.content.to_s
       next if delta.empty?
 

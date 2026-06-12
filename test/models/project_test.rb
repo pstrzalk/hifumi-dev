@@ -11,6 +11,20 @@ class ProjectTest < ActiveSupport::TestCase
     assert_includes project.errors[:name], "can't be blank"
   end
 
+  test "a new project gets the registry default model for every stage" do
+    project = Project.create!(name: "fresh", user: users(:owner))
+    LLM::Stages::ALL.each do |stage|
+      assert_equal stage.default_model, project[stage.project_column],
+        "expected #{stage.project_column} to default to #{stage.default_model}"
+    end
+  end
+
+  test "rejects a stage model outside the available list" do
+    project = Project.new(name: "x", user: users(:owner), chat_model: "openai/gpt-4o")
+    assert_not project.valid?
+    assert_includes project.errors[:chat_model], "is not an available model"
+  end
+
   test "workspace_path is under workspace_root with project_ prefix" do
     project = projects(:flowers)
     assert_equal File.join(Project.workspace_root, "project_#{project.id}"), project.workspace_path

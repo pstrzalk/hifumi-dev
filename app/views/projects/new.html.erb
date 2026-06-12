@@ -29,6 +29,12 @@
             placeholder: "a yoga studio site. Class schedule, online booking, member accounts with class packs, instructor logins, an admin panel, and a calm minimal theme",
             class: "field-textarea",
             data: { suggestions_target: "textarea" } %>
+        <details style="margin-top: 16px;">
+          <summary class="eyebrow" style="cursor: pointer; display: list-item;">ai models</summary>
+          <div style="margin-top: 12px;">
+            <%= render "model_selections/stage_fields", f: f, column_method: :project_column %>
+          </div>
+        </details>
         <div class="form-actions">
           <%= f.submit "Start building", class: "btn btn--accent btn--lg" %>
         </div>

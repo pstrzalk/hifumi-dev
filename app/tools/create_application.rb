@@ -29,7 +29,8 @@ class CreateApplication < RubyLLM::Tool
       intent: intent,
       clarifications: clarifications,
       context: { project_id: @project.id },
-      openrouter_api_key: @project.user.profile.openrouter_api_key
+      openrouter_api_key: @project.user.profile.openrouter_api_key,
+      model: @project.plan_creation_model
     )
 
     instruction = nil
