@@ -34,5 +34,4 @@ class PreviewsController < ApplicationController
       format.html { redirect_to @project }
     end
   end
-
 end

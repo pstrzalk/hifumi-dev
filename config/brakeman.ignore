@@ -1,0 +1,50 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "Command Injection",
+      "warning_code": 14,
+      "fingerprint": "db3bc5411ecec14b1600d3697179e390a3cab506a00a19840acfbd232fd9875c",
+      "check_name": "Execute",
+      "message": "Possible command injection",
+      "file": "lib/roast/auto_remediate.rb",
+      "line": 51,
+      "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
+      "note": "cmd comes only from the hardcoded RECIPES table in this file, never from user input; workspace is shell-escaped. The interpolation is the single stubbing seam for tests."
+    },
+    {
+      "warning_type": "Command Injection",
+      "warning_code": 14,
+      "fingerprint": "f4ce6c012d16cb82ced5038aebc7275d73f2876c17ff016b7567d87021334c1e",
+      "check_name": "Execute",
+      "message": "Possible command injection",
+      "file": "lib/roast/verify_revision.rb",
+      "line": 62,
+      "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
+      "note": "cmd comes only from the hardcoded case table in perform, never from user input; workspace is the generator-built workspace_root/project_<id> path."
+    },
+    {
+      "warning_type": "Command Injection",
+      "warning_code": 14,
+      "fingerprint": "cf39c77f58573afa7f8fbe84d63d8c51f362442bf4a231d66d7ed69c842cb656",
+      "check_name": "Execute",
+      "message": "Possible command injection",
+      "file": "lib/roast/verify_revision.rb",
+      "line": 67,
+      "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
+      "note": "name is the hardcoded gem name from perform (\"herb\"); workspace is the generator-built path. No user input reaches the interpolation."
+    },
+    {
+      "warning_type": "Command Injection",
+      "warning_code": 14,
+      "fingerprint": "fd8aa5dfff7e36ecbd77835204203e6caefea562c8e753733396a7bf945c456e",
+      "check_name": "Execute",
+      "message": "Possible command injection",
+      "file": "app/jobs/export_to_github_job.rb",
+      "line": 78,
+      "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
+      "note": "Array-form Open3.capture3 — no shell is involved, so interpolated values are plain argv entries and cannot inject commands. The token-in-argv trade-off is documented at the call site."
+    }
+  ],
+  "updated": "2026-06-12",
+  "brakeman_version": "8.0.4"
+}

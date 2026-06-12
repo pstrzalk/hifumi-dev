@@ -6,7 +6,7 @@ class StartPreviewJobTest < ActiveJob::TestCase
   end
 
   test "uses :preview queue" do
-    assert_enqueued_with(job: StartPreviewJob, args: [@project.id], queue: "preview") do
+    assert_enqueued_with(job: StartPreviewJob, args: [ @project.id ], queue: "preview") do
       StartPreviewJob.perform_later(@project.id)
     end
   end
@@ -14,7 +14,7 @@ class StartPreviewJobTest < ActiveJob::TestCase
   test "delegates to Preview::PreviewManager#start with the right project" do
     captured = nil
     fake = Class.new do
-      define_method(:initialize) {}
+      define_method(:initialize) { }
       define_method(:start) { |project| captured = project }
     end
 

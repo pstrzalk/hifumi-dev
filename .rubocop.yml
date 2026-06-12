@@ -1,6 +1,14 @@
 # Omakase Ruby styling for Rails
 inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 
+AllCops:
+  Exclude:
+    # Phase 1 reference implementation — frozen, not house code.
+    - "spikes/**/*"
+    # Generated fresh-Rails-app baseline copied into workspaces; regenerated
+    # wholesale by bin/preview-regen-skeleton, so style fixes won't stick.
+    - "lib/preview/skeleton/**/*"
+
 # Overwrite or add rules to create your own house style
 #
 # # Use `[a, [b, c]]` not `[ a, [ b, c ] ]`

@@ -174,6 +174,49 @@ class Users::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_not_equal old_encrypted, user.reload.encrypted_password
   end
 
+  test "PUT /users (update) changes per-stage default models without current_password" do
+    user = User.create!(
+      email: "models@example.com",
+      password: "password123",
+      profile_attributes: {
+        first_name: "Pat", last_name: "Smith",
+        openrouter_api_key: "sk-or-models-key-12345678"
+      }
+    )
+    sign_in user
+
+    put user_registration_path, params: {
+      user: {
+        profile_attributes: {
+          id: user.profile.id,
+          default_code_model: "anthropic/claude-opus-4.6",
+          default_chat_model: "anthropic/claude-sonnet-4.6"
+        }
+      }
+    }
+
+    user.profile.reload
+    assert_equal "anthropic/claude-opus-4.6", user.profile.default_code_model
+    assert_equal "anthropic/claude-sonnet-4.6", user.profile.default_chat_model
+    assert_equal "sk-or-models-key-12345678", user.profile.openrouter_api_key,
+      "model update must not clobber the stored key"
+  end
+
+  test "GET /users/edit renders the default-models form inside Integrations with one selector per stage" do
+    user = User.create!(
+      email: "modelsform@example.com", password: "password123",
+      profile_attributes: { first_name: "Pat", last_name: "Smith",
+                            openrouter_api_key: "sk-or-modelsform-1234567" }
+    )
+    sign_in user
+
+    get edit_user_registration_path
+    assert_response :success
+    assert_select "#pane_integrations form#default_models_form select", count: LLM::Stages::ALL.size
+    # namespace: "models" must de-duplicate the auto-emitted hidden profile-id input
+    assert_select "#pane_integrations input#models_user_profile_attributes_id", count: 1
+  end
+
   test "GET /users/edit renders the account breadcrumb and three hi-fu-mi tabs" do
     user = User.create!(
       email: "tabs@example.com", password: "password123",

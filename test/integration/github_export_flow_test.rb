@@ -64,7 +64,7 @@ class GithubExportFlowTest < ActionDispatch::IntegrationTest
   test "POST with form params enqueues job and flips state to :exporting" do
     assert_enqueued_with(
       job: ExportToGithubJob,
-      args: [@project.id, { repo_name: "my-repo", private_repo: true }]
+      args: [ @project.id, { repo_name: "my-repo", private_repo: true } ]
     ) do
       post project_github_export_path(@project),
            params: { github_export: { repo_name: "my-repo", private_repo: "1" } }
@@ -79,7 +79,7 @@ class GithubExportFlowTest < ActionDispatch::IntegrationTest
 
     assert_enqueued_with(
       job: ExportToGithubJob,
-      args: [@project.id, { repo_name: nil, private_repo: false }]
+      args: [ @project.id, { repo_name: nil, private_repo: false } ]
     ) do
       post project_github_export_path(@project)
     end

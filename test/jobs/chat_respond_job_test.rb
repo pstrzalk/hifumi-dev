@@ -60,6 +60,36 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_equal "", latest_assistant.content
   end
 
+  test "applies the project's chat model selection to the chat on each turn" do
+    @project.update!(chat_model: "anthropic/claude-sonnet-4.6")
+    stub_complete(chunks: [ "ok" ]) do
+      perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+    end
+    assert_equal "anthropic/claude-sonnet-4.6", @chat.reload.model_id,
+      "with_model must re-point the chat at the project's selection (agent default is haiku)"
+  end
+
+  test "skips the model rewrite when the chat already runs the project's selection" do
+    calls = 0
+    Chat.class_eval do
+      alias_method :_orig_with_model, :with_model
+      define_method(:with_model) { |*args, **kwargs| calls += 1; _orig_with_model(*args, **kwargs) }
+    end
+
+    # Agent-created chat and project both sit on the registry default.
+    stub_complete(chunks: [ "ok" ]) do
+      perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+    end
+
+    assert_equal 0, calls, "matching selection must not trigger a Model lookup + chat save"
+    assert_equal @project.chat_model, @chat.reload.model_id
+  ensure
+    Chat.class_eval do
+      alias_method :with_model, :_orig_with_model
+      remove_method :_orig_with_model
+    end
+  end
+
   test "exception mid-stream: broadcasts a chat_notice banner with friendly text" do
     stub_complete(chunks: [ "partial ", "more" ], raise_at: 1) do
       perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }

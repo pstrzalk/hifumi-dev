@@ -93,7 +93,7 @@ module Preview
       result = runner.run("docker", "network", "inspect", NETWORK, capture: true)
       return if result.ok
 
-      args = ["docker", "network", "create"]
+      args = [ "docker", "network", "create" ]
       args << "--internal" if Preview::Config.remote?
       args << NETWORK
       result = runner.run(*args, capture: true)
@@ -272,11 +272,11 @@ module Preview
         if Preview::Config.remote?
           # No host port mapping in prod — curl from inside the container.
           # The base image already includes curl in its apt install.
-          ["docker", "exec", "preview-#{project.id}",
-           "curl", "-fsS", "-o", "/dev/null", "-m", "2", "http://localhost:3000/up"]
+          [ "docker", "exec", "preview-#{project.id}",
+           "curl", "-fsS", "-o", "/dev/null", "-m", "2", "http://localhost:3000/up" ]
         else
-          ["curl", "-fsS", "-o", "/dev/null", "-m", "2",
-           "http://localhost:#{project.preview_port}/up"]
+          [ "curl", "-fsS", "-o", "/dev/null", "-m", "2",
+           "http://localhost:#{project.preview_port}/up" ]
         end
 
       @runner.run(*cmd, capture: true).ok

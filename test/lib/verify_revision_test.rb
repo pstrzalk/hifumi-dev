@@ -26,7 +26,7 @@ class VerifyRevisionTest < ActiveSupport::TestCase
     with_perform_stub(bundle_check: false) do |calls|
       result = VerifyRevision.run(WORKSPACE)
       assert VerifyRevision.failed?(result)
-      assert_equal [:bundle_check], calls,
+      assert_equal [ :bundle_check ], calls,
                    "no downstream check should run after bundle_check fails — they'd all repeat the same stacktrace"
       assert_equal 1, result[:checks].size
     end

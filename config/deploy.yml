@@ -21,6 +21,14 @@ env:
     SOLID_QUEUE_IN_PUMA: true
     PREVIEW_DOMAIN: hifumi.dev
     HIFUMI_DEV_WORKSPACE_ROOT: /var/lib/hifumi-dev/workspaces
+    # Image the codegen agent runs inside, per revision, as a throwaway
+    # single-tenant container (Roast::Sandbox). Must be the same
+    # generator image this app is deployed from, so it carries the roast gem,
+    # the `claude` binary, Bundler and lib/roast. Kamal tags each release
+    # `localhost:5555/hifumi-dev:latest` on the host after a successful deploy;
+    # pin to a specific digest/sha if you need throwaways to track the exact
+    # running release rather than the newest pushed one.
+    HIFUMI_AGENT_IMAGE: localhost:5555/hifumi-dev:latest
     GITHUB_CLIENT_ID: Ov23liLp77TT9zMsowk3
     # Operator identity for /privacy. Public-facing legal display, so values
     # live here (not .kamal/secrets). Tax ID and business URL intentionally

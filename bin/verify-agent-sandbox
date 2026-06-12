@@ -1,0 +1,87 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Read-only verification that the codegen agent is isolated per instruction and
+# that per-project model selection reaches the subprocess. Burns no tokens and
+# writes nothing to any workspace.
+#
+# Usage:
+#   bin/verify-agent-sandbox [PROJECT_ID]   # defaults to the most recent project
+#
+# On a deployed host, run it INSIDE the running app container (which carries the
+# Docker socket + the workspace volume — a fresh `kamal app exec` container may
+# not):
+#   kamal app exec --reuse "bin/verify-agent-sandbox 42"
+#
+# It prints the per-project model env ExecuteInstructionJob would forward, then
+# launches ONE throwaway container with the real Roast::Sandbox argv
+# (HIFUMI_AGENT_IMAGE, dropped caps, only this project's workspace mounted, no
+# Docker socket) and checks, read-only: the runuser drop + `claude` start, that
+# sibling tenants' workspaces are absent, and that the Docker socket is absent.
+#
+# A good result: agent-uid=generator, a claude version, ws-root listing only the
+# mounted project, sibling=denied, socket=denied.
+
+require_relative "../config/environment"
+require Rails.root.join("lib/roast/sandbox").to_s
+
+project = ARGV[0] ? Project.find(ARGV[0]) : Project.order(:id).last
+abort("no project to verify against") unless project
+
+image =
+  begin
+    Roast::Sandbox.image
+  rescue Roast::Sandbox::MissingImage => e
+    abort("#{e.message}\n(locally: export HIFUMI_AGENT_IMAGE=hifumi-dev:local; on a host Kamal sets it from deploy.yml)")
+  end
+
+root = Project.workspace_root
+project_dirs =
+  if Dir.exist?(root)
+    Dir.children(root).select { |d| d.start_with?("project_") && File.directory?(File.join(root, d)) }.sort
+  else
+    []
+  end
+
+# Mount this project's workspace if it exists, else any initialized one so the
+# isolation probe can still run.
+mounted = File.join(root, "project_#{project.id}")
+mounted = File.join(root, project_dirs.first) if !File.directory?(mounted) && project_dirs.any?
+abort("no initialized workspace under #{root} to mount") unless File.directory?(mounted)
+
+# A sibling tenant the agent must NOT be able to reach. Prefer a real one; if
+# this is the only workspace, use a path that simply isn't mounted.
+sibling = (project_dirs.map { |d| File.join(root, d) } - [ mounted ]).first || File.join(root, "project_other")
+
+puts "== agent sandbox verification =="
+puts "image:    #{image}"
+puts "project:  ##{project.id} #{project.name.to_s.truncate(40).inspect}"
+puts "mounted:  #{mounted}"
+puts
+
+puts "-- per-project model selection (what ExecuteInstructionJob forwards) --"
+job = ExecuteInstructionJob.new
+puts "  use_openrouter?=#{job.send(:use_openrouter?)}  sandboxed?=#{job.send(:sandboxed?)}"
+job.send(:roast_model_env, project).each { |k, v| puts "  #{k}=#{v}" }
+puts
+
+probe = <<~SH
+  echo "agent-uid: $(runuser -p -u generator -- id -un 2>&1)"
+  echo "claude:    $(/usr/local/bin/claude --version 2>&1 | head -1)"
+  echo "ws-root:   $(ls #{root} 2>&1 | tr '\\n' ' ')"
+  if ls #{sibling} >/dev/null 2>&1; then echo "sibling:   LEAK (#{sibling} readable)"; else echo "sibling:   denied"; fi
+  if ls /var/run/docker.sock >/dev/null 2>&1; then echo "socket:    LEAK (present)"; else echo "socket:    denied"; fi
+SH
+
+argv = Roast::Sandbox.wrap(
+  image: image,
+  command: [ "sh", "-lc", probe ],
+  env_keys: [],
+  workspace: mounted,
+  name: "verify-agent-sandbox-#{project.id}"
+)
+
+puts "-- isolation probe (real sandbox argv; mounts only #{File.basename(mounted)}) --"
+ok = system(*argv)
+abort("\ndocker probe failed to launch — is Docker reachable? On a host use `kamal app exec --reuse`.") unless ok

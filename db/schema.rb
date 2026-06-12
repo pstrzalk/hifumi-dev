@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_15_121227) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_11_175719) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -127,6 +127,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_121227) do
 
   create_table "profiles", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "default_chat_model", default: "anthropic/claude-haiku-4.5", null: false
+    t.string "default_code_model", default: "anthropic/claude-sonnet-4.6", null: false
+    t.string "default_docs_model", default: "anthropic/claude-haiku-4.5", null: false
+    t.string "default_plan_creation_model", default: "anthropic/claude-haiku-4.5", null: false
+    t.string "default_plan_modification_model", default: "anthropic/claude-haiku-4.5", null: false
+    t.string "default_template_model", default: "anthropic/claude-haiku-4.5", null: false
     t.string "first_name"
     t.string "last_name"
     t.string "openrouter_api_key"
@@ -136,16 +142,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_121227) do
   end
 
   create_table "projects", force: :cascade do |t|
+    t.string "chat_model", default: "anthropic/claude-haiku-4.5", null: false
+    t.string "code_model", default: "anthropic/claude-sonnet-4.6", null: false
     t.datetime "created_at", null: false
+    t.string "docs_model", default: "anthropic/claude-haiku-4.5", null: false
     t.text "export_error"
     t.integer "export_state", default: 0, null: false
     t.datetime "exported_at"
     t.string "github_repo_full_name"
     t.string "name", null: false
+    t.string "plan_creation_model", default: "anthropic/claude-haiku-4.5", null: false
+    t.string "plan_modification_model", default: "anthropic/claude-haiku-4.5", null: false
     t.string "preview_container_id"
     t.text "preview_error"
     t.datetime "preview_started_at"
     t.integer "preview_state", default: 0, null: false
+    t.string "template_model", default: "anthropic/claude-haiku-4.5", null: false
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["github_repo_full_name"], name: "index_projects_on_github_repo_full_name", unique: true, where: "github_repo_full_name IS NOT NULL"

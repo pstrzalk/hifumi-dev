@@ -1,0 +1,28 @@
+<%# locals: (project:, saved: false) -%>
+<%= turbo_frame_tag "model_selection_pane" do %>
+  <details style="border: 1px solid var(--rule); padding: 12px 16px; margin-bottom: 16px;"
+           <%= "open" if saved || project.errors.any? %>>
+    <summary class="eyebrow" style="cursor: pointer; margin: 0; display: list-item;">ai models</summary>
+
+    <% if project.errors.any? %>
+      <div class="notice-strip notice-strip--err" style="margin-top: 12px;">
+        <div class="notice-strip__stripe"></div>
+        <div class="notice-strip__tag">error</div>
+        <div class="notice-strip__body"><%= project.errors.full_messages.to_sentence %></div>
+        <div></div>
+      </div>
+    <% end %>
+
+    <%= form_with model: project, url: project_model_selection_path(project),
+          method: :patch, data: { turbo_frame: "model_selection_pane" },
+          class: "flex flex-col", style: "gap: 16px; margin-top: 12px;" do |f| %>
+      <%= render "model_selections/stage_fields", f: f, column_method: :project_column %>
+      <div class="form-actions" style="display: flex; align-items: center; gap: 12px;">
+        <%= f.submit "Save models", class: "btn btn--primary btn--sm" %>
+        <% if saved %>
+          <span style="font-size: 20px; color: var(--fg-muted);">Saved.</span>
+        <% end %>
+      </div>
+    <% end %>
+  </details>
+<% end %>
