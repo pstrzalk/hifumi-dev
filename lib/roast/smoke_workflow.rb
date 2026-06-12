@@ -1,7 +1,7 @@
 # typed: true
 # frozen_string_literal: true
 
-#: self as Roast::Workflow
+# : self as Roast::Workflow
 
 # Smoke workflow: proves the Roast pipeline boots end-to-end WITHOUT calling Claude.
 #

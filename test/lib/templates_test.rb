@@ -11,7 +11,7 @@ class TemplatesTest < ActiveSupport::TestCase
   end
 
   test "every frontend.md contains the canonical sections" do
-    required = ["## Vibe", "## Class snippets", "## Fonts"]
+    required = [ "## Vibe", "## Class snippets", "## Fonts" ]
     Templates::NAMES.each do |name|
       md = Templates.find(name).frontend_md
       required.each do |section|

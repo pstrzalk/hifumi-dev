@@ -64,8 +64,8 @@ class ExportToGithubJob < ApplicationJob
     # Pin a clean origin remote (no token in .git/config, ever) for the
     # user's later convenience (so `git push` from a checkout works once
     # they've added their own credentials).
-    run!(workspace, ["git", "remote", "remove", "origin"], allow_fail: true)
-    run!(workspace, ["git", "remote", "add", "origin", remote_url_clean])
+    run!(workspace, [ "git", "remote", "remove", "origin" ], allow_fail: true)
+    run!(workspace, [ "git", "remote", "add", "origin", remote_url_clean ])
 
     # Push using the token-bearing URL passed directly on the command line,
     # NOT via a stored remote — Open3 args don't touch disk, so a crash

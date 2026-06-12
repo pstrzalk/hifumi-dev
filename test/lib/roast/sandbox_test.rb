@@ -81,5 +81,4 @@ class Roast::SandboxTest < ActiveSupport::TestCase
       assert_match(/HIFUMI_AGENT_IMAGE/, error.message)
     end
   end
-
 end

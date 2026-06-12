@@ -16,7 +16,7 @@ class PreviewSubscriberTest < ActiveSupport::TestCase
   end
 
   test "instruction.requested enqueues StopPreviewJob for the project" do
-    assert_enqueued_with(job: StopPreviewJob, args: [@project.id]) do
+    assert_enqueued_with(job: StopPreviewJob, args: [ @project.id ]) do
       ActiveSupport::Notifications.instrument(
         "instruction.requested",
         instruction_id: @instruction.id
@@ -25,7 +25,7 @@ class PreviewSubscriberTest < ActiveSupport::TestCase
   end
 
   test "instruction.requested still enqueues ExecuteInstructionJob (existing subscriber not regressed)" do
-    assert_enqueued_with(job: ExecuteInstructionJob, args: [@instruction.id]) do
+    assert_enqueued_with(job: ExecuteInstructionJob, args: [ @instruction.id ]) do
       ActiveSupport::Notifications.instrument(
         "instruction.requested",
         instruction_id: @instruction.id

@@ -10,7 +10,7 @@ class ToolCall < ApplicationRecord
   # message on API failure; the cascading ToolCall destroy would otherwise
   # try to touch an already-destroyed record and raise ActiveRecordError,
   # masking the original API error.
-  after_commit :touch_message, on: [:create, :update]
+  after_commit :touch_message, on: [ :create, :update ]
 
   private
 

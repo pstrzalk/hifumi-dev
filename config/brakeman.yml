@@ -1,0 +1,5 @@
+# Brakeman picks this up automatically (bin/brakeman in CI).
+# spikes/ is the frozen Phase 1 reference implementation — never loaded by
+# the running app, so it's outside the scan surface.
+:skip_files:
+  - "spikes/"

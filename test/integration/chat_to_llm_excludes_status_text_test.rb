@@ -35,7 +35,7 @@ class ChatToLlmExcludesStatusTextTest < ActiveSupport::TestCase
   end
 
   test "instrumented build cycle inserts none of the legacy status strings into AR messages" do
-    perform_enqueued_jobs(except: [ChatRespondJob, ExecuteInstructionJob, StopPreviewJob]) do
+    perform_enqueued_jobs(except: [ ChatRespondJob, ExecuteInstructionJob, StopPreviewJob ]) do
       ActiveSupport::Notifications.instrument(
         "instruction.requested",
         instruction_id: @instruction.id
@@ -56,7 +56,7 @@ class ChatToLlmExcludesStatusTextTest < ActiveSupport::TestCase
   end
 
   test "instrumented build cycle inserts none of the legacy status strings into chat.to_llm stream" do
-    perform_enqueued_jobs(except: [ChatRespondJob, ExecuteInstructionJob, StopPreviewJob]) do
+    perform_enqueued_jobs(except: [ ChatRespondJob, ExecuteInstructionJob, StopPreviewJob ]) do
       ActiveSupport::Notifications.instrument(
         "instruction.requested",
         instruction_id: @instruction.id
@@ -83,7 +83,7 @@ class ChatToLlmExcludesStatusTextTest < ActiveSupport::TestCase
     )
     @instruction.update!(phase: :failed)
 
-    perform_enqueued_jobs(except: [ChatRespondJob, ExecuteInstructionJob, StopPreviewJob]) do
+    perform_enqueued_jobs(except: [ ChatRespondJob, ExecuteInstructionJob, StopPreviewJob ]) do
       ActiveSupport::Notifications.instrument(
         "instruction.failed",
         instruction_id: @instruction.id

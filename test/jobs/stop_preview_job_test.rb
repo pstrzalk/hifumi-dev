@@ -6,7 +6,7 @@ class StopPreviewJobTest < ActiveJob::TestCase
   end
 
   test "uses :preview queue" do
-    assert_enqueued_with(job: StopPreviewJob, args: [@project.id], queue: "preview") do
+    assert_enqueued_with(job: StopPreviewJob, args: [ @project.id ], queue: "preview") do
       StopPreviewJob.perform_later(@project.id)
     end
   end
@@ -14,7 +14,7 @@ class StopPreviewJobTest < ActiveJob::TestCase
   test "delegates to Preview::PreviewManager#stop with the right project" do
     captured = nil
     fake = Class.new do
-      define_method(:initialize) {}
+      define_method(:initialize) { }
       define_method(:stop) { |project| captured = project }
     end
 

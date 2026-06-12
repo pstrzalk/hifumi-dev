@@ -334,8 +334,8 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
       @manager.stop(@project)
     end
 
-    proxy_idx = @runner.calls.index { |c| c[:cmd].first(2) == ["docker", "exec"] && c[:cmd].include?("kamal-proxy") }
-    rm_idx    = @runner.calls.index { |c| c[:cmd].first(3) == ["docker", "rm", "-f"] }
+    proxy_idx = @runner.calls.index { |c| c[:cmd].first(2) == [ "docker", "exec" ] && c[:cmd].include?("kamal-proxy") }
+    rm_idx    = @runner.calls.index { |c| c[:cmd].first(3) == [ "docker", "rm", "-f" ] }
     assert proxy_idx, "kamal-proxy remove was not invoked"
     assert rm_idx,    "docker rm was not invoked"
     assert proxy_idx < rm_idx, "kamal-proxy remove must precede docker rm"
@@ -346,7 +346,7 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
       @manager.send(:ensure_network!)
     end
 
-    create_call = @runner.calls.find { |c| c[:cmd].first(3) == ["docker", "network", "create"] }
+    create_call = @runner.calls.find { |c| c[:cmd].first(3) == [ "docker", "network", "create" ] }
     assert create_call
     assert_includes create_call[:cmd], "--internal"
   end
@@ -354,7 +354,7 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
   test "ensure_network! (dev): omits --internal flag" do
     @manager.send(:ensure_network!)
 
-    create_call = @runner.calls.find { |c| c[:cmd].first(3) == ["docker", "network", "create"] }
+    create_call = @runner.calls.find { |c| c[:cmd].first(3) == [ "docker", "network", "create" ] }
     assert create_call
     refute_includes create_call[:cmd], "--internal"
   end
@@ -371,7 +371,7 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
       @manager.start(@project)
     end
 
-    run_call = @runner.calls.find { |c| c[:cmd].first(2) == ["docker", "run"] }
+    run_call = @runner.calls.find { |c| c[:cmd].first(2) == [ "docker", "run" ] }
     assert run_call
     refute_includes run_call[:cmd], "-p"
   end
@@ -379,7 +379,7 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
   test "run_container (dev): includes -p host port mapping" do
     @manager.start(@project)
 
-    run_call = @runner.calls.find { |c| c[:cmd].first(2) == ["docker", "run"] }
+    run_call = @runner.calls.find { |c| c[:cmd].first(2) == [ "docker", "run" ] }
     assert run_call
     assert_includes run_call[:cmd], "-p"
     assert_includes run_call[:cmd], "#{@project.preview_port}:3000"
@@ -397,7 +397,7 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
       @manager.start(@project)
     end
 
-    run_call = @runner.calls.find { |c| c[:cmd].first(2) == ["docker", "run"] }
+    run_call = @runner.calls.find { |c| c[:cmd].first(2) == [ "docker", "run" ] }
     assert run_call
     assert_includes run_call[:cmd], "PREVIEW_HOST=#{@project.id}.preview.hifumi.dev"
   end
@@ -405,7 +405,7 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
   test "run_container (dev): does not set PREVIEW_HOST" do
     @manager.start(@project)
 
-    run_call = @runner.calls.find { |c| c[:cmd].first(2) == ["docker", "run"] }
+    run_call = @runner.calls.find { |c| c[:cmd].first(2) == [ "docker", "run" ] }
     assert run_call
     refute run_call[:cmd].any? { |a| a.to_s.start_with?("PREVIEW_HOST=") }
   end

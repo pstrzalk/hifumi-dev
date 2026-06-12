@@ -104,7 +104,7 @@ class ExportToGithubJobTest < ActiveJob::TestCase
 
   test "Octokit::UnprocessableEntity 'name already exists' → state failed, friendly name-collision message" do
     err = assert_raises(ExportToGithubJob::RepoCreateFailed) do
-      with_octokit_stub(nil, [], raise_with: Octokit::UnprocessableEntity.new(body: { errors: [{ message: "name already exists on this account" }] })) do
+      with_octokit_stub(nil, [], raise_with: Octokit::UnprocessableEntity.new(body: { errors: [ { message: "name already exists on this account" } ] })) do
         ExportToGithubJob.perform_now(@project.id, repo_name: "x")
       end
     end
@@ -117,7 +117,7 @@ class ExportToGithubJobTest < ActiveJob::TestCase
 
   test "Octokit::UnprocessableEntity for other 422 causes → state failed, generic message" do
     err = assert_raises(ExportToGithubJob::RepoCreateFailed) do
-      with_octokit_stub(nil, [], raise_with: Octokit::UnprocessableEntity.new(body: { errors: [{ message: "name contains invalid characters" }] })) do
+      with_octokit_stub(nil, [], raise_with: Octokit::UnprocessableEntity.new(body: { errors: [ { message: "name contains invalid characters" } ] })) do
         ExportToGithubJob.perform_now(@project.id, repo_name: "x")
       end
     end
@@ -255,7 +255,7 @@ class ExportToGithubJobTest < ActiveJob::TestCase
     Open3.define_singleton_method(:capture3) do |*args|
       env = args.first.is_a?(Hash) ? args.shift : {}
       calls << { env: env, args: args }
-      ["", stderr, fake_status]
+      [ "", stderr, fake_status ]
     end
 
     yield

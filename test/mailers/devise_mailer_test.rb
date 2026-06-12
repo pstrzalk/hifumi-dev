@@ -7,8 +7,8 @@ class DeviseMailerTest < ActionMailer::TestCase
 
     mail = Devise::Mailer.reset_password_instructions(user, token)
 
-    assert_equal [user.email], mail.to
-    assert_equal ["noreply@hifumi.dev"], mail.from
+    assert_equal [ user.email ], mail.to
+    assert_equal [ "noreply@hifumi.dev" ], mail.from
     assert_match token, mail.body.encoded
   end
 end

@@ -1,7 +1,7 @@
 # typed: true
 # frozen_string_literal: true
 
-#: self as Roast::Workflow
+# : self as Roast::Workflow
 
 # W2: Execution of a single revision — Implement → Verify → Commit
 # Aligned with ../../docs/02-architecture/01-workflows-and-decisions.md (W2.1–W2.8 + W2.R remediation + W2.F failure path).
@@ -56,7 +56,7 @@ config do
   #   working. If the system-reminder bloat returns, find a narrower flag.
   agent(:update_docs) do
     model DOCS_MODEL
-    command ["claude", "--tools", "Edit,Read"]
+    command [ "claude", "--tools", "Edit,Read" ]
   end
   cmd { display! }
 
@@ -75,7 +75,7 @@ config do
   # --bare was previously here too; dropped 2026-05-04 for the same reason
   # as agent(:update_docs) — it breaks claude OAuth credential loading.
   agent(:fix) do
-    command ["claude", "--max-budget-usd", FIX_BUDGET_USD]
+    command [ "claude", "--max-budget-usd", FIX_BUDGET_USD ]
   end
 end
 
@@ -231,7 +231,7 @@ execute do
   cmd(:git_commit) do |my|
     summary = kwarg(:revision_summary)
     my.command = "sh"
-    my.args = ["-c", "cd #{Shellwords.escape(WORKSPACE)} && git add -A && git commit -m #{Shellwords.escape(summary)}"]
+    my.args = [ "-c", "cd #{Shellwords.escape(WORKSPACE)} && git add -A && git commit -m #{Shellwords.escape(summary)}" ]
   end
 
   # W2.6: Update app manifest + revision notes

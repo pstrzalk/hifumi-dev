@@ -15,7 +15,7 @@ class PreviewsControllerTest < ActionDispatch::IntegrationTest
   test "POST from :stopped enqueues StartPreviewJob, flips state to :starting, returns turbo_stream" do
     @project.update!(preview_state: :stopped)
 
-    assert_enqueued_with(job: StartPreviewJob, args: [@project.id]) do
+    assert_enqueued_with(job: StartPreviewJob, args: [ @project.id ]) do
       post project_preview_path(@project),
            headers: { "Accept" => "text/vnd.turbo-stream.html" }
     end
@@ -29,7 +29,7 @@ class PreviewsControllerTest < ActionDispatch::IntegrationTest
   test "POST from :failed (retry) enqueues StartPreviewJob, flips to :starting, clears error" do
     @project.update!(preview_state: :failed, preview_error: "boom")
 
-    assert_enqueued_with(job: StartPreviewJob, args: [@project.id]) do
+    assert_enqueued_with(job: StartPreviewJob, args: [ @project.id ]) do
       post project_preview_path(@project),
            headers: { "Accept" => "text/vnd.turbo-stream.html" }
     end
@@ -72,7 +72,7 @@ class PreviewsControllerTest < ActionDispatch::IntegrationTest
   test "DELETE enqueues StopPreviewJob, returns turbo_stream" do
     @project.update!(preview_state: :running, preview_container_id: "abc")
 
-    assert_enqueued_with(job: StopPreviewJob, args: [@project.id]) do
+    assert_enqueued_with(job: StopPreviewJob, args: [ @project.id ]) do
       delete project_preview_path(@project),
              headers: { "Accept" => "text/vnd.turbo-stream.html" }
     end
