@@ -321,7 +321,8 @@ module Preview
     # the host's public IP).
     def wait_for_public_tls!(project)
       deadline = Time.current + @tls_warm_timeout
-      until public_tls_ok?(project)
+      loop do
+        return if public_tls_ok?(project)
         if Time.current > deadline
           Rails.logger.warn(
             "[PreviewManager] no browser-trustable cert on " \

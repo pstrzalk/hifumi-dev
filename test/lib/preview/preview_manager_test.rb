@@ -321,13 +321,23 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
     assert @runner.called?("docker", "exec", "kamal-proxy", "kamal-proxy", "deploy", "preview-#{@project.id}")
   end
 
-  test "start (remote): warms the public TLS endpoint after proxy registration, without -k" do
+  test "start (remote): warms the public TLS endpoint after proxy registration and before announcing ready, without -k" do
     @runner.script("docker", "inspect", returns: Result.new(
       ok: true, stdout: "172.99.0.5\n", stderr: "", exit_code: 0
     ))
     @runner.script("docker", "exec", returns: Result.new(
       ok: true, stdout: "", stderr: "", exit_code: 0
     ))
+
+    # The whole point of the fix: the cert must be warm before the preview is
+    # announced ready. `preview.ready` fires right after the :running flip, so
+    # capturing whether the https probe has run by then locks the invariant a
+    # future reorder (warm moved below the running flip) would silently break.
+    warm_done_before_ready = nil
+    sub = ActiveSupport::Notifications.subscribe("preview.ready") do
+      warm_done_before_ready =
+        @runner.calls.any? { |c| c[:cmd].first == "curl" && c[:cmd].last.start_with?("https://") }
+    end
 
     with_remote do
       @manager.start(@project)
@@ -341,6 +351,10 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
     deploy_idx = @runner.calls.index { |c| c[:cmd].include?("deploy") }
     warm_idx   = @runner.calls.index(warm)
     assert deploy_idx < warm_idx, "the warm probe must run after kamal-proxy registration"
+
+    assert warm_done_before_ready, "the cert must be warmed before the preview is announced ready"
+  ensure
+    ActiveSupport::Notifications.unsubscribe(sub) if sub
   end
 
   test "start (remote): TLS warm timeout is non-fatal — preview still reaches running" do
