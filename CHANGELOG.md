@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/) (minor for new
 functionality, patch for fixes and internal changes).
 
+## [1.1.3] - 2026-06-12
+
+### Fixed
+
+- The first visit to a brand-new project's preview could hit the browser's
+  "connection is not private" warning: the preview was announced as running
+  before its subdomain certificate existed, because certificates are issued
+  on demand at the first visit. The preview now requests its own public URL
+  once during startup, so the certificate is ready before the user ever
+  clicks the link. A slow certificate authority degrades gracefully back to
+  the old behavior instead of blocking a working preview.
+
 ## [1.1.2] - 2026-06-12
 
 ### Fixed
