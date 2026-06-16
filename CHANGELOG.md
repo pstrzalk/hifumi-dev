@@ -8,6 +8,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/) (minor for new
 functionality, patch for fixes and internal changes).
 
+## [1.2.0] - 2026-06-16
+
+### Added
+
+- Previews can now be served by a pre-issued wildcard `*.preview.hifumi.dev`
+  certificate instead of a brand-new per-host certificate minted on first
+  visit. Set `PREVIEW_TLS_CERTIFICATE_PATH` and `PREVIEW_TLS_PRIVATE_KEY_PATH`
+  (paths inside the kamal-proxy container) to switch over; unset keeps the
+  previous on-demand behavior. A long-lived wildcard certificate sidesteps the
+  "connection is not private" / certificate-transparency warning a visitor with
+  a slightly slow clock could see on a seconds-old certificate, and removes the
+  first-visit issuance wait. See `docs/05-runbooks/02-preview-wildcard-tls.md`.
+
 ## [1.1.3] - 2026-06-12
 
 ### Fixed
