@@ -51,7 +51,10 @@ module Preview
       health_check!(project)
       if Preview::Config.remote?
         register_with_proxy!(project)
-        wait_for_public_tls!(project)
+        # With a pre-issued wildcard cert the public endpoint is already warm
+        # (the cert exists before any preview starts), so there is no per-host
+        # issuance window to wait out — only on-demand Let's Encrypt needs it.
+        wait_for_public_tls!(project) unless Preview::Config.wildcard_tls?
       end
 
       project.update!(preview_state: :running)
@@ -296,14 +299,24 @@ module Preview
       ip = container_ip(container_name)
       raise "Could not resolve container IP for #{container_name}" if ip.blank?
 
-      result = @runner.run(
+      cmd = [
         "docker", "exec", "kamal-proxy",
         "kamal-proxy", "deploy", "preview-#{project.id}",
         "--target", "#{ip}:3000",
         "--host", public_preview_host(project),
-        "--tls",
-        capture: true
-      )
+        "--tls"
+      ]
+      # When a pre-issued wildcard cert is configured, hand kamal-proxy the static
+      # cert/key paths so it serves them instead of obtaining a per-host cert on
+      # demand. Paths are resolved inside the kamal-proxy container.
+      if Preview::Config.wildcard_tls?
+        cmd.push(
+          "--tls-certificate-path", Preview::Config.tls_certificate_path,
+          "--tls-private-key-path", Preview::Config.tls_private_key_path
+        )
+      end
+
+      result = @runner.run(*cmd, capture: true)
       raise "kamal-proxy deploy failed: #{result.stderr}" unless result.ok
     end
 

@@ -177,7 +177,13 @@ Devise.setup do |config|
 
   # Options to be passed to the created cookie. For instance, you can set
   # secure: true in order to force SSL only cookies.
-  # config.rememberable_options = {}
+  #
+  # Mark the remember-me cookie Secure + SameSite=Lax in production. Devise hard-
+  # codes the cookie name (`remember_user_token`), so it cannot carry the
+  # `__Host-` prefix the session cookie uses — Secure + Lax is the available
+  # hardening here. Plain in dev (http://localhost can't send Secure cookies).
+  config.rememberable_options =
+    Rails.env.production? ? { secure: true, same_site: :lax } : { same_site: :lax }
 
   # ==> Configuration for :validatable
   # Range for password length.

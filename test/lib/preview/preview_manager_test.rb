@@ -387,6 +387,60 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
       "local previews have no TLS endpoint to warm"
   end
 
+  # --- wildcard (static) cert path --------------------------------------
+
+  test "register (remote, wildcard cert): deploy passes --tls-certificate-path / --tls-private-key-path" do
+    @runner.script("docker", "inspect", returns: Result.new(
+      ok: true, stdout: "172.99.0.5\n", stderr: "", exit_code: 0
+    ))
+
+    with_remote do
+      with_wildcard_tls do
+        @manager.start(@project)
+      end
+    end
+
+    deploy = @runner.calls.find { |c| c[:cmd].include?("deploy") }
+    assert deploy, "kamal-proxy deploy was not invoked"
+    assert_includes deploy[:cmd], "--tls-certificate-path"
+    assert_includes deploy[:cmd], "/proxy/certs/wildcard.crt"
+    assert_includes deploy[:cmd], "--tls-private-key-path"
+    assert_includes deploy[:cmd], "/proxy/certs/wildcard.key"
+  end
+
+  test "start (remote, wildcard cert): skips the public https TLS warm-up (cert already warm)" do
+    @runner.script("docker", "inspect", returns: Result.new(
+      ok: true, stdout: "172.99.0.5\n", stderr: "", exit_code: 0
+    ))
+
+    with_remote do
+      with_wildcard_tls do
+        @manager.start(@project)
+      end
+    end
+
+    assert @runner.called?("docker", "exec", "kamal-proxy", "kamal-proxy", "deploy", "preview-#{@project.id}"),
+      "the wildcard path must still register the route (skip is not start short-circuiting)"
+    refute @runner.calls.any? { |c| c[:cmd].first == "curl" && c[:cmd].last.start_with?("https://") },
+      "a pre-issued wildcard cert needs no warm-up — there is no per-host issuance window"
+    assert_equal "running", @project.reload.preview_state
+  end
+
+  test "register (remote, no wildcard cert): deploy omits the static cert path flags" do
+    @runner.script("docker", "inspect", returns: Result.new(
+      ok: true, stdout: "172.99.0.5\n", stderr: "", exit_code: 0
+    ))
+
+    with_remote do
+      @manager.start(@project)
+    end
+
+    deploy = @runner.calls.find { |c| c[:cmd].include?("deploy") }
+    assert deploy
+    refute_includes deploy[:cmd], "--tls-certificate-path"
+    assert_includes deploy[:cmd], "--tls", "on-demand path still passes plain --tls"
+  end
+
   test "start (dev): no kamal-proxy commands invoked" do
     @manager.start(@project)
 
@@ -500,5 +554,16 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
     yield
   ensure
     Rails.configuration.preview.domain = original
+  end
+
+  def with_wildcard_tls
+    orig_cert = Rails.configuration.preview.tls_certificate_path
+    orig_key  = Rails.configuration.preview.tls_private_key_path
+    Rails.configuration.preview.tls_certificate_path = "/proxy/certs/wildcard.crt"
+    Rails.configuration.preview.tls_private_key_path = "/proxy/certs/wildcard.key"
+    yield
+  ensure
+    Rails.configuration.preview.tls_certificate_path = orig_cert
+    Rails.configuration.preview.tls_private_key_path = orig_key
   end
 end
