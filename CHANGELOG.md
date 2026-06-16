@@ -21,6 +21,16 @@ functionality, patch for fixes and internal changes).
   a slightly slow clock could see on a seconds-old certificate, and removes the
   first-visit issuance wait. See `docs/05-runbooks/02-preview-wildcard-tls.md`.
 
+### Changed
+
+- Hardened the generator's cookies and headers now that untrusted, user-built
+  preview apps share the `hifumi.dev` parent domain: the production session
+  cookie uses the `__Host-` prefix (un-shadowable by a preview subdomain),
+  cookies are marked `Secure` (`force_ssl` + `assume_ssl`), the remember-me
+  cookie is `Secure`/`SameSite=Lax`, and every response advertises
+  `Origin-Agent-Cluster: ?1`. Existing sessions are invalidated once on deploy
+  (the session cookie is renamed), so users will need to sign in again.
+
 ## [1.1.3] - 2026-06-12
 
 ### Fixed
