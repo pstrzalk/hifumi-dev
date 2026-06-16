@@ -24,8 +24,8 @@ env:
     # the kamal-proxy container. Uncomment both ONLY after the cert is issued via
     # DNS-01 and mounted into kamal-proxy (see docs/05-runbooks/02-preview-wildcard-tls.md).
     # Until set, previews fall back to per-host on-demand Let's Encrypt.
-    # PREVIEW_TLS_CERTIFICATE_PATH: /home/kamal-proxy/.config/kamal-proxy/preview-tls/wildcard.crt
-    # PREVIEW_TLS_PRIVATE_KEY_PATH: /home/kamal-proxy/.config/kamal-proxy/preview-tls/wildcard.key
+    PREVIEW_TLS_CERTIFICATE_PATH: /home/kamal-proxy/.config/kamal-proxy/preview-tls/wildcard.crt
+    PREVIEW_TLS_PRIVATE_KEY_PATH: /home/kamal-proxy/.config/kamal-proxy/preview-tls/wildcard.key
     HIFUMI_DEV_WORKSPACE_ROOT: /var/lib/hifumi-dev/workspaces
     # Image the codegen agent runs inside, per revision, as a throwaway
     # single-tenant container (Roast::Sandbox). Must be the same
