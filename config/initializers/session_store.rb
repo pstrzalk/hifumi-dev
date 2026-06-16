@@ -20,7 +20,8 @@ if Rails.env.production?
   Rails.application.config.session_store :cookie_store,
     key: "__Host-hifumi_dev_session",
     secure: true,
-    same_site: :lax
+    same_site: :lax,
+    path: "/" # the __Host- prefix mandates Path=/ (also the cookie_store default)
 else
   Rails.application.config.session_store :cookie_store,
     key: "_hifumi_dev_session",

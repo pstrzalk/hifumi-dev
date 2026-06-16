@@ -10,8 +10,9 @@ kamal-proxy.
 On-demand issuance mints a fresh cert per preview whose SCT timestamps are
 seconds old. Any visitor whose clock is even slightly behind Chrome's 60-second
 SCT future-grace hits `NET::ERR_CERTIFICATE_TRANSPARENCY_REQUIRED` for the first
-minutes of the cert's life (diagnosed in
-`thoughts/shared/research/2026-06-13/28-preview-tls-warmup-not-effective.md`). A
+minutes of the cert's life — the cert is valid, but a client clock running behind
+the fresh SCT timestamps reads them as future-dated (post-incident diagnosis of
+the 28.preview.hifumi.dev report). A
 wildcard cert is issued once and is hours/days old by the time anyone visits a
 preview, so its SCTs are long-settled and accepted regardless of small client
 clock skew. It also removes per-host LE rate-limit exposure and first-visit
@@ -28,8 +29,8 @@ the warm-up. Unset (the default) = per-host on-demand `--tls`, unchanged.
 - DNS for `hifumi.dev` is hosted at **GoDaddy** (`domaincontrol.com` nameservers).
   Wildcard certs can only be validated with **DNS-01**, so you need GoDaddy API
   credentials (Key + Secret) with edit rights on the zone.
-  - ⚠️ GoDaddy gates its production API: at times it has required the account to
-    hold ≥10 domains (or a specific plan). If the API is unavailable, either move
+  - ⚠️ GoDaddy gates its production API: as of 2026 it has at times required the
+    account to hold ≥10 domains (or a specific plan). If the API is unavailable, either move
     `hifumi.dev` DNS to a provider with an open API (Cloudflare, Route53,
     deSEC), or issue the cert manually with a one-off `--manual` DNS-01 TXT
     record. The rest of this runbook is provider-agnostic past the issuance step.

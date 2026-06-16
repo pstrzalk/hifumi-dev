@@ -34,9 +34,15 @@ class Preview::ConfigTest < ActiveSupport::TestCase
     assert_not Preview::Config.wildcard_tls?
   end
 
-  test "wildcard_tls? is false when only one path is set" do
+  test "wildcard_tls? is false when only the cert path is set" do
     Rails.configuration.preview.tls_certificate_path = "/proxy/certs/wildcard.crt"
     Rails.configuration.preview.tls_private_key_path = nil
+    assert_not Preview::Config.wildcard_tls?
+  end
+
+  test "wildcard_tls? is false when only the key path is set" do
+    Rails.configuration.preview.tls_certificate_path = nil
+    Rails.configuration.preview.tls_private_key_path = "/proxy/certs/wildcard.key"
     assert_not Preview::Config.wildcard_tls?
   end
 

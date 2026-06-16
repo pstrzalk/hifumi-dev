@@ -419,6 +419,8 @@ class Preview::PreviewManagerTest < ActiveSupport::TestCase
       end
     end
 
+    assert @runner.called?("docker", "exec", "kamal-proxy", "kamal-proxy", "deploy", "preview-#{@project.id}"),
+      "the wildcard path must still register the route (skip is not start short-circuiting)"
     refute @runner.calls.any? { |c| c[:cmd].first == "curl" && c[:cmd].last.start_with?("https://") },
       "a pre-issued wildcard cert needs no warm-up — there is no per-host issuance window"
     assert_equal "running", @project.reload.preview_state
