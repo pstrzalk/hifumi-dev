@@ -158,3 +158,28 @@ The codegen agent now runs each revision in a per-instruction throwaway containe
 3. **Agent egress is unrestricted.** The throwaway uses the default bridge (needs OpenRouter + rubygems). It can therefore also reach the host's published ports / other bridge containers. Move it to a dedicated network that allows only the egress it needs (DNS + 443 to OpenRouter + the gem source), or front gem installs with a local mirror so the network can be `--internal`.
 4. **Bundle vendoring (perf).** The throwaway reconciles the app's gems via `AutoRemediate`'s `bundle install` on first verify, re-doing it per revision for agent-added gems. If first-revision wall time suffers (Step-7 budget is already near the edge), vendor the workspace bundle into `vendor/bundle` (already gitignored in the skeleton) so installed gems travel via the mount — but this requires untangling the `BUNDLE_PATH=/usr/local/bundle` global vs the workspace bundle (see the warning comment in `lib/roast/verify_revision.rb`), so it's deliberately deferred. (`/usr/local/bundle` is generator-owned since issue #24, so the uid-permission half of that tangle is gone; the perf half remains.)
 5. **Dev/prod parity.** Sandboxing is prod-only; dev runs roast directly (no Docker, Claude-subscription transport). `FORCE_AGENT_SANDBOX=1` exercises the container path locally (needs Docker + `HIFUMI_AGENT_IMAGE` + an OpenRouter key) — wire it into CI or a manual smoke step once a Linux runner is available, since the macOS dev box can't run it.
+
+---
+
+## 2026-06-17
+
+### Move untrusted previews to a separate registrable domain
+
+**Motivation**: previews (untrusted user/LLM code) are served as subdomains of the generator's own apex (`<id>.preview.hifumi.dev`), so they share the registrable domain `hifumi.dev` with the trusted control plane and are therefore **same-site** with it. The cookie/header hardening shipped in PR #32 (`__Host-` session cookie, `force_ssl`/`assume_ssl` Secure cookies, host-only cookies, `Origin-Agent-Cluster`, CSRF) is a **mitigation, not a cure** — the boundary is structurally weak. The cure is serving previews from a **separate registrable domain**, which makes them cross-site to the generator. Full threat model + the single-vs-multiple-domain reasoning: `docs/02-architecture/05-tenant-isolation-and-domains.md`.
+
+**Why it matters**: a malicious generated app can set a `Domain=hifumi.dev` cookie that shadows the generator's session cookie (login CSRF / session fixation), `SameSite` offers no protection across the shared registrable domain, and `document.domain` can relax SOP to the parent. Each is currently patched, but any future feature that trusts "same-site" re-opens the class.
+
+**The migration is mostly config, not code** — the preview hostname is already parameterized on `PREVIEW_DOMAIN`:
+- `Preview::Config.domain` ← `ENV["PREVIEW_DOMAIN"]` (`config/initializers/preview_config.rb`)
+- `public_preview_host` = `<id>.preview.#{domain}` (`lib/preview/preview_manager.rb`) → drives the kamal-proxy `--host`, the container's `PREVIEW_HOST` env, and `project.preview_url` (the studio iframe `src`)
+- CSP `frame-src https://*.preview.#{PREVIEW_DOMAIN}` (`config/initializers/content_security_policy.rb`) follows it
+
+So flipping the preview apex is: register a separate registrable domain (pick a `.dev` to keep auto-HSTS); add wildcard A `*.preview.<newdomain>` → host IP; issue a wildcard cert for it (same flow as `docs/05-runbooks/02-preview-wildcard-tls.md`, DNS-01 on the new domain's provider; repoint `PREVIEW_TLS_*` at it); set `PREVIEW_DOMAIN=<newdomain>` in `config/deploy.yml`. The generator stays on `hifumi.dev`; previews become `<id>.preview.<newdomain>`, now cross-site to the control plane.
+
+**Decisions / caveats**:
+- One separate domain isolates **generator ↔ preview** (the high-value win). Previews still share the new apex, so **preview ↔ preview** cookie-tossing remains — acceptable for throwaway demos; full per-preview isolation needs unique domains (don't, unless previews hold secrets from each other).
+- Existing `<id>.preview.hifumi.dev` links break, but previews are ephemeral (reaped ~30 min) — nothing durable to migrate.
+- Keep the PR #32 apex hardening as defense-in-depth after the move.
+- Optional cleanup: the `.preview.` sublabel is hardcoded in `public_preview_host` / `PREVIEW_HOST` / the CSP; if the new domain is preview-dedicated you could drop it (small code change, not required).
+
+**Cost**: a domain registration + the wildcard-cert setup you've now done once; the code change is ~one env var. The expense is operational (DNS + cert on a new domain), not engineering.

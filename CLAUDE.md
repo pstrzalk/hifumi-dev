@@ -22,7 +22,7 @@ Deferred observations from Phase 2 (revisit later, not blockers):
 All project documentation lives in `docs/`, grouped by topic. Folder and file numbering indicates reading order within each category. Spike code lives separately.
 
 - **`docs/01-vision/`** — product canon: vision, principles, user journey. Read once, reference many times.
-- **`docs/02-architecture/`** — technical canon: workflows and decisions, layer integration, tech stack, design system.
+- **`docs/02-architecture/`** — technical canon: workflows and decisions, layer integration, tech stack, design system, and tenant isolation & preview-domain strategy (`05-tenant-isolation-and-domains.md` — why untrusted previews on a subdomain of the apex are a structural hazard, and the separate-registrable-domain antidote).
 - **`docs/03-plans/`** — active implementation plans per phase (currently Phase 2 + Phase 3 analysis).
 - **`docs/04-reviews/`** — point-in-time reviews of the running system. `01-post-launch-review.md` (2026-06-11) records the post-Phase-4 robustness/OSS-readiness findings; read it before planning Phase 5.
 - **`docs/05-runbooks/`** — step-by-step verification procedures. `01-agent-sandbox-and-model-selection-e2e.md` verifies per-project model selection + agent-sandbox isolation, locally and on prod (`kamal app exec --reuse`).
