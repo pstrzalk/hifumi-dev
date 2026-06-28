@@ -44,7 +44,7 @@ gem "image_processing", "~> 1.2"
 gem "ruby_llm"
 
 # Orchestration of generation workflows (per-revision Roast subprocess)
-gem "roast-ai", "~> 1.1"
+gem "roast-ai", "~> 1.2"
 
 # Authentication
 gem "devise"
