@@ -1,0 +1,62 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Read-only check that every model offered by LLM::Stages actually resolves
+# through RubyLLM. Burns no tokens and writes nothing.
+#
+# Usage:
+#   bin/verify-model-registry                              # check the offered list
+#   bin/verify-model-registry anthropic/claude-opus-5 ...  # also check candidate ids
+#
+# On a deployed host:
+#   kamal app exec --reuse "bin/verify-model-registry"
+#
+# Why this exists: `use_new_acts_as` + app/models/model.rb (acts_as_model) make
+# RubyLLM prefer the `models` DB table over the gem's bundled models.json, and
+# fall back to the JSON only when that table is EMPTY. A partially-populated
+# table therefore shadows the JSON completely — on 2026-08-12 both dev and
+# production held a single row (haiku only), so the Sonnet 4.6 and Opus 4.6
+# selections raised ModelNotFoundError on every RubyLLM-backed stage.
+#
+# The fix is to populate the table (`Model.refresh!`); this script is how you
+# confirm it. Pass candidate ids to check a model BEFORE adding it to
+# LLM::Stages::AVAILABLE_MODELS.
+#
+# See docs/05-runbooks/03-llm-model-registry.md.
+#
+# Exits non-zero if any id fails to resolve.
+
+require_relative "../config/environment"
+
+candidates = ARGV
+offered = LLM::Stages::AVAILABLE_MODELS.keys
+failures = []
+
+puts "models table rows: #{Model.count}"
+puts "resolved registry:  #{RubyLLM::Models.instance.all.size}"
+
+def check(id, failures)
+  info, = RubyLLM::Models.resolve(id)
+  puts format("  OK    %-32s provider=%-11s ctx=%s", id, info.provider, info.context_window || "?")
+rescue StandardError => e
+  failures << id
+  puts format("  FAIL  %-32s %s", id, e.class)
+end
+
+puts "\noffered by LLM::Stages (#{offered.size}):"
+offered.each { |id| check(id, failures) }
+
+unless candidates.empty?
+  puts "\ncandidates (not yet offered):"
+  candidates.each { |id| check(id, failures) }
+end
+
+if failures.any?
+  puts "\n#{failures.size} id(s) did not resolve: #{failures.join(', ')}"
+  puts "Populate the registry with: bin/rails runner 'Model.refresh!'"
+  puts "Then restart long-lived processes — the registry is memoized per process."
+  exit 1
+end
+
+puts "\nall ids resolve."
