@@ -60,6 +60,18 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_equal "", latest_assistant.content
   end
 
+  test "mid-stream broadcast renders plain text, not markdown" do
+    stub_complete(chunks: [ "**bold**" ]) do
+      perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+    end
+
+    payloads = decoded_broadcasts
+    assert payloads.any? { |p| p.include?("**bold**") },
+      "expected the literal markdown source in a mid-stream broadcast"
+    assert payloads.none? { |p| p.include?("<strong>bold</strong>") },
+      "mid-stream broadcasts must not format markdown"
+  end
+
   test "applies the project's chat model selection to the chat on each turn" do
     @project.update!(chat_model: "anthropic/claude-sonnet-4.6")
     stub_complete(chunks: [ "ok" ]) do
@@ -124,6 +136,10 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_includes rendered, "describe a Rails web application"
     assert_includes rendered, "Current project state:"
     assert_includes rendered, "No generation is currently running"
+    # The label only — the bullet's wording gets tuned by hand, and pinning the
+    # prose just creates friction. lib/markdown.rb is what actually enforces the
+    # subset; this only guards that the rule is still shipped.
+    assert_includes rendered, "Formatting:"
   end
 
   test "injects a RUNNING state line when the project has a non-terminal instruction" do
@@ -234,6 +250,14 @@ class ChatRespondJobTest < ActiveJob::TestCase
   end
 
   private
+
+  # broadcasts(stream) returns ActiveSupport-JSON-encoded strings, and
+  # escape_html_entities_in_json is on, so every "<" arrives as "\u003c".
+  # Asserting on raw "<strong>" against the encoded payload can never fail —
+  # decode first, or the negative assertion above is dead weight.
+  def decoded_broadcasts
+    broadcasts(@stream_name).map { |p| ActiveSupport::JSON.decode(p) }
+  end
 
   def last_chat_notice_broadcast
     broadcasts(@stream_name).reverse.find { |b| b.to_s.match?(/target=\\?"chat_notice\\?"/) }

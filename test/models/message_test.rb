@@ -55,6 +55,38 @@ class MessageTest < ActiveSupport::TestCase
     end
   end
 
+  # Reproduces the production sequence: create (enqueues but does not run the
+  # broadcast job), then chunks land via update_columns, then the job renders the
+  # partial from a GlobalID reload — so the appended row already carries
+  # half-written markdown by render time.
+  test "append broadcast renders plain text even when chunks landed before the job ran" do
+    message = @chat.messages.create!(role: :assistant, content: "")
+    message.update_columns(content: "**bold**")
+
+    perform_enqueued_jobs
+    payload = JSON.parse(broadcasts(@stream_name).last)
+
+    assert_includes payload, "**bold**"
+    refute_includes payload, "<strong>bold</strong>"
+  end
+
+  # The third broadcast site, and the only one that SHOULD format: the final save
+  # after streaming ends. Its two siblings (append here, mid-stream in
+  # chat_respond_job_test) assert the opposite, so without this a stray
+  # `streaming: true` on broadcast_replace_message would leave every finished
+  # reply plain with a fully green suite.
+  test "replace broadcast formats a finished assistant reply as markdown" do
+    message = @chat.messages.create!(role: :assistant, content: "")
+    perform_enqueued_jobs   # drain the create/append broadcast first
+
+    perform_enqueued_jobs { message.update!(content: "**bold**") }
+    payload = JSON.parse(broadcasts(@stream_name).last)
+
+    assert_includes payload, 'action="replace"'
+    assert_includes payload, "<strong>bold</strong>"
+    refute_includes payload, "**bold**"
+  end
+
   test "creating a message touches the chat's project (bumps active timestamp)" do
     travel_to 1.hour.from_now do
       assert_changes -> { @project.reload.updated_at } do

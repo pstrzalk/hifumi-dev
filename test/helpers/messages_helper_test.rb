@@ -48,4 +48,47 @@ class MessagesHelperTest < ActionView::TestCase
 
     assert_equal "running: some_other_tool", tool_call_pill_text(@message)
   end
+
+  test "message_body_html formats a finished assistant message" do
+    @message.update!(content: "1. **hi**")
+
+    html = message_body_html(@message)
+
+    assert_includes html, "<strong>hi</strong>"
+    assert_includes html, "<ol>"
+    refute_includes html, "**"
+    assert_predicate html, :html_safe?
+  end
+
+  test "message_body_html leaves a mid-stream assistant message plain" do
+    @message.update!(content: "1. **hi**")
+
+    html = message_body_html(@message, streaming: true)
+
+    assert_equal "1. **hi**", html
+    refute_predicate html, :html_safe?
+  end
+
+  test "message_body_html leaves a user message plain" do
+    user_message = @chat.messages.create!(role: :user, content: "1. **hi**")
+
+    html = message_body_html(user_message)
+
+    assert_equal "1. **hi**", html
+    refute_predicate html, :html_safe?
+  end
+
+  test "message_body_class adds msg-prose only for a finished assistant message" do
+    assert_equal "msg-body msg-prose", message_body_class(@message)
+  end
+
+  test "message_body_class stays msg-body for a user message" do
+    user_message = @chat.messages.create!(role: :user, content: "hi")
+
+    assert_equal "msg-body", message_body_class(user_message)
+  end
+
+  test "message_body_class stays msg-body mid-stream" do
+    assert_equal "msg-body", message_body_class(@message, streaming: true)
+  end
 end

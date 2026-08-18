@@ -184,6 +184,41 @@ class ProjectsControllerShowTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # A stored assistant reply is a finished reply on the page-load path, so the
+  # partial formats it. The user message from setup stays plain in the same feed.
+  test "assistant reply renders as formatted markdown; user message stays plain" do
+    @chat.messages.create!(role: :assistant, content: "1. **bold** step")
+
+    get project_url(@project)
+    assert_response :success
+    assert_select "div#messages" do
+      assert_select ".msg-asst .msg-body.msg-prose ol li strong", text: "bold"
+      assert_select ".msg-user .msg-body:not(.msg-prose)", 1
+    end
+    assert_select ".msg-prose", text: /\*\*/, count: 0
+  end
+
+  # The prompt tells the agent that a tool call is its entire response, but the
+  # partial renders the pill and the body independently, so prose alongside a
+  # tool call is representable — and since this change that prose is formatted.
+  # CLAUDE.md logs the refused-tool-call flash as a known deferred UX issue, so
+  # pin what the coexisting case actually renders rather than assuming it cannot
+  # happen.
+  test "a tool-call message that also carries prose renders the pill and a formatted body" do
+    message = @chat.messages.create!(role: :assistant, content: "Starting on the **habit tracker** now.")
+    message.tool_calls.create!(
+      tool_call_id: "tc_show", name: "create_application",
+      arguments: { "intent" => "habit tracker" }
+    )
+
+    get project_url(@project)
+    assert_response :success
+    assert_select "##{ActionView::RecordIdentifier.dom_id(message)}" do
+      assert_select ".msg-pill", text: /Build started: habit tracker/
+      assert_select ".msg-body.msg-prose strong", text: "habit tracker"
+    end
+  end
+
   test "duplicated inline flash strip is gone; layout-level strip still renders (regression guard)" do
     post project_messages_url(@project), params: { message: { content: "" } }
     follow_redirect!
