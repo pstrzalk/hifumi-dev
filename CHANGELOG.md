@@ -8,6 +8,50 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/) (minor for new
 functionality, patch for fixes and internal changes).
 
+## [1.3.0] - 2026-08-18
+
+### Added
+
+- Assistant replies in chat are now formatted. Bold, italics, bulleted and
+  numbered lists, inline code and multi-line code blocks render as intended,
+  instead of showing the raw `**`, `###` and backtick markers the model has
+  always written. The rendered set is deliberately small: headings, block
+  quotes, tables and strikethrough flatten to plain text, and links and images
+  are never rendered as such — a markdown link keeps its label, so the agent is
+  asked to write URLs plainly and leave them readable. Text still streams in as
+  plain text and formats once the reply finishes. Nothing is stored formatted,
+  so older conversations pick up the change too.
+- Claude Sonnet 5 and Claude Opus 5 can be selected for any of the six
+  generation stages, both as account defaults and per project. Stage defaults
+  are unchanged, so existing projects keep the models they were created with.
+
+### Changed
+
+- Preview subdomains now use the pre-issued wildcard certificate that 1.2.0
+  added as opt-in. A first visit no longer waits for a certificate to be
+  issued, and the certificate-transparency warning that a slightly fast clock
+  could trigger is gone.
+
+### Fixed
+
+- Selecting Claude Sonnet 4.6 or Claude Opus 4.6 did not actually work: chat
+  answered with "The configured model is unavailable", and a project using one
+  for its template stage failed mid-build. Only the default Haiku model
+  resolved. Both environments are corrected, and a new check fails loudly if a
+  model offered in the picker cannot be resolved, so the picker and what the
+  system can actually run cannot drift apart again silently.
+
+### Security
+
+- No model-authored HTML is ever rendered in chat. The new formatting passes
+  every reply through a CommonMark parser that omits raw HTML outright and then
+  an allowlist sanitizer, because the app's content-security policy permits
+  scripts from any HTTPS origin and so cannot be relied on as a second line of
+  defense.
+- Twelve gems updated for newly published advisories — among them nokogiri,
+  rails-html-sanitizer, loofah, sqlite3 and websocket-driver — together with
+  the Rails 8.1.3.1 patch releases.
+
 ## [1.2.0] - 2026-06-16
 
 ### Added
