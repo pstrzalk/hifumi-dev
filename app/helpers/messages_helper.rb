@@ -15,4 +15,23 @@ module MessagesHelper
       "running: #{message.tool_calls.map(&:name).uniq.join(", ")}"
     end
   end
+
+  # Assistant replies render as markdown once the stream has finished; user text and
+  # mid-stream text stay plain. Returns an html_safe fragment in the formatted case
+  # and a plain String otherwise, so the view's <%= %> escapes it.
+  def message_body_html(message, streaming: false)
+    return message.content.to_s unless format_message_body?(message, streaming)
+
+    Markdown.render(message.content)
+  end
+
+  def message_body_class(message, streaming: false)
+    format_message_body?(message, streaming) ? "msg-body msg-prose" : "msg-body"
+  end
+
+  private
+
+  def format_message_body?(message, streaming)
+    !streaming && message.role == "assistant"
+  end
 end

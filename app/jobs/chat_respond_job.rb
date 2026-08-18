@@ -81,7 +81,10 @@ class ChatRespondJob < ApplicationJob
       project,
       target: ActionView::RecordIdentifier.dom_id(message),
       partial: "messages/message",
-      locals: { message: message }
+      # Mid-stream: markdown is still incomplete (an unclosed ``` fence would
+      # swallow the rest of the reply), so render plain text and let the final
+      # broadcast from Message#broadcast_replace_message format it.
+      locals: { message: message, streaming: true }
     )
   end
 end

@@ -25,7 +25,12 @@ class Message < ApplicationRecord
     broadcast_append_later_to chat.project,
       target: "messages",
       partial: "messages/message",
-      locals: { message: self }
+      # `_later` renders inside Turbo::Streams::ActionBroadcastJob, ~100-300ms
+      # after this commit, from a GlobalID reload — by which point ChatRespondJob
+      # has already written chunks. An append is only ever a user message or
+      # RubyLLM's empty assistant placeholder, never a finished reply, so it must
+      # never format.
+      locals: { message: self, streaming: true }
   end
 
   def broadcast_replace_message
