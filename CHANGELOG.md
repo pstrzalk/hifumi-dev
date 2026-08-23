@@ -8,6 +8,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/) (minor for new
 functionality, patch for fixes and internal changes).
 
+## [Unreleased]
+
+### Changed
+
+- The conversation layer moved to RubyLLM 2.0. Nothing changes in how the app
+  behaves — chat still streams, builds still start from the same two tools —
+  but self-hosters upgrading past this point should know two things. First, the
+  gem is pinned to a specific commit of its `main` branch rather than a
+  released version, because 2.0 has not shipped to RubyGems yet. Second, the
+  upgrade runs a **one-way** migration: it renames `models` to
+  `ruby_llm_models` and `tool_calls` to `ruby_llm_tool_calls` in place, moves
+  per-message token counts into a new `ruby_llm_usages` table, and drops the
+  columns it replaced. There is no `down`, and the migration runs
+  automatically when the container boots, so a deploy is what triggers it.
+  Snapshot the database first; the procedure is in
+  `docs/05-runbooks/04-ruby-llm-v2-rollout.md`.
+
 ## [1.3.0] - 2026-08-18
 
 ### Added

@@ -178,7 +178,7 @@ Separate list — gems used in the generator itself, not in generated apps.
 
 | Gem | What for |
 |-----|----------|
-| `ruby_llm` | Conversation layer, chat, tools |
+| `ruby_llm` | Conversation layer, chat, tools. Git-pinned to `crmne/ruby_llm@c45ebd78` (the unreleased 2.0 line; see `docs/05-runbooks/04-ruby-llm-v2-rollout.md`) — swap to a version constraint once 2.0 ships to RubyGems. Brings `schematist`, which replaced `ruby_llm-schema` as the structured-output DSL |
 | `roast-ai` (~> 1.1) | Orchestration of generation workflows. **Requires Ruby >= 3.3.** |
 | `devise` | Auth for generator users |
 | `solid_queue` | Background jobs (generation, preview) |

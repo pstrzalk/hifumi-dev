@@ -20,11 +20,12 @@
 # `claude` CLI's Anthropic API surface, and the plan/template stages need
 # structured output — both rule out arbitrary OpenRouter catalog entries.
 #
-# Adding an id here is NOT sufficient. RubyLLM must also be able to resolve it,
-# which means the `models` table has to carry it in every environment — a
-# partially-filled table shadows the gem's bundled registry entirely. Run
-# `bin/verify-model-registry <id>` before shipping a new entry, and populate
-# with `Model.refresh!`. Procedure: docs/05-runbooks/03-llm-model-registry.md.
+# Adding an id here is NOT sufficient. RubyLLM must also be able to resolve it:
+# it reads the `ruby_llm_models` table as its registry store and falls back to
+# the gem's bundled registry only when that table is empty, so an id missing
+# from both raises ModelNotFoundError. Run `bin/verify-model-registry <id>`
+# before shipping a new entry, and populate with `RubyLLM.models.refresh!`.
+# Procedure: docs/05-runbooks/03-llm-model-registry.md.
 #
 # Deliberate exclusions (2026-08-12), so they don't get "fixed" back in:
 #   - `:batch` and `-fast` variants — async Batch API / premium fast mode, both
