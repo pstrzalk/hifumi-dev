@@ -36,10 +36,12 @@ module Templates
       ctx = RubyLLM.context { |c| c.openrouter_api_key = openrouter_api_key }
       chat = ctx.chat(model: model)
       chat.with_instructions(SYSTEM_PROMPT)
-      content = chat.with_schema(SCHEMA).ask("Description: #{description}").content
-      name = content.is_a?(Hash) ? content["template"] : nil
-      raise InvalidPick, "picker returned #{content.inspect}" unless Templates::NAMES.include?(name)
+      parsed = chat.with_schema(SCHEMA).ask("Description: #{description}").parsed
+      name = parsed.is_a?(Hash) ? parsed["template"] : nil
+      raise InvalidPick, "picker returned #{parsed.inspect}" unless Templates::NAMES.include?(name)
       name
+    rescue JSON::ParserError => e
+      raise InvalidPick, "picker returned malformed JSON: #{e.message}"
     end
 
     def self.apply(workspace:, name:)

@@ -63,7 +63,7 @@ class ProjectsController < ApplicationController
   end
 
   def build_chat_events(project)
-    messages = project.chat.messages.includes(:tool_calls).to_a
+    messages = project.chat.messages.includes(:ruby_llm_tool_calls).to_a
     status_instructions = project.instructions
       .where(phase: %w[completed failed])
       .to_a

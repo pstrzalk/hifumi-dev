@@ -12,8 +12,15 @@ require_relative "../config/environment"
 project_id = ARGV.first || abort("usage: bin/inspect-chat <project_id>")
 project = Project.find(project_id)
 chat = project.chat
-messages = chat.messages.includes(:tool_calls).order(:id).to_a
-tcs_by_id = ToolCall.where(id: messages.map(&:tool_call_id).compact).index_by(&:id)
+
+# RubyLLM v2 owns the rows: ruby_llm_tool_calls, reached through the
+# ruby_llm_tool_calls / ruby_llm_parent_tool_call associations. The
+# Message#tool_calls reader returns a Hash of value objects instead, and
+# the tool_use ↔ tool_result link now lives on the row (result_id), not on
+# messages.tool_call_id — which the upgrade migration dropped.
+messages = chat.messages
+               .includes(:ruby_llm_tool_calls, :ruby_llm_parent_tool_call)
+               .order(:id).to_a
 
 puts "Project ##{project.id} (#{project.name}) — chat ##{chat.id} — #{messages.size} messages"
 puts "=" * 80
@@ -22,19 +29,12 @@ messages.each_with_index do |m, i|
   preview = m.content.to_s.gsub(/\s+/, " ").strip[0, 80]
   puts "[#{i}] msg_id=#{m.id} role=#{m.role.ljust(9)} content=#{preview.inspect}"
 
-  if m.tool_calls.any?
-    m.tool_calls.each do |tc|
-      puts "      tool_use:    name=#{tc.name} provider_id=#{tc.tool_call_id} (tc_row=#{tc.id})"
-    end
+  m.ruby_llm_tool_calls.each do |tc|
+    puts "      tool_use:    name=#{tc.name} provider_id=#{tc.tool_call_id} (tc_row=#{tc.id})"
   end
 
-  if m.tool_call_id
-    tc = tcs_by_id[m.tool_call_id]
-    if tc
-      puts "      tool_result: tc_row=#{tc.id} provider_id=#{tc.tool_call_id} parent_msg=#{tc.message_id}"
-    else
-      puts "      tool_result: tc_row=#{m.tool_call_id} ← MISSING tool_calls row (orphan)"
-    end
+  if (parent = m.ruby_llm_parent_tool_call)
+    puts "      tool_result: tc_row=#{parent.id} provider_id=#{parent.tool_call_id} parent_msg=#{parent.message_id}"
   end
 end
 
@@ -45,24 +45,24 @@ puts "-" * 80
 issues = []
 messages.each_with_index do |m, i|
   next unless m.role == "tool"
-  prev = messages[i - 1]
-  tc = tcs_by_id[m.tool_call_id]
-  unless tc
-    issues << "[#{i}] msg #{m.id}: tool_result references missing tool_calls.id=#{m.tool_call_id}"
+  parent = m.ruby_llm_parent_tool_call
+  unless parent
+    issues << "[#{i}] msg #{m.id}: tool_result with no ruby_llm_tool_calls row (orphan)"
     next
   end
-  parent_msg_id = tc.message_id
-  if prev.nil? || prev.id != parent_msg_id
-    issues << "[#{i}] msg #{m.id}: tool_result for tc #{tc.tool_call_id} expects parent msg=#{parent_msg_id}, but previous is msg=#{prev&.id}"
+  prev = messages[i - 1]
+  if prev.nil? || prev.id != parent.message_id
+    issues << "[#{i}] msg #{m.id}: tool_result for tc #{parent.tool_call_id} expects parent msg=#{parent.message_id}, but previous is msg=#{prev&.id}"
   end
 end
 
 # Assistant tool_calls with no following tool message
 messages.each_with_index do |m, i|
-  next unless m.role == "assistant" && m.tool_calls.any?
-  next_msgs = messages[i + 1..(i + m.tool_calls.size)] || []
-  m.tool_calls.each do |tc|
-    matched = next_msgs.any? { |n| n.role == "tool" && n.tool_call_id == tc.id }
+  calls = m.ruby_llm_tool_calls
+  next unless m.role == "assistant" && calls.any?
+  next_msgs = messages[i + 1..(i + calls.size)] || []
+  calls.each do |tc|
+    matched = next_msgs.any? { |n| n.role == "tool" && n.id == tc.result_id }
     unless matched
       issues << "[#{i}] msg #{m.id}: assistant tool_use #{tc.tool_call_id} (#{tc.name}) has no following tool result"
     end

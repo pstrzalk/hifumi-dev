@@ -206,7 +206,7 @@ class ProjectsControllerShowTest < ActionDispatch::IntegrationTest
   # happen.
   test "a tool-call message that also carries prose renders the pill and a formatted body" do
     message = @chat.messages.create!(role: :assistant, content: "Starting on the **habit tracker** now.")
-    message.tool_calls.create!(
+    message.ruby_llm_tool_calls.create!(
       tool_call_id: "tc_show", name: "create_application",
       arguments: { "intent" => "habit tracker" }
     )

@@ -12,16 +12,11 @@
 # On a deployed host:
 #   kamal app exec --reuse "bin/verify-model-registry"
 #
-# Why this exists: `use_new_acts_as` + app/models/model.rb (acts_as_model) make
-# RubyLLM prefer the `models` DB table over the gem's bundled models.json, and
-# fall back to the JSON only when that table is EMPTY. A partially-populated
-# table therefore shadows the JSON completely — on 2026-08-12 both dev and
-# production held a single row (haiku only), so the Sonnet 4.6 and Opus 4.6
-# selections raised ModelNotFoundError on every RubyLLM-backed stage.
-#
-# The fix is to populate the table (`Model.refresh!`); this script is how you
-# confirm it. Pass candidate ids to check a model BEFORE adding it to
-# LLM::Stages::AVAILABLE_MODELS.
+# Why this exists: with acts_as installed, RubyLLM v2 uses the ruby_llm_models
+# table as its registry store and falls back to the gem's bundled models.json
+# only when that table is empty (models.rb:85-97). A model absent from both
+# raises ModelNotFoundError on every RubyLLM-backed stage. Pass candidate ids
+# to check a model BEFORE adding it to LLM::Stages::AVAILABLE_MODELS.
 #
 # See docs/05-runbooks/03-llm-model-registry.md.
 #
@@ -33,8 +28,16 @@ candidates = ARGV
 offered = LLM::Stages::AVAILABLE_MODELS.keys
 failures = []
 
-puts "models table rows: #{Model.count}"
-puts "resolved registry:  #{RubyLLM::Models.instance.all.size}"
+# RubyLLM wires config.model_registry_store to the ruby_llm_models table from an
+# `on_load :active_record` hook, so in a lazy-loading environment the store is
+# still nil until something touches ActiveRecord — and RubyLLM::Models would
+# silently resolve against the gem's bundled JSON instead of the DB, which is
+# the exact confusion this script exists to prevent.
+Rails.application.eager_load!
+store = RubyLLM.config.model_registry_store
+
+puts "registry store rows: #{store ? store.count : "(no store configured)"}"
+puts "resolved registry:   #{RubyLLM::Models.instance.all.size}"
 
 def check(id, failures)
   info, = RubyLLM::Models.resolve(id)
@@ -54,7 +57,7 @@ end
 
 if failures.any?
   puts "\n#{failures.size} id(s) did not resolve: #{failures.join(', ')}"
-  puts "Populate the registry with: bin/rails runner 'Model.refresh!'"
+  puts "Populate the registry with: bin/rails runner 'RubyLLM.models.refresh!'"
   puts "Then restart long-lived processes — the registry is memoized per process."
   exit 1
 end

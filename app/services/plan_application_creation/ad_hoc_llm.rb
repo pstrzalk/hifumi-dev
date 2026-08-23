@@ -14,7 +14,7 @@ module PlanApplicationCreation
       ctx = RubyLLM.context { |c| c.openrouter_api_key = openrouter_api_key }
       chat = ctx.chat(model: model)
       chat.with_instructions(system)
-      chat.with_schema(PlanSchema).ask(user).content
+      chat.with_schema(PlanSchema).ask(user).parsed
     end
 
     def self.build_user_prompt(intent, clarifications, _context)

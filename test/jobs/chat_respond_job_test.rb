@@ -203,8 +203,8 @@ class ChatRespondJobTest < ActiveJob::TestCase
 
   test "with_context preserves acts_as_chat persistence callbacks (assistant message persisted)" do
     # The plan §Phase 4 step 6 paranoia: switching agent.complete →
-    # agent.with_context(ctx).complete must not strip the on_new_message /
-    # on_end_message callbacks that acts_as_chat installs.
+    # agent.with_context(ctx).complete must not strip the before_message /
+    # after_message callbacks that acts_as_chat installs.
     stub_complete(chunks: [ "callback survived" ]) do
       perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
     end

@@ -109,6 +109,29 @@ class CreateApplicationTest < ActiveSupport::TestCase
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 
+  test "on malformed plan JSON: returns error hash, persists nothing, no notification" do
+    # RubyLLM v2's Message#parsed raises instead of degrading to a String, and
+    # nothing may escape #execute — an exception here would leave a persisted
+    # tool_use with no tool_result, which permanently breaks the chat.
+    raising = ->(**) { raise JSON::ParserError, "unexpected token at 'not json'" }
+    payloads = []
+    subscriber = ActiveSupport::Notifications.subscribe("instruction.requested") { |*, p| payloads << p }
+
+    result = nil
+    assert_no_difference -> { Instruction.count } do
+      assert_no_difference -> { Revision.count } do
+        stub_create_plan(raising) do
+          result = @tool.execute(intent: "x", clarifications: {})
+        end
+      end
+    end
+
+    assert_match(/Could not generate a plan/, result[:error])
+    assert_empty payloads
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
   test "on unexpected error from PlanApplicationCreation: propagates and persists nothing" do
     raising = ->(**) { raise RuntimeError, "upstream boom" }
 

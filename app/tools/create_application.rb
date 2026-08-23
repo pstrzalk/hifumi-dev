@@ -4,7 +4,7 @@ class CreateApplication < RubyLLM::Tool
               "Call this only when the project has no application yet (workspace is empty). " \
               "The user must have explicitly confirmed they're ready to start before you call this."
 
-  params do
+  parameters do
     string :intent,
            description: "Plain-language description of what the user wants, e.g. 'flower shop with inventory and Stripe'."
     object :clarifications,
@@ -65,7 +65,10 @@ class CreateApplication < RubyLLM::Tool
       revision_count: result.revisions.size,
       instruction_description: result.instruction_description
     }
-  rescue PlanApplicationCreation::AdHocLLM::InvalidResponse => e
+  rescue PlanApplicationCreation::AdHocLLM::InvalidResponse, JSON::ParserError => e
+    # JSON::ParserError: v2's Message#parsed raises on a malformed plan where v1
+    # silently kept the String. Nothing may escape #execute — an exception here
+    # leaves a persisted tool_use with no tool_result and the chat is finished.
     { error: "Could not generate a plan: #{e.message}. Ask the user to rephrase." }
   end
 
