@@ -25,7 +25,7 @@ class Templates::PickerTest < ActiveSupport::TestCase
     end
   end
 
-test "pick raises InvalidPick when the response body is not valid JSON" do
+  test "pick raises InvalidPick when the response body is not valid JSON" do
     stub_pick("cyber", raising: true) do
       error = assert_raises(Templates::Picker::InvalidPick) do
         Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test", model: "anthropic/claude-haiku-4.5")
@@ -34,7 +34,7 @@ test "pick raises InvalidPick when the response body is not valid JSON" do
     end
   end
 
-    test "pick passes the selected model to the chat" do
+  test "pick passes the selected model to the chat" do
     stub_pick("cyber") do |captured|
       Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test", model: "anthropic/claude-opus-4.6")
       assert_equal "anthropic/claude-opus-4.6", captured[:chat_kwargs][:model]
