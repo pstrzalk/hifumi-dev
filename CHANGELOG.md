@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/) (minor for new
 functionality, patch for fixes and internal changes).
 
-## [Unreleased]
+## [1.4.0] - 2026-08-24
 
 ### Changed
 
