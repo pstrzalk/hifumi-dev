@@ -7,6 +7,20 @@ TEST_WORKSPACES_ROOT = File.join(Dir.tmpdir, "hifumi-dev-test-workspaces")
 ENV["HIFUMI_DEV_WORKSPACE_ROOT"] ||=
   File.join(TEST_WORKSPACES_ROOT, "pid_#{Process.pid}")
 
+# Disable git's background housekeeping for every git subprocess a test spawns.
+# It writes transient lock files under .git (e.g. objects/maintenance.lock) that
+# vanish between a directory walk and the per-entry operation, so any test that
+# chmods or removes a tree containing a git repo can ENOENT — including
+# Dir.mktmpdir's own cleanup, which no application-side fix can reach. Seen in
+# CI (git 2.47) across unrelated tests; local git 2.44 rarely triggers it.
+# GIT_CONFIG_COUNT injects config into every child git without touching the
+# developer's global config.
+ENV["GIT_CONFIG_COUNT"] = "2"
+ENV["GIT_CONFIG_KEY_0"] = "maintenance.auto"
+ENV["GIT_CONFIG_VALUE_0"] = "false"
+ENV["GIT_CONFIG_KEY_1"] = "gc.auto"
+ENV["GIT_CONFIG_VALUE_1"] = "0"
+
 require_relative "../config/environment"
 require "rails/test_help"
 
