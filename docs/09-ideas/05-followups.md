@@ -161,6 +161,45 @@ The codegen agent now runs each revision in a per-instruction throwaway containe
 
 ---
 
+## 2026-08-28
+
+### RubyLLM v2 migration leftovers — both need their own migration
+
+Two residues of the gem-generated upgrade migration
+(`db/migrate/20260822224622_add_ruby_llm_v2_0_columns.rb`). Neither is fixable
+by editing that migration — it has already run — so each needs a new one, and
+neither was in scope for the upgrade itself.
+
+- **Dead index on the hottest-written table.** The migration converts
+  `messages.model_id` from an integer FK into `provider` + `model_id` strings
+  and indexes them as `index_messages_on_provider_and_model_id`. But v2 never
+  writes those columns: `ChatMethods#message_attributes` assigns only
+  thinking/citations/server_tool_calls/raw_content/raw_reasoning/finish_reason/
+  cache_until_here, and per-message model identity moved to `ruby_llm_usages`.
+  Measured locally after the upgrade: 241 rows carry `provider` (all from the
+  one-time backfill) and **all 45 written since have it NULL**. So the index is
+  pure insert overhead on the table that takes one row per streamed message.
+  Dropping it — and the columns — is safe only after confirming nothing reads
+  them; the backfilled values are the sole historical record of which model
+  answered a pre-upgrade message, so consider whether that is worth keeping
+  before dropping the columns as well.
+  Also leftover: `index_ruby_llm_tool_calls_on_message_id` survives the rename
+  alongside the new `(message_type, message_id)` composite, which fully covers
+  it — the gem only ever queries with `message_type` present.
+
+- **The `tool_calls → messages` foreign key is gone with nothing replacing it.**
+  `normalize_tool_calls` drops it because the column became polymorphic, so
+  `ruby_llm_tool_calls.message_id` is now a bare integer. Today this is
+  defence-in-depth only: the `Project → chat → messages → ruby_llm_tool_calls`
+  `dependent: :destroy` chain still cleans up. It matters if a future cleanup
+  job or console fix ever uses `delete_all`, because an orphan whose provider
+  tool-call id later recurs would hit the UNIQUE index on `tool_call_id` and
+  make `persist_tool_calls` raise `RecordNotUnique` **inside**
+  `persist_message_completion`'s transaction, rolling back the assistant
+  message. A polymorphic FK can't be restored directly; the options are a
+  periodic orphan sweep or a partial constraint. Worth deciding before writing
+  any code that deletes messages outside AR callbacks.
+
 ## 2026-06-17
 
 ### Move untrusted previews to a separate registrable domain

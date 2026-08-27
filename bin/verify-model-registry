@@ -29,11 +29,13 @@ offered = LLM::Stages::AVAILABLE_MODELS.keys
 failures = []
 
 # RubyLLM wires config.model_registry_store to the ruby_llm_models table from an
-# `on_load :active_record` hook, so in a lazy-loading environment the store is
-# still nil until something touches ActiveRecord — and RubyLLM::Models would
-# silently resolve against the gem's bundled JSON instead of the DB, which is
-# the exact confusion this script exists to prevent.
-Rails.application.eager_load!
+# `on_load :active_record` hook. This script boots via require "config/environment"
+# rather than `bin/rails runner`, and that path does not touch ActiveRecord — so
+# without the line below the store is nil and RubyLLM::Models would silently
+# resolve against the gem's bundled JSON instead of the DB, which is the exact
+# confusion this script exists to prevent. Referencing ActiveRecord::Base fires
+# the hook on its own; a full eager_load! is not needed.
+ActiveRecord::Base.connection_pool
 store = RubyLLM.config.model_registry_store
 
 puts "registry store rows: #{store ? store.count : "(no store configured)"}"
