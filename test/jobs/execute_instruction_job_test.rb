@@ -239,6 +239,39 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     end
   end
 
+  test "relax_workspace_permissions survives an entry that disappears mid-walk" do
+    # git's background housekeeping drops transient lock files under .git.
+    # chmod_R lists a directory, then chmods each entry it listed — so a file
+    # git removes in that window raises ENOENT and aborts the whole walk,
+    # failing the revision. Seen in CI on git 2.47. Simulated by making chmod
+    # raise for exactly that path, which is what the kernel does when the
+    # listed file is already gone.
+    Dir.mktmpdir("hifumi-dev-vanish-") do |root|
+      ws = File.join(root, "project_vanish")
+      FileUtils.mkdir_p(File.join(ws, ".git/objects"))
+      File.write(File.join(ws, ".git/objects/maintenance.lock"), "")
+      File.write(File.join(ws, "Gemfile.lock"), "GEM\n")
+
+      original = File.method(:chmod)
+      File.define_singleton_method(:chmod) do |mode, *paths|
+        if paths.any? { |path| path.to_s.end_with?("maintenance.lock") }
+          raise Errno::ENOENT, paths.first.to_s
+        end
+        original.call(mode, *paths)
+      end
+
+      begin
+        ExecuteInstructionJob.new.send(:relax_workspace_permissions, ws)
+      ensure
+        File.singleton_class.send(:remove_method, :chmod)
+        File.define_singleton_method(:chmod, original)
+      end
+
+      assert_equal 0o666, File.stat(File.join(ws, "Gemfile.lock")).mode & 0o777,
+                   "the walk must still relax the files that do exist"
+    end
+  end
+
   # --- seam shape --------------------------------------------------------
 
   test "run_roast_subprocess receives HIFUMI_DEV_* env and bin/roast workflow args" do

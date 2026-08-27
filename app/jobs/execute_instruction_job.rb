@@ -72,12 +72,18 @@ class ExecuteInstructionJob < ApplicationJob
       )
       raise "bundle install failed in #{workspace}" unless ok
 
+      # maintenance.auto/gc.auto: background housekeeping writes transient lock
+      # files under .git that vanish mid-walk and ENOENT the chmod_R in
+      # relax_workspace_permissions, failing the revision. A tenant workspace is
+      # short-lived and small; it never needs to repack itself.
       ok = system(
         subprocess_env,
         "cd #{Shellwords.escape(workspace)} && " \
         "git init -q -b main && " \
         "git config user.email #{Shellwords.escape(Project::COMMIT_AUTHOR_EMAIL)} && " \
         "git config user.name #{Shellwords.escape(Project::COMMIT_AUTHOR_NAME)} && " \
+        "git config maintenance.auto false && " \
+        "git config gc.auto 0 && " \
         "git add -A && " \
         "git -c user.email=#{Shellwords.escape(Project::COMMIT_AUTHOR_EMAIL)} " \
         "-c user.name=#{Shellwords.escape(Project::COMMIT_AUTHOR_NAME)} " \
@@ -108,7 +114,13 @@ class ExecuteInstructionJob < ApplicationJob
   # already a+rw inside the tenant boundary and generated apps ship empty
   # credentials.
   def relax_workspace_permissions(workspace)
-    FileUtils.chmod_R("a+rwX", workspace)
+    # force: chmod_R stats every entry it walked, and anything git drops in
+    # between (a lock file from background housekeeping, an index refresh)
+    # raises ENOENT and aborts the whole walk — failing the revision. Workspaces
+    # created before the maintenance.auto/gc.auto config above still exist, so
+    # this is not redundant with it. Relaxation is best-effort by nature: a
+    # genuinely unchmoddable file surfaces at the next operation instead.
+    FileUtils.chmod_R("a+rwX", workspace, force: true)
     master_key_path = File.join(workspace, "config/master.key")
     File.chmod(0o644, master_key_path) if File.exist?(master_key_path)
   end
