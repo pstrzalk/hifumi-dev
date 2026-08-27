@@ -50,7 +50,10 @@ messages.each_with_index do |m, i|
     issues << "[#{i}] msg #{m.id}: tool_result with no ruby_llm_tool_calls row (orphan)"
     next
   end
-  prev = messages[i - 1]
+  # i.zero? guard: messages[-1] would wrap to the LAST message, so a chat that
+  # opens with an orphaned tool result — exactly what this script hunts for —
+  # would be reported against the wrong parent instead of as having none.
+  prev = i.zero? ? nil : messages[i - 1]
   if prev.nil? || prev.id != parent.message_id
     issues << "[#{i}] msg #{m.id}: tool_result for tc #{parent.tool_call_id} expects parent msg=#{parent.message_id}, but previous is msg=#{prev&.id}"
   end

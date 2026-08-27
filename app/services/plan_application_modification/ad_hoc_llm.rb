@@ -28,6 +28,11 @@ module PlanApplicationModification
 
     def self.build_result(content)
       raise InvalidResponse, "LLM returned no content" if content.nil?
+      # Message#parsed is JSON.parse: valid JSON that isn't an object gets
+      # through it, and `Array(array_or_number["revisions"])` then raises
+      # TypeError — which ModifyApplication#execute does not rescue, leaving a
+      # persisted tool_use with no tool_result and a permanently dead chat.
+      raise InvalidResponse, "expected a JSON object, got #{content.class}" unless content.is_a?(Hash)
 
       revisions = Array(content["revisions"]).map do |r|
         { summary: r.fetch("summary"), prompt: r.fetch("prompt") }

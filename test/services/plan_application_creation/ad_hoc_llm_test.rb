@@ -74,6 +74,20 @@ class PlanApplicationCreation::AdHocLLMTest < ActiveSupport::TestCase
     end
   end
 
+  # Message#parsed is JSON.parse, so a top-level array/number/boolean reaches
+  # build_result intact. Without the is_a?(Hash) guard `Array(content["revisions"])`
+  # raises TypeError, which CreateApplication#execute does not rescue — the
+  # tool_use is then persisted with no tool_result and the chat is dead for good.
+  test "raises InvalidResponse when the response parses to a non-object" do
+    [ [ { "summary" => "a", "prompt" => "b" } ], 42, true, "plain string" ].each do |content|
+      with_llm_response(content) do
+        assert_raises(PlanApplicationCreation::AdHocLLM::InvalidResponse, "expected #{content.class} to be rejected") do
+          PlanApplicationCreation::AdHocLLM.call(intent: "x", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+        end
+      end
+    end
+  end
+
   test "raises InvalidResponse when revisions array is empty" do
     with_llm_response(plan_fixture("empty_revisions.json")) do
       assert_raises(PlanApplicationCreation::AdHocLLM::InvalidResponse) do

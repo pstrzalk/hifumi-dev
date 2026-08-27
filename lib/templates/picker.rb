@@ -36,12 +36,19 @@ module Templates
       ctx = RubyLLM.context { |c| c.openrouter_api_key = openrouter_api_key }
       chat = ctx.chat(model: model)
       chat.with_instructions(SYSTEM_PROMPT)
-      content = chat.with_schema(SCHEMA).ask("Description: #{description}").parsed
+      response = chat.with_schema(SCHEMA).ask("Description: #{description}")
+      # Scoped to `.parsed` alone: RubyLLM decodes provider error bodies as JSON
+      # too, so a method-wide rescue would relabel an OpenRouter 502 that returns
+      # an HTML page as "picker returned malformed JSON" and send whoever reads
+      # the failed revision to the prompt instead of the transport.
+      content = begin
+        response.parsed
+      rescue JSON::ParserError => e
+        raise InvalidPick, "picker returned malformed JSON: #{e.message}"
+      end
       name = content.is_a?(Hash) ? content["template"] : nil
       raise InvalidPick, "picker returned #{content.inspect}" unless Templates::NAMES.include?(name)
       name
-    rescue JSON::ParserError => e
-      raise InvalidPick, "picker returned malformed JSON: #{e.message}"
     end
 
     def self.apply(workspace:, name:)

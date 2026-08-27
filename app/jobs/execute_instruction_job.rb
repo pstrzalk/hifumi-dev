@@ -114,15 +114,36 @@ class ExecuteInstructionJob < ApplicationJob
   # already a+rw inside the tenant boundary and generated apps ship empty
   # credentials.
   def relax_workspace_permissions(workspace)
-    # force: chmod_R stats every entry it walked, and anything git drops in
-    # between (a lock file from background housekeeping, an index refresh)
-    # raises ENOENT and aborts the whole walk — failing the revision. Workspaces
-    # created before the maintenance.auto/gc.auto config above still exist, so
-    # this is not redundant with it. Relaxation is best-effort by nature: a
-    # genuinely unchmoddable file surfaces at the next operation instead.
-    FileUtils.chmod_R("a+rwX", workspace, force: true)
+    disable_git_housekeeping(workspace)
+
+    # force: covers the per-entry chmod, and nothing else — FileUtils wraps only
+    # `ent.chmod` in its rescue, while the walk's own `Dir.children` sits
+    # outside it. So a *file* git drops mid-walk is survivable but a *directory*
+    # is not (gc prunes empty .git/objects/<xx> fanouts), and ENOENT still
+    # aborts the whole walk and fails the revision. Retry once against a settled
+    # tree; relaxation is best-effort by nature, so a second failure is not
+    # worth failing a revision for — a genuinely unchmoddable file surfaces at
+    # the next operation with a clearer error than a half-finished walk.
+    attempts = 0
+    begin
+      FileUtils.chmod_R("a+rwX", workspace, force: true)
+    rescue Errno::ENOENT
+      retry if (attempts += 1) < 2
+    end
     master_key_path = File.join(workspace, "config/master.key")
     File.chmod(0o644, master_key_path) if File.exist?(master_key_path)
+  end
+
+  # init_rails_app sets these at creation, but every workspace made before that
+  # landed still generates the lock files that race the walk above — and those
+  # are all of production's. Idempotent, and two git configs are nothing beside
+  # a roast run measured in minutes.
+  def disable_git_housekeeping(workspace)
+    return unless File.directory?(File.join(workspace, ".git"))
+
+    %w[maintenance.auto gc.auto].zip(%w[false 0]).each do |key, value|
+      system("git", "-C", workspace, "config", key, value, out: File::NULL, err: File::NULL)
+    end
   end
 
   # Cwd for rails new / git / bundle is outside this repo (Project.workspace_root),
