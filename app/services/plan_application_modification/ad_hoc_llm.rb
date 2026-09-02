@@ -35,6 +35,12 @@ module PlanApplicationModification
       raise InvalidResponse, "expected a JSON object, got #{content.class}" unless content.is_a?(Hash)
 
       revisions = Array(content["revisions"]).map do |r|
+        # The Hash check above only covers the top level. A valid JSON object
+        # whose `revisions` hold non-objects raises NoMethodError (String#fetch)
+        # or TypeError (Array#fetch, via Array(hash) => [[k, v]]) here — neither
+        # of which #execute rescues, and both of which orphan the tool_use.
+        raise InvalidResponse, "expected revision objects, got #{r.class}" unless r.is_a?(Hash)
+
         { summary: r.fetch("summary"), prompt: r.fetch("prompt") }
       end
       raise InvalidResponse, "empty revisions" if revisions.empty?
