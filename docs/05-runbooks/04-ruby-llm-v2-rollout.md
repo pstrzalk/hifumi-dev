@@ -69,10 +69,30 @@ sqlite3 storage/development.sqlite3 ".backup 'storage/development.sqlite3.mine'"
 cp /tmp/production.sqlite3.pre-v2 storage/development.sqlite3
 rm -f storage/development.sqlite3-wal storage/development.sqlite3-shm
 
-# 1.5 Record the before count, migrate, record the after count.
+# 1.5 Record the before counts, migrate (TIMED), record the after counts.
 sqlite3 storage/development.sqlite3 "SELECT COUNT(*) FROM models;"          # before
-bin/rails db:migrate
-sqlite3 storage/development.sqlite3 "SELECT COUNT(*) FROM ruby_llm_models;" # after — MUST match
+sqlite3 storage/development.sqlite3 \
+  "SELECT COUNT(*) FROM messages WHERE input_tokens IS NOT NULL
+    OR output_tokens IS NOT NULL OR cache_read_tokens IS NOT NULL
+    OR cache_write_tokens IS NOT NULL OR thinking_tokens IS NOT NULL;"      # before
+
+time bin/rails db:migrate
+#   -> This is the go/no-go number. Kamal's deploy_timeout defaults to 30s and
+#      config/deploy.yml does not override it, so a migration slower than that
+#      is reported as a FAILED deploy while still running on production. On
+#      SQLite every remove_column/rename_column goes through alter_table, which
+#      copies the whole table twice; `messages` is hit 12 times, so runtime
+#      scales with roughly 24x its row count, not 1x. Over ~10s here: set
+#      deploy_timeout in config/deploy.yml before deploying.
+
+sqlite3 storage/development.sqlite3 "SELECT COUNT(*) FROM ruby_llm_models;"  # after — MUST match
+sqlite3 storage/development.sqlite3 "SELECT COUNT(*) FROM ruby_llm_usages;"  # after — MUST match
+#   -> The usages count MUST equal the token-column count above.
+#      backfill_usage_entries SKIPS any message whose provider/model_id are
+#      null and whose chat has no ruby_llm_model_id, and
+#      remove_legacy_message_columns then drops the source columns. A shortfall
+#      is silent, irreversible data loss and nothing else in this runbook
+#      catches it.
 
 # 1.6 Structural checks. Both must be clean.
 sqlite3 storage/development.sqlite3 "PRAGMA integrity_check; PRAGMA foreign_key_check;"
@@ -99,16 +119,44 @@ token data. `ruby_llm_batches` is created empty.
 > registry for every provider (410 → 1464 locally on first refresh). If the count
 > changed, attribute it to whichever step you just ran. See runbook 03.
 
-If step 1.5's two numbers differ, or 1.6 reports anything, **stop** — do not
+If either of step 1.5's paired counts differ, or 1.6 reports anything, **stop** — do not
 deploy. Production has data shapes the rehearsal just found and the plan did not.
 
 ## 2. Before deploying
 
 ```bash
+# 2.0 Check your shell FIRST. Both `kamal deploy` and `kamal app boot`
+#     re-source .kamal/secrets from the caller's environment (`kamal app start`
+#     does not — it reuses the container's env). SMTP_PASSWORD and
+#     GITHUB_CLIENT_SECRET come from your shell, so a local dev export ships
+#     silently to production. This has happened (2026-05-15).
+#
+#     Prefixes cannot tell a stale key from a live one — every Resend key
+#     starts `re_` — so compare hashes against what production runs now.
+for v in SMTP_PASSWORD GITHUB_CLIENT_SECRET; do
+  mine=$(printenv "$v" | shasum | cut -c1-8)
+  live=$(kamal app exec --reuse "sh -c 'printenv $v | shasum | cut -c1-8'" | sed -n '2p')
+  echo "$v  shell=$mine  prod=$live"
+done
+#   -> MUST match. A mismatch means your shell would overwrite production's
+#      value. Fix your environment before going further.
+
 # 2.1 Capture the currently-running version. You need this to roll back, and
 #     it is unavailable once the new one is running.
-kamal app version | tail -1     # write it down — call it PREV
+#
+#     Take line 2, not `tail -1`: kamal prints "App Host: <ip>" first and ends
+#     with a blank line, so `tail -1` returns EMPTY. An empty --version is not
+#     `.presence`, so Kamal falls through to the LOCAL git SHA — which during a
+#     rollback is the v2 image, and booting that against a restored v1 database
+#     re-runs the one-way migration over the snapshot you just restored.
+PREV=$(kamal app version | sed -n '2p')
+[ -n "$PREV" ] || echo "FAILED to capture the running version — do not deploy"
+echo "PREV=$PREV"     # write this down as well; $PREV dies with your shell
 ```
+
+> Any pipe applied to **kamal's own stdout** has to skip the `App Host:` line.
+> Pipes *inside* a quoted container command (`kamal app exec --reuse "... | tail -3"`)
+> run in the container and are unaffected.
 
 ```bash
 # 2.2 Check for chats parked mid-tool-round. backfill_tool_results moves
@@ -130,10 +178,32 @@ they are.
 kamal app exec --reuse \
   "sqlite3 /rails/storage/production.sqlite3 \".backup '/rails/storage/production.sqlite3.pre-v2'\""
 
-# 3.2 Deploy. db:prepare runs the migration during boot.
+# 3.2 Pre-build, so the outage below is boot+migrate rather than
+#     build+push+boot+migrate.
+kamal build push
+
+# 3.3 STOP the app before anything migrates. `kamal deploy` on its own boots
+#     the new container, migrates, and only routes traffic once it is healthy —
+#     leaving the OLD v1 container live against tables the migration has just
+#     renamed. In that window `GET /projects/:id` raises
+#     "no such table: tool_calls" on every project page, and because
+#     SOLID_QUEUE_IN_PUMA is true a v1 ChatRespondJob writes dropped columns;
+#     if its assistant(tool_use) already persisted, the tool_result never lands
+#     and that chat is permanently dead. A planned minute of downtime is
+#     cheaper. Do not skip this step to save it.
+kamal app stop
+
+# 3.4 Deploy. db:prepare runs the migration during boot, with nothing attached.
 kamal deploy
 
-# 3.3 Confirm the migration ran cleanly rather than assuming it did.
+# 3.5 If `kamal deploy` exited NON-ZERO, do NOT assume nothing happened. Kamal
+#     stops the NEW container on a failed healthcheck, but the migration has
+#     already committed — leaving the pre-upgrade image on a v2 schema, the one
+#     state neither image can read. Check before deciding, and go to section 5
+#     if it ran.
+kamal app exec --reuse "bin/rails db:migrate:status | tail -3"
+
+# 3.6 Confirm the migration ran cleanly rather than assuming it did.
 kamal app logs --lines 100
 
 # 3.4 Confirm the schema and the registry on the running container.
@@ -178,8 +248,37 @@ ssh root@77.42.95.154 "docker run --rm -v hifumi_dev_storage:/s alpine sh -c \
 
 # 5.3 Bring back the pre-upgrade version (PREV, from step 2.1). db:prepare
 #     finds the v1 schema and no pending migration, so it is a no-op.
+# 5.3 Bring back the pre-upgrade version (PREV, from step 2.1). An EMPTY
+#     --version resolves to the local git SHA, i.e. the v2 image, which would
+#     re-run the one-way migration over the database you just restored.
+[ -n "$PREV" ] || echo "refusing: PREV is unset — recover it before continuing"
 kamal app start --version="$PREV"      # preferred: reuses the existing container
-kamal app boot  --version="$PREV"      # only if that container is gone
+```
+
+Only if that container is gone — note the secrets warning below, which applies
+to `boot` but not to `start`:
+
+```bash
+kamal app boot --version="$PREV"
+```
+
+```bash
+# 5.4 Confirm you are on v1 code AND v1 data. Without this the failure mode in
+#     5.3 is silent: the site comes back up either way.
+kamal app exec --reuse "bin/rails db:migrate:status | tail -3"
+#   -> 20260822224622 MUST read "down"
+kamal app exec --reuse \
+  "sqlite3 /rails/storage/production.sqlite3 'SELECT COUNT(*) FROM models;'"
+#   -> MUST succeed. "no such table: models" means you re-migrated.
+
+# 5.5 Discard jobs enqueued under v2. Solid Queue lives in its own database
+#     (config/database.yml), so the restore above did not touch it, and those
+#     jobs now point at rows the restored primary does not have. They will not
+#     discard themselves — `discard_on ActiveJob::DeserializationError` is
+#     commented out in app/jobs/application_job.rb — they pile into
+#     solid_queue_failed_executions instead.
+kamal app exec --reuse \
+  "bin/rails runner 'SolidQueue::Job.where(finished_at: nil).delete_all'"
 ```
 
 > ⚠️ **Do not restore via `kamal app exec --reuse`.** It needs a running
