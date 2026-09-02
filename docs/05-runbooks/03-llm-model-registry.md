@@ -12,8 +12,11 @@ The gem's railtie wires `config.model_registry_store` to
 `models.json` **only when the table is empty** (`ruby_llm/models.rb:85-97`,
 logging *"Model registry store is empty, falling back to the registry file"*).
 
-So an id has to be resolvable from one of the two: the store, or the bundle. A
-model absent from both raises `ModelNotFoundError`.
+So the store wins whenever it holds any rows at all: a **non-empty store
+shadows the bundle completely**, and an id missing from it raises
+`ModelNotFoundError` even when the bundle carries that id. The bundle only ever
+serves a store that is entirely empty — which is also why a fresh environment
+self-poisons, since each successful resolution writes one row back.
 
 Affected stages are the four RubyLLM-backed ones (chat, plan_creation,
 plan_modification, template). `code` and `docs` are unaffected: they pass the id
@@ -59,6 +62,11 @@ provider fetch is what populates the ids.
 kamal app exec --reuse "bin/rails runner 'puts RubyLLM.config.model_registry_store.count'"
 
 # 2. Populate
+# Run this during a quiet window: refresh! wraps every row in ONE transaction,
+# and v2 fetches every provider's registry (1464 rows, not v1's 410). That holds
+# the write lock on production.sqlite3 while users are chatting, and
+# config/database.yml sets timeout: 5000 — a chat write that waits longer than
+# 5s raises SQLite3::BusyException.
 kamal app exec --reuse "bin/rails runner 'RubyLLM.models.refresh!; puts RubyLLM.config.model_registry_store.count'"
 
 # 3. Verify. bin/verify-model-registry only exists in the image once it has been
@@ -67,7 +75,7 @@ kamal app exec --reuse "bin/verify-model-registry"
 kamal app exec --reuse "bin/rails runner 'LLM::Stages::AVAILABLE_MODELS.keys.each { |id| begin; RubyLLM::Models.resolve(id); puts %(OK   #{id}); rescue => e; puts %(FAIL #{id} #{e.class}); end }'"
 
 # 4. Restart — required; see the warning below
-V=$(kamal app version | tail -1)
+V=$(kamal app version | sed -n '2p')   # line 2: kamal prints "App Host:" first, and tail -1 is blank
 kamal app stop
 kamal app start --version="$V"
 ```
