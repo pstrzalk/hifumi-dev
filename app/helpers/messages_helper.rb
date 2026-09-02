@@ -6,13 +6,16 @@ module MessagesHelper
   end
 
   def tool_call_pill_text(message)
-    call = message.tool_calls.first
+    # v2: message.tool_calls is a Hash keyed by provider tool-call id, whose
+    # values are RubyLLM::ToolCall. The persisted rows are ruby_llm_tool_calls.
+    calls = message.tool_calls.values
+    call = calls.first
     case call&.name
     when "create_application", "modify_application"
       intent = call.arguments["intent"].to_s
       intent.empty? ? "🌀 Build started" : "🌀 Build started: #{intent}"
     else
-      "running: #{message.tool_calls.map(&:name).uniq.join(", ")}"
+      "running: #{calls.map(&:name).uniq.join(", ")}"
     end
   end
 

@@ -2,7 +2,9 @@ require "test_helper"
 
 class PlanApplicationModification::AdHocLLMTest < ActiveSupport::TestCase
   # Stubs invoke_llm so the test drives build_result with fixture content directly,
-  # mimicking what RubyLLM returns from chat.with_schema(...).ask(...).content.
+  # mimicking what RubyLLM returns from chat.with_schema(...).ask(...).parsed --
+  # v2's .content is the raw String; .parsed is the decoded Hash, and it RAISES
+  # on malformed JSON where v1 silently kept the String.
   def with_llm_response(content)
     captured = {}
     original = PlanApplicationModification::AdHocLLM.method(:invoke_llm)
@@ -70,6 +72,42 @@ class PlanApplicationModification::AdHocLLMTest < ActiveSupport::TestCase
     with_llm_response(nil) do
       assert_raises(PlanApplicationModification::AdHocLLM::InvalidResponse) do
         PlanApplicationModification::AdHocLLM.call(intent: "x", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+      end
+    end
+  end
+
+  # Message#parsed is JSON.parse, so a top-level array/number/boolean reaches
+  # build_result intact. Without the is_a?(Hash) guard `Array(content["revisions"])`
+  # raises TypeError, which ModifyApplication#execute does not rescue — the
+  # tool_use is then persisted with no tool_result and the chat is dead for good.
+  test "raises InvalidResponse when the response parses to a non-object" do
+    [ [ { "summary" => "a", "prompt" => "b" } ], 42, true, "plain string" ].each do |content|
+      with_llm_response(content) do
+        assert_raises(PlanApplicationModification::AdHocLLM::InvalidResponse, "expected #{content.class} to be rejected") do
+          PlanApplicationModification::AdHocLLM.call(intent: "x", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+        end
+      end
+    end
+  end
+
+  # The is_a?(Hash) guard above is TOP-LEVEL only. Each of these parses to an
+  # object and clears it, then raises inside the revisions map: NoMethodError
+  # for String/Integer/nil#fetch, TypeError for Array#fetch (a Hash reaches the
+  # map as [[k, v]] via Array()). Neither is rescued by #execute, so each one
+  # would orphan the tool_use and kill the chat permanently.
+  test "raises InvalidResponse when revisions hold non-objects" do
+    [
+      [ "Add a Cart model" ],
+      [ 42 ],
+      [ nil ],
+      "oops",
+      { "summary" => "a", "prompt" => "b" }
+    ].each do |revisions|
+      content = { "instruction_description" => "d", "revisions" => revisions }
+      with_llm_response(content) do
+        assert_raises(PlanApplicationModification::AdHocLLM::InvalidResponse, "expected #{revisions.inspect} to be rejected") do
+          PlanApplicationModification::AdHocLLM.call(intent: "x", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+        end
       end
     end
   end

@@ -8,7 +8,7 @@ class MessagesHelperTest < ActionView::TestCase
   end
 
   test "tool_call_pill_text renders Build started for modify_application with intent" do
-    @message.tool_calls.create!(
+    @message.ruby_llm_tool_calls.create!(
       tool_call_id: "tc_modify",
       name: "modify_application",
       arguments: { "intent" => "make banner green" }
@@ -19,7 +19,7 @@ class MessagesHelperTest < ActionView::TestCase
   end
 
   test "tool_call_pill_text renders Build started for create_application with intent" do
-    @message.tool_calls.create!(
+    @message.ruby_llm_tool_calls.create!(
       tool_call_id: "tc_create",
       name: "create_application",
       arguments: { "intent" => "build a todo list" }
@@ -30,7 +30,7 @@ class MessagesHelperTest < ActionView::TestCase
   end
 
   test "tool_call_pill_text falls back to generic Build started when intent is missing" do
-    @message.tool_calls.create!(
+    @message.ruby_llm_tool_calls.create!(
       tool_call_id: "tc_no_intent",
       name: "modify_application",
       arguments: {}
@@ -40,7 +40,7 @@ class MessagesHelperTest < ActionView::TestCase
   end
 
   test "tool_call_pill_text falls back to running:<names> for unknown tools" do
-    @message.tool_calls.create!(
+    @message.ruby_llm_tool_calls.create!(
       tool_call_id: "tc_other",
       name: "some_other_tool",
       arguments: {}

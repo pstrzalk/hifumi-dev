@@ -145,7 +145,7 @@ A full robustness/OSS-readiness review of the production deployment was done; fi
 
 Shipped 2026-06-11 (`feature/per-project-model-selection`): per-stage model columns on profiles (user defaults) + projects (per-project snapshot), selectors in the build tab / new-project form / account integrations pane, threaded through all six LLM stages via `LLM::Stages` (`lib/llm/stages.rb`). Deliberately deferred:
 
-- **Curated list is 3 Anthropic models.** `LLM::Stages::AVAILABLE_MODELS` is a hand-maintained hash. The dormant `models` table (`acts_as_model`, never populated) could back a full OpenRouter catalog picker instead — needs capability filtering per stage (`structured_outputs` for plan/template, `tools` for chat) and a refresh job hitting `GET openrouter.ai/api/v1/models`. See `thoughts/shared/research/2026-05-11/per-user-model-config-per-stage.md`.
+- **Curated list is 5 Anthropic models.** `LLM::Stages::AVAILABLE_MODELS` is a hand-maintained hash. A full catalog picker could read RubyLLM's own registry store instead — since the v2 upgrade that is `ruby_llm_models`, owned by the gem, already populated (410 rows) and maintained by `RubyLLM.models.refresh!`. So the work is not waking a dormant table: it is capability filtering per stage (`structured_outputs` for plan/template, `tools` for chat) plus a picker over `RubyLLM::ActiveRecord::Model`. See `thoughts/shared/research/2026-05-11/per-user-model-config-per-stage.md`.
 - **Code/docs stages are Anthropic-only by transport.** They run through the `claude` CLI's Anthropic API surface (`bin/roast-openrouter`); non-Anthropic ids have never been exercised there. The "direct-API Roast provider" Phase 5 candidate would lift this.
 - **No cost display.** The 2026-05-11 research scoped per-model pricing display next to each selector; AVAILABLE_MODELS would need pricing metadata (or the models table).
 
@@ -183,3 +183,50 @@ So flipping the preview apex is: register a separate registrable domain (pick a 
 - Optional cleanup: the `.preview.` sublabel is hardcoded in `public_preview_host` / `PREVIEW_HOST` / the CSP; if the new domain is preview-dedicated you could drop it (small code change, not required).
 
 **Cost**: a domain registration + the wildcard-cert setup you've now done once; the code change is ~one env var. The expense is operational (DNS + cert on a new domain), not engineering.
+
+---
+
+## 2026-08-28
+
+### RubyLLM v2 migration leftovers — both need their own migration
+
+Two residues of the gem-generated upgrade migration
+(`db/migrate/20260822224622_add_ruby_llm_v2_0_columns.rb`). Neither is fixable
+by editing that migration — it has already run — so each needs a new one, and
+neither was in scope for the upgrade itself.
+
+- **Dead index on the hottest-written table.** The migration converts
+  `messages.model_id` from an integer FK into `provider` + `model_id` strings
+  and indexes them as `index_messages_on_provider_and_model_id`. But v2 never
+  writes those columns: `ChatMethods#message_attributes` assigns only
+  thinking/citations/server_tool_calls/raw_content/raw_reasoning/finish_reason/
+  cache_until_here, and per-message model identity moved to `ruby_llm_usages`.
+  Measured locally after the upgrade: 241 rows carry `provider` (all from the
+  one-time backfill) and **all 45 written since have it NULL**. So the index is
+  pure insert overhead on the table that takes one row per streamed message.
+  Dropping it — and the columns — is safe only after confirming nothing reads
+  them; the backfilled values are the sole historical record of which model
+  answered a pre-upgrade message, so consider whether that is worth keeping
+  before dropping the columns as well.
+  Also leftover: `index_ruby_llm_tool_calls_on_message_id` survives the rename
+  alongside the new `(message_type, message_id)` composite, which fully covers
+  it — the gem only ever queries with `message_type` present.
+
+- **The `tool_calls → messages` foreign key is gone with nothing replacing it.**
+  `normalize_tool_calls` drops it because the column became polymorphic, so
+  `ruby_llm_tool_calls.message_id` is now a bare integer. Today this is
+  defence-in-depth only: the `Project → chat → messages → ruby_llm_tool_calls`
+  `dependent: :destroy` chain still cleans up. It matters if a future cleanup
+  job or console fix ever uses `delete_all`, because an orphan whose provider
+  tool-call id later recurs would hit the UNIQUE index on `tool_call_id` and
+  make `persist_tool_calls` raise `RecordNotUnique` **inside**
+  `persist_message_completion`'s transaction, rolling back the assistant
+  message. A polymorphic FK can't be restored directly; the options are a
+  periodic orphan sweep or a partial constraint. Worth deciding before writing
+  any code that deletes messages outside AR callbacks.
+
+**`messages.content_raw` is a third migration residual.** The upgrade adds
+v2's `raw_content` and leaves v1's `content_raw` in place. Nothing in the gem,
+`app/`, `lib/` or `bin/` reads it, so it silently holds every pre-upgrade raw
+payload under a name no v2 code path reaches. Same shape as the two above:
+needs its own migration, since the upgrade migration has already run.

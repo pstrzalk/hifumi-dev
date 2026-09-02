@@ -5,17 +5,18 @@ procedure for adding a new model to the picker.
 
 ## Why this is needed
 
-`config/initializers/ruby_llm.rb` sets `use_new_acts_as = true`, and
-`app/models/model.rb` declares `acts_as_model`. That combination monkey-patches
-`RubyLLM::Models.load_models` to read the `models` DB table and fall back to the
-gem's bundled `models.json` **only when that table is empty**
-(`ruby_llm/active_record/acts_as.rb`). A partially-populated table therefore
-shadows the JSON completely.
+RubyLLM owns its model registry and stores it in the `ruby_llm_models` table.
+The gem's railtie wires `config.model_registry_store` to
+`RubyLLM::ActiveRecord::Model` whenever ActiveRecord loads, and
+`Models.load_models` reads that store first, falling back to the gem's bundled
+`models.json` **only when the table is empty** (`ruby_llm/models.rb:85-97`,
+logging *"Model registry store is empty, falling back to the registry file"*).
 
-The table fills itself one row at a time: `ChatMethods#resolve_model_from_strings`
-does `find_or_create_by!` after each *successful* resolution. So the first
-success writes one row, and from then on that single row is the entire registry —
-every other model, including ones present in the bundled JSON, stops resolving.
+So the store wins whenever it holds any rows at all: a **non-empty store
+shadows the bundle completely**, and an id missing from it raises
+`ModelNotFoundError` even when the bundle carries that id. The bundle only ever
+serves a store that is entirely empty — which is also why a fresh environment
+self-poisons, since each successful resolution writes one row back.
 
 Affected stages are the four RubyLLM-backed ones (chat, plan_creation,
 plan_modification, template). `code` and `docs` are unaffected: they pass the id
@@ -26,17 +27,24 @@ banner *"The configured model is unavailable. Contact the operator."*
 (`ChatRespondJob::FRIENDLY_ERRORS`); on the template stage `ExecuteInstructionJob`
 has no rescue, so the job fails into Solid Queue.
 
-`Model.refresh!` (`RubyLLM.models.refresh!` + `save_to_database`) is the fix. It
-fetches live from every configured provider, and persists with
-`find_or_initialize_by(model_id:, provider:) + update!` inside a transaction —
-**no deletes**, so `chats.model_id` foreign keys survive. Use it rather than
-`bin/rails ruby_llm:load_models`, which only reloads the *bundled* JSON and so
-lags the live catalogue.
+`RubyLLM.models.refresh!` is the fix. It fetches the published registry
+(`rubyllm.com/models.json`), merges per-provider discovery over it, and persists
+through the store with `find_or_initialize_by(model_id:, provider:) + update!`
+inside a transaction — **no deletes**, so `chats.ruby_llm_model_id` foreign keys
+survive. Use it rather than `bin/rails ruby_llm:load_models`, which only reloads
+the *bundled* JSON and so lags the live catalogue.
+
+**It is failure-safe.** Per-provider fetches are rescued individually into a
+`failed` list (`models.rb:151-164`); models belonging to a failed provider are
+carried over unchanged and the failure is logged *"Keeping existing."*
+(`:222-230`). A models.dev outage degrades the same way. So a refresh can only
+add or update rows, never empty the registry — which is why production needs no
+real OpenRouter key for this (see below).
 
 ## Local
 
 ```bash
-bin/rails runner 'Model.refresh!; puts Model.count'
+bin/rails runner 'RubyLLM.models.refresh!; puts RubyLLM.config.model_registry_store.count'
 bin/verify-model-registry
 ```
 
@@ -51,10 +59,15 @@ provider fetch is what populates the ids.
 
 ```bash
 # 1. Baseline (read-only)
-kamal app exec --reuse "bin/rails runner 'puts Model.count'"
+kamal app exec --reuse "bin/rails runner 'puts RubyLLM.config.model_registry_store.count'"
 
 # 2. Populate
-kamal app exec --reuse "bin/rails runner 'Model.refresh!; puts Model.count'"
+# Run this during a quiet window: refresh! wraps every row in ONE transaction,
+# and v2 fetches every provider's registry (1464 rows, not v1's 410). That holds
+# the write lock on production.sqlite3 while users are chatting, and
+# config/database.yml sets timeout: 5000 — a chat write that waits longer than
+# 5s raises SQLite3::BusyException.
+kamal app exec --reuse "bin/rails runner 'RubyLLM.models.refresh!; puts RubyLLM.config.model_registry_store.count'"
 
 # 3. Verify. bin/verify-model-registry only exists in the image once it has been
 #    deployed; until then use the inline equivalent below.
@@ -62,7 +75,7 @@ kamal app exec --reuse "bin/verify-model-registry"
 kamal app exec --reuse "bin/rails runner 'LLM::Stages::AVAILABLE_MODELS.keys.each { |id| begin; RubyLLM::Models.resolve(id); puts %(OK   #{id}); rescue => e; puts %(FAIL #{id} #{e.class}); end }'"
 
 # 4. Restart — required; see the warning below
-V=$(kamal app version | tail -1)
+V=$(kamal app version | sed -n '2p')   # line 2: kamal prints "App Host:" first, and tail -1 is blank
 kamal app stop
 kamal app start --version="$V"
 ```
@@ -70,8 +83,10 @@ kamal app start --version="$V"
 No `OPENROUTER_API_KEY` is needed. The container has no global key (BYOK is
 per-user), so the provider sends the placeholder from
 `config/initializers/ruby_llm.rb` as its bearer token — and OpenRouter's
-`/api/v1/models` returns 200 regardless of auth. Do **not** pass a real key
-inline: kamal echoes the full `docker exec` command into its own log output.
+`/api/v1/models` returns 200 regardless of auth. Even if it did not, the refresh
+degrades gracefully rather than emptying the store (see above). Do **not** pass a
+real key inline: kamal echoes the full `docker exec` command into its own log
+output.
 
 Step 4 is required because `RubyLLM::Models.instance` is memoized per process
 (`@instance ||= new`); the running Puma keeps the stale registry until replaced.
@@ -128,9 +143,11 @@ raises the moment a user selects it.
 
 ## Standing caveats
 
-- **Test environment** has an empty `models` table, so it falls back to the
-  bundled JSON — which in ruby_llm 1.15.0 contains no Claude 5 ids. Stub
-  `ctx.chat` in new tests rather than resolving a 5-family id for real.
+- **Test environment** has an empty `ruby_llm_models` table, so it falls back to
+  the bundled JSON. At the pinned `c45ebd78` that bundle carries
+  `anthropic/claude-sonnet-5` but **not** `anthropic/claude-opus-5`, and no test
+  resolves either. Stub `ctx.chat` in new tests rather than resolving a
+  5-family id for real.
 - **Local dev codegen ignores per-project selection by design.**
   `bin/roast-claudesubscription` gets the bare aliases `sonnet` (code) and
   `haiku` (docs), so the model that actually runs is whatever the operator's
@@ -142,9 +159,21 @@ raises the moment a user selects it.
 
 ## Recorded baseline
 
-**2026-08-12** — both environments were found holding a single `models` row
+**2026-08-23** (post-v2, local) — the upgrade migration carried the 410 rows
+over to `ruby_llm_models` unchanged, and the first `RubyLLM.models.refresh!`
+under v2 took the store to **1464 rows**. The jump is expected and is the one
+number that changed meaning: v1's refresh only wrote what OpenRouter discovery
+returned, while v2 fetches the *published* registry (`rubyllm.com/models.json`,
+every provider) and merges provider discovery over it. Two consequences when
+comparing counts: the **migration** preserves the row count exactly, a
+**refresh** grows it — so attribute any change to whichever step you just ran.
+`PRAGMA foreign_key_check` stayed empty across both, confirming the no-deletes
+claim above against real `chats.ruby_llm_model_id` rows.
+
+**2026-08-12** (pre-v2, when the table was still `models`) — both environments
+were found holding a single row
 (`openrouter anthropic/claude-haiku-4.5`), with `anthropic/claude-sonnet-4.6` and
-`anthropic/claude-opus-4.6` raising `ModelNotFoundError`. After `Model.refresh!`:
+`anthropic/claude-opus-4.6` raising `ModelNotFoundError`. After a refresh:
 410 rows in each, all three offered ids resolving, and
 `anthropic/claude-opus-5` / `-sonnet-5` / `-fable-5` resolving as candidates
 (1M context each). Production restarted at version

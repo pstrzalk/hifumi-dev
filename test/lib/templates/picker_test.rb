@@ -25,6 +25,15 @@ class Templates::PickerTest < ActiveSupport::TestCase
     end
   end
 
+  test "pick raises InvalidPick when the response body is not valid JSON" do
+    stub_pick("cyber", raising: true) do
+      error = assert_raises(Templates::Picker::InvalidPick) do
+        Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test", model: "anthropic/claude-haiku-4.5")
+      end
+      assert_match(/malformed JSON/, error.message)
+    end
+  end
+
   test "pick passes the selected model to the chat" do
     stub_pick("cyber") do |captured|
       Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test", model: "anthropic/claude-opus-4.6")
@@ -94,15 +103,23 @@ class Templates::PickerTest < ActiveSupport::TestCase
 
   # Replace RubyLLM.context for the duration of the block. The fake context
   # mirrors the real chain (`chat → with_instructions → with_schema → ask
-  # → content`) so Templates::Picker.pick exercises its real code path,
+  # → parsed`) so Templates::Picker.pick exercises its real code path,
   # only the LLM endpoint is swapped. Minitest 6 dropped Object#stub, so we
   # use the same singleton-method-swap pattern as verify_revision_test.rb.
-  def stub_pick(value)
+  def stub_pick(value, raising: false)
     fake_content = value.nil? ? nil : { "template" => value, "reasoning" => "stub" }
     fake_chat = Object.new
     fake_chat.define_singleton_method(:with_instructions) { |_| self }
     fake_chat.define_singleton_method(:with_schema)       { |_| self }
-    fake_chat.define_singleton_method(:ask)               { |_| Struct.new(:content).new(fake_content) }
+    fake_chat.define_singleton_method(:ask) do |_|
+      response = Struct.new(:content, :parsed).new(fake_content&.to_json, fake_content)
+      # `parsed` is a plain struct member, so it can never raise on its own —
+      # only an override reaches Picker.pick's JSON::ParserError branch.
+      if raising
+        response.define_singleton_method(:parsed) { raise JSON::ParserError, "unexpected token at 'not json'" }
+      end
+      response
+    end
 
     captured = {}
     fake_ctx = Object.new

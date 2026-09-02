@@ -239,6 +239,54 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     end
   end
 
+  test "relax_workspace_permissions survives a DIRECTORY that disappears mid-walk" do
+    # force: does not cover this. FileUtils wraps only ent.chmod in its rescue;
+    # the walk's own Dir.children is outside it, so a directory git prunes
+    # between the stat and the listing raises ENOENT out of chmod_R itself.
+    Dir.mktmpdir("hifumi-dev-vanish-dir-") do |root|
+      ws = File.join(root, "project_vanish_dir")
+      FileUtils.mkdir_p(File.join(ws, ".git/objects/ab"))
+      File.write(File.join(ws, "Gemfile.lock"), "GEM\n")
+
+      raised = false
+      original = Dir.method(:children)
+      Dir.define_singleton_method(:children) do |path, **opts|
+        if !raised && path.to_s.end_with?(".git/objects/ab")
+          raised = true
+          raise Errno::ENOENT, path.to_s
+        end
+        original.call(path, **opts)
+      end
+
+      begin
+        ExecuteInstructionJob.new.send(:relax_workspace_permissions, ws)
+      ensure
+        Dir.singleton_class.send(:remove_method, :children)
+        Dir.define_singleton_method(:children, original)
+      end
+
+      assert raised, "the test must actually have exercised the vanishing-directory path"
+      assert_equal 0o666, File.stat(File.join(ws, "Gemfile.lock")).mode & 0o777,
+                   "the retry must complete the walk against the settled tree"
+    end
+  end
+
+  test "relax_workspace_permissions disables git housekeeping on pre-existing workspaces" do
+    Dir.mktmpdir("hifumi-dev-backfill-") do |root|
+      ws = File.join(root, "project_backfill")
+      FileUtils.mkdir_p(ws)
+      Dir.chdir(ws) { system("git init -q") }
+
+      ExecuteInstructionJob.new.send(:relax_workspace_permissions, ws)
+
+      # --local is load-bearing: test_helper injects these same two settings via
+      # GIT_CONFIG_* into every git subprocess, so a plain --get would report
+      # them as set whether or not the backfill ran at all.
+      assert_equal "false", `git -C #{Shellwords.escape(ws)} config --local --get maintenance.auto`.strip
+      assert_equal "0", `git -C #{Shellwords.escape(ws)} config --local --get gc.auto`.strip
+    end
+  end
+
   test "relax_workspace_permissions survives an entry that disappears mid-walk" do
     # git's background housekeeping drops transient lock files under .git.
     # chmod_R lists a directory, then chmods each entry it listed — so a file

@@ -12,16 +12,11 @@
 # On a deployed host:
 #   kamal app exec --reuse "bin/verify-model-registry"
 #
-# Why this exists: `use_new_acts_as` + app/models/model.rb (acts_as_model) make
-# RubyLLM prefer the `models` DB table over the gem's bundled models.json, and
-# fall back to the JSON only when that table is EMPTY. A partially-populated
-# table therefore shadows the JSON completely — on 2026-08-12 both dev and
-# production held a single row (haiku only), so the Sonnet 4.6 and Opus 4.6
-# selections raised ModelNotFoundError on every RubyLLM-backed stage.
-#
-# The fix is to populate the table (`Model.refresh!`); this script is how you
-# confirm it. Pass candidate ids to check a model BEFORE adding it to
-# LLM::Stages::AVAILABLE_MODELS.
+# Why this exists: with acts_as installed, RubyLLM v2 uses the ruby_llm_models
+# table as its registry store and falls back to the gem's bundled models.json
+# only when that table is empty (models.rb:85-97). A model absent from both
+# raises ModelNotFoundError on every RubyLLM-backed stage. Pass candidate ids
+# to check a model BEFORE adding it to LLM::Stages::AVAILABLE_MODELS.
 #
 # See docs/05-runbooks/03-llm-model-registry.md.
 #
@@ -32,9 +27,37 @@ require_relative "../config/environment"
 candidates = ARGV
 offered = LLM::Stages::AVAILABLE_MODELS.keys
 failures = []
+store_underpopulated = false
 
-puts "models table rows: #{Model.count}"
-puts "resolved registry:  #{RubyLLM::Models.instance.all.size}"
+# RubyLLM wires config.model_registry_store to the ruby_llm_models table from an
+# `on_load :active_record` hook. This script boots via require "config/environment"
+# rather than `bin/rails runner`, and that path does not touch ActiveRecord — so
+# without the line below the store is nil and RubyLLM::Models would silently
+# resolve against the gem's bundled JSON instead of the DB, which is the exact
+# confusion this script exists to prevent. Referencing ActiveRecord::Base fires
+# the hook on its own; a full eager_load! is not needed.
+ActiveRecord::Base.connection_pool
+store = RubyLLM.config.model_registry_store
+rows = store ? store.count : 0
+
+puts "registry store rows: #{store ? rows : "(no store configured)"}"
+puts "resolved registry:   #{RubyLLM::Models.instance.all.size}"
+
+# Three states, only one of which is healthy. A NON-EMPTY store shadows the
+# bundled registry completely, and find_or_create_model writes one row per
+# successful resolution -- so a fresh environment self-poisons: the first chat
+# leaves exactly one row, and from the next boot that row IS the registry.
+# Resolving everything from the bundle is therefore not a pass, it is a warning.
+if rows.zero?
+  puts "\nWARNING: the store is empty, so the ids below resolve from the gem's"
+  puts "bundled registry. The first chat will write ONE row, and that row will"
+  puts "then shadow the bundle entirely. Run RubyLLM.models.refresh! before use."
+elsif rows < offered.size
+  puts "\nFAIL: the store holds #{rows} row(s) but #{offered.size} ids are offered."
+  puts "A non-empty store shadows the bundle, so ids missing from it raise"
+  puts "ModelNotFoundError even when the bundle carries them."
+  store_underpopulated = true
+end
 
 def check(id, failures)
   info, = RubyLLM::Models.resolve(id)
@@ -54,7 +77,10 @@ end
 
 if failures.any?
   puts "\n#{failures.size} id(s) did not resolve: #{failures.join(', ')}"
-  puts "Populate the registry with: bin/rails runner 'Model.refresh!'"
+end
+
+if failures.any? || store_underpopulated
+  puts "Populate the registry with: bin/rails runner 'RubyLLM.models.refresh!'"
   puts "Then restart long-lived processes — the registry is memoized per process."
   exit 1
 end

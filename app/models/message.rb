@@ -13,7 +13,7 @@ class Message < ApplicationRecord
   def visible_in_chat?
     return false if system_injected?
     return true if role == "user"
-    role == "assistant" && (content.to_s.strip.present? || tool_calls.any?)
+    role == "assistant" && (content.to_s.strip.present? || tool_call?)
   end
 
   private

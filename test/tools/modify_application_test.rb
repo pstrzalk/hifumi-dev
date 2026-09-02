@@ -125,16 +125,49 @@ class ModifyApplicationTest < ActiveSupport::TestCase
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
   end
 
-  test "on unexpected error from PlanApplicationModification: propagates and persists nothing" do
-    raising = ->(**) { raise RuntimeError, "upstream boom" }
+  test "on malformed plan JSON: returns error hash, persists nothing, no notification" do
+    # RubyLLM v2's Message#parsed raises instead of degrading to a String, and
+    # nothing may escape #execute — an exception here would leave a persisted
+    # tool_use with no tool_result, which permanently breaks the chat.
+    raising = ->(**) { raise JSON::ParserError, "unexpected token at 'not json'" }
+    payloads = []
+    subscriber = ActiveSupport::Notifications.subscribe("instruction.requested") { |*, p| payloads << p }
 
+    result = nil
     assert_no_difference -> { Instruction.count } do
       assert_no_difference -> { Revision.count } do
         stub_planner(raising) do
-          assert_raises(RuntimeError) { @tool.execute(intent: "x", clarifications: {}) }
+          result = @tool.execute(intent: "x", clarifications: {})
         end
       end
     end
+
+    assert_match(/Could not generate a modification plan/, result[:error])
+    assert_empty payloads
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
+  # Was: assert_raises(RuntimeError). Propagation is precisely what orphans the
+  # tool_use -- and ChatRespondJob:30 rescues StandardError anyway, so the
+  # exception never reached an operator; it only killed the chat. #execute now
+  # reports and returns an error hash so the tool_use still gets a tool_result.
+  test "on unexpected error from PlanApplicationModification: reports it, returns an error hash, persists nothing" do
+    raising = ->(**) { raise RuntimeError, "upstream boom" }
+    result = nil
+
+    reports = capture_error_reports(RuntimeError) do
+      assert_no_difference -> { Instruction.count } do
+        assert_no_difference -> { Revision.count } do
+          stub_planner(raising) do
+            result = @tool.execute(intent: "x", clarifications: {})
+          end
+        end
+      end
+    end
+
+    assert_match(/Could not generate a modification plan/, result[:error])
+    assert_equal [ "upstream boom" ], reports.map { |r| r.error.message }
   end
 
   test "refuses and persists nothing when an implementing instruction already exists" do

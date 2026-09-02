@@ -49,6 +49,26 @@ class MessageTest < ActiveSupport::TestCase
     assert msg.visible_in_chat?
   end
 
+  # The tool_call? disjunct of visible_in_chat?. The one other test that puts a
+  # tool call on a message gives it prose too, so content.present? short-circuits
+  # and this branch is never reached there. If it regressed, message_row_class
+  # would return "hidden" and every build-started pill would vanish silently.
+  test "an assistant message with no prose is visible_in_chat when it carries a tool call" do
+    msg = @chat.messages.create!(role: :assistant, content: "")
+    msg.ruby_llm_tool_calls.create!(
+      tool_call_id: "tc_visible", name: "create_application",
+      arguments: { "intent" => "habit tracker" }
+    )
+
+    assert msg.visible_in_chat?
+  end
+
+  test "an assistant message with neither prose nor a tool call is not visible_in_chat" do
+    msg = @chat.messages.create!(role: :assistant, content: "")
+
+    refute msg.visible_in_chat?
+  end
+
   test "system_injected messages do not enqueue an append broadcast" do
     assert_no_enqueued_jobs(only: Turbo::Streams::ActionBroadcastJob) do
       @chat.messages.create!(role: :user, content: "hi", system_injected: true)
