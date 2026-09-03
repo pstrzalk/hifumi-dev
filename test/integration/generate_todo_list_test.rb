@@ -6,12 +6,17 @@ require "shellwords"
 # the real `bin/roast` subprocess runs three revisions, and the generated app's
 # own test suite is green.
 #
-# Stubbed: `Chat#complete` (chat-LLM) and `PlanApplicationCreation.implementation` (plan-LLM)
-# so we don't burn tokens on those layers — a real LLM would call CreateApplication
-# with whatever intent the user typed; we short-circuit to that decision.
+# Stubbed, so no tokens are spent on the LLM layers a real run would consult:
+# - `Chat#complete` (chat-LLM) — a real LLM would call CreateApplication with
+#   whatever intent the user typed; we short-circuit to that decision.
+# - `PlanApplicationCreation.implementation` (plan-LLM) — the deterministic
+#   three-revision todo_list fixture.
+# - `Templates::Picker.pick` (template-LLM, the one RubyLLM call on the W2 side)
+#   — pinned to one template; `apply` stays real so frontend.md and the font
+#   <link> land in the workspace exactly as in production.
 #
 # Real: ExecuteInstructionJob, including the `bin/roast` subprocess that calls
-# Claude CLI for each revision. Wall time ≈ 8 minutes; bounded at 900s.
+# the Claude CLI for each revision. Wall time ≈ 8 minutes; bounded at 900s.
 #
 # Gated by E2E_GENERATE=1 so the default `bin/rails test` stays fast.
 class GenerateTodoListTest < ActionDispatch::IntegrationTest
@@ -19,30 +24,46 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
 
   PROMPT = "Simple todo list, Tailwind".freeze
   WALL_TIME_BUDGET = 900
+  TEMPLATE = "office"
 
   setup do
     skip "set E2E_GENERATE=1 to run (real bin/roast subprocess, ~8 min, burns Claude tokens)" unless ENV["E2E_GENERATE"] == "1"
 
+    # ProjectsController has required a signed-in user since Phase 4. The fake
+    # OpenRouter key on this user is never sent anywhere: every RubyLLM-backed
+    # stage on this path is stubbed below, and the W2 implementer runs on the
+    # Claude-subscription transport outside production.
+    @user = create_user
+    sign_in @user
+
     require Rails.root.join("test/fixtures/plans/todo_list.rb").to_s
     @original_create_plan = PlanApplicationCreation.implementation
     PlanApplicationCreation.implementation = fake_plan_returning(PlanFixtures.todo_list)
+    stub_template_pick!
     stub_chat_complete!
   end
 
   teardown do
     restore_chat_complete!
+    restore_template_pick!
     PlanApplicationCreation.implementation = @original_create_plan if @original_create_plan
   end
 
   test "Simple todo list, Tailwind: 3 revisions complete and workspace tests green" do
     started = Time.current
-    perform_enqueued_jobs do
+    # Only the two jobs the pipeline consists of. StopPreviewJob (fired by
+    # instruction.requested) would drive Docker for a preview that was never
+    # started, and the Turbo broadcast jobs have no subscriber here.
+    perform_enqueued_jobs(only: [ ChatRespondJob, ExecuteInstructionJob ]) do
       post projects_path, params: { project: { description: PROMPT } }
     end
     elapsed = Time.current - started
 
-    project = Project.order(:id).last
-    instruction = project.instructions.order(:id).last
+    # Scoped to the signed-in user: fixtures load projects with large hashed
+    # ids, so Project.order(:id).last returns a fixture, never the row this
+    # request created.
+    project = @user.projects.sole
+    instruction = project.instructions.sole
 
     assert_predicate instruction.reload, :completed?, "instruction phase: #{instruction.phase}"
     assert_equal 3, project.revisions.count
@@ -50,6 +71,7 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
       "expected all revisions completed, got #{project.revisions.order(:position).map(&:status)}"
 
     workspace = project.workspace_path
+    assert_equal TEMPLATE, File.read(File.join(workspace, "docs/frontend.md"))[/# Frontend template: (\w+)/, 1]
     assert_workspace_git_log_at_least(workspace, 4)
     assert_workspace_tests_pass(workspace)
     assert_operator elapsed, :<, WALL_TIME_BUDGET,
@@ -66,12 +88,22 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
 
   # Reaches GeneratorAgent#complete via Forwardable (RubyLLM::Agent delegates
   # `complete` to the chat record), so redefining Chat#complete is sufficient.
+  #
+  # Two turns reach it. The user's first message becomes the CreateApplication
+  # call a real LLM would make from that intent. The second is the auto-recap
+  # nudge that the instruction.completed subscriber injects — the real prompt
+  # forbids tool calls on that turn, so it is a text-only assistant message here
+  # too. Without that branch the stub would start a second, identical build.
   def stub_chat_complete!
     Chat.class_eval do
       alias_method :_original_complete_for_e2e, :complete unless method_defined?(:_original_complete_for_e2e)
       define_method(:complete) do |**_kwargs, &_block|
-        latest_user = messages.where(role: :user).order(:id).last
-        CreateApplication.new(project: project).execute(intent: latest_user.content.to_s, clarifications: {})
+        if project.instructions.none?
+          latest_user = messages.where(role: :user, system_injected: false).order(:id).last
+          CreateApplication.new(project: project).execute(intent: latest_user.content.to_s, clarifications: {})
+        else
+          messages.create!(role: :assistant, content: "The todo list is built. What would you like to change next?")
+        end
       end
     end
   end
@@ -85,6 +117,15 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
     end
   end
 
+  def stub_template_pick!
+    @original_pick = Templates::Picker.method(:pick)
+    Templates::Picker.define_singleton_method(:pick) { |**| TEMPLATE }
+  end
+
+  def restore_template_pick!
+    Templates::Picker.define_singleton_method(:pick, @original_pick) if @original_pick
+  end
+
   def assert_workspace_git_log_at_least(workspace, expected)
     log = `cd #{Shellwords.escape(workspace)} && git log --oneline 2>/dev/null`.lines
     assert_operator log.size, :>=, expected,
@@ -92,7 +133,7 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
   end
 
   def assert_workspace_tests_pass(workspace)
-    ruby_version = File.read(Rails.root.join(".ruby-version")).strip
+    ruby_version = File.read(Rails.root.join(".ruby-version")).strip.delete_prefix("ruby-")
     frum_bin = File.join(Dir.home, ".frum", "versions", ruby_version, "bin")
     env = File.directory?(frum_bin) ? { "PATH" => "#{frum_bin}:#{ENV.fetch('PATH', '')}" } : {}
 
