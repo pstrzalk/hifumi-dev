@@ -10,6 +10,7 @@
 # Empirical impact: a single fix-agent turn averages $0.05–$1.00 on sonnet.
 # Catching even one recipe per workflow saves that.
 require "shellwords"
+require_relative "verify_revision"
 
 module AutoRemediate
   # Each recipe: { match: Regexp, fix: ->(workspace, errors_text) { ... } }
@@ -46,8 +47,12 @@ module AutoRemediate
     applied
   end
 
-  # Single shell seam — recipes route through here so tests can stub it.
+  # Single shell seam — recipes route through here so tests can stub it. Same
+  # scrubbed env as VerifyRevision: under roast's `bundle exec` a plain system()
+  # carries BUNDLE_GEMFILE=<generator Gemfile>, so the `bundle install` recipe
+  # "completed" against the generator's already-satisfied bundle in 0.6s and
+  # fixed nothing, every revision (production, 2026-09-03).
   def self.shell(workspace, cmd)
-    system("cd #{Shellwords.escape(workspace)} && #{cmd}")
+    VerifyRevision.with_clean_bundler_env { system("cd #{Shellwords.escape(workspace)} && #{cmd}") }
   end
 end

@@ -8,6 +8,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/) (minor for new
 functionality, patch for fixes and internal changes).
 
+## [1.5.2] - 2026-09-04
+
+### Fixed
+
+- 1.5.1 put the right gems in the image but the build steps kept
+  reinstalling them. The step runner strips every `BUNDLE_*` variable before
+  spawning the code agent and the verification commands, and that took the
+  image's `BUNDLE_PATH` and `BUNDLE_WITHOUT` with it, so Bundler looked in the
+  wrong directory and asked for the development group the image never
+  installs. The agent wrapper and the verification step now restore those two
+  variables, and the automatic `bundle install` remediation runs against the
+  project's Gemfile instead of the generator's. Verified against production
+  by reproducing the failure with the variables stripped and the pass with
+  them restored.
+
 ## [1.5.1] - 2026-09-03
 
 ### Fixed
