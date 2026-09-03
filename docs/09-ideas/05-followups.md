@@ -8,22 +8,6 @@ Date a section header when adding entries so future-you can see the chronology.
 
 ## 2026-05-14
 
-### Fix the broken E2E generator test
-
-**File**: `test/integration/generate_todo_list_test.rb`
-
-**Symptom (seen during the `update_docs` prompt-cap plan's manual verification)**: `E2E_GENERATE=1 bin/rails test test/integration/generate_todo_list_test.rb` finishes in 0.11s instead of the expected ~900s, fails with `Expected #<Instruction phase: "implementing"> to be completed?`. The `user_intent` on the failing record is `"build a flower shop with inventory"` — that exact string lives at `test/fixtures/instructions.yml:6`, so `Instruction.order(:id).last` is matching the loaded fixture rather than an instruction newly-created by the test's POST.
-
-**Why it matters**: this is the only end-to-end safety net for the W1+W2 pipeline. Right now any change to `RevisionPrompt`, `StatCap`, `ExecuteInstructionJob`, etc. has to be validated by hand because the test gives a false signal. The W2.1 prompt hardening shipped 2026-05-14 (`739c844`) is unverified at the agent-behavior level for the same reason.
-
-**Likely shape of the fix** (need to trace before committing):
-- The test stub redefines `Chat#complete` to call `CreateApplication.execute(...)`. Either that path isn't reached (so no instruction is created), or it IS reached and creates an instruction, but `.order(:id).last` is still picking up the fixture because the fixture's autoincrement ID happens to outrank the new row's ID.
-- First-pass fix candidates: scope by `description` (e.g. `project.instructions.where(user_intent: PROMPT).last`), or assert on `instruction.reload.completed?` only after waiting for a phase transition, or — most robustly — load fewer fixtures in this test class (`fixtures :none` or similar) since this is a full-pipeline test that shouldn't be sharing data with controller-level tests.
-
-**Cost gate**: a real run is ~$5-$10 of Claude tokens + ~8 minutes wall-time. Validate the fix on a fast-failing variant first (e.g. let the test create the project, assert on `project.instructions.count == 1` before any LLM call) before paying for the full pipeline.
-
----
-
 ### Auto-surface preview errors back into the chat
 
 **Motivation**: project 27 (Event RSVP, hifumi.dev) crashed at preview-time with `NoMethodError: undefined method 'authenticate_user!' for an instance of EventsController` because the agent reached for Devise without it being in the Gemfile. The W2.1 prompt hardening (`739c844`) reduces but doesn't eliminate this class of bug. The current recovery flow is "user notices the error in the preview iframe, copy/pastes it into chat, asks the agent to fix it" — but the preview iframe is cross-origin (:3000 → :3027), so the studio JS can't read the error page directly.

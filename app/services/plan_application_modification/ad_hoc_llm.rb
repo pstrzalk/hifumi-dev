@@ -4,6 +4,13 @@ module PlanApplicationModification
 
     class InvalidResponse < StandardError; end
 
+    # Appended when there is no snapshot to give (a --blind probe, or a workspace
+    # gone between the tool being bound and the call). The system prompt tells
+    # the planner the state is given and forbids hedging; this is the one place
+    # that claim is false, so say so where the model reads it.
+    NO_STATE_NOTE = "No application state snapshot is available for this request. " \
+                    "Say what you assume about existing files, tables and colours instead of asserting it."
+
     def self.call(intent:, clarifications:, context:, openrouter_api_key:, model:)
       user_prompt = build_user_prompt(intent, clarifications, context)
       content = invoke_llm(system: SYSTEM_PROMPT, user: user_prompt, openrouter_api_key: openrouter_api_key, model: model)
@@ -17,12 +24,24 @@ module PlanApplicationModification
       chat.with_schema(PlanSchema).ask(user).parsed
     end
 
-    def self.build_user_prompt(intent, clarifications, _context)
+    # The first deliberate divergence from the PlanApplicationCreation twin,
+    # which cannot have workspace context: the workspace does not exist when
+    # it runs (CreateApplication persists the plan before ExecuteInstructionJob
+    # runs `rails new`).
+    def self.build_user_prompt(intent, clarifications, context)
       lines = [ "Intent: #{intent}" ]
       if clarifications.present?
         lines << "Clarifications:"
         clarifications.each { |k, v| lines << "  - #{k}: #{v}" }
       end
+      # Last, matching RevisionPrompt.build, which leads with "## Task" and only
+      # then appends the stack inventory, the docs manifest and the workspace
+      # snapshot: request first, reference material after. Keeps the ask from
+      # being buried behind up to ~35 KB of listing (project_39, the largest). (There is no schema text in
+      # this turn to sit next to — with_schema ships as OpenRouter's
+      # `response_format` payload field.)
+      app_state = context.is_a?(Hash) ? context[:app_state] : nil
+      lines << "\n#{app_state.presence || NO_STATE_NOTE}"
       lines.join("\n")
     end
 

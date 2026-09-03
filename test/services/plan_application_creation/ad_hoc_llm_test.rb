@@ -46,6 +46,24 @@ class PlanApplicationCreation::AdHocLLMTest < ActiveSupport::TestCase
     end
   end
 
+  # ---- the system prompt states only what a fresh app will have ----
+  # This planner runs before `rails new`, so its prompt is its only lever. It
+  # used to assert Devise was installed; the workspace never has it. Sign-in is
+  # planned as has_secure_password + sessions, and the default stack is named
+  # as "default Rails 8", never enumerated.
+
+  test "system prompt never names Devise-class gems, hifumi design tokens, or the default stack's parts" do
+    refute_match(/devise|pundit|cancancan|sidekiq|--accent|--paper|--ink|propshaft|importmap|solid_/i,
+                 PlanApplicationCreation::AdHocLLM::SYSTEM_PROMPT)
+  end
+
+  test "system prompt frames the stack positively: default Rails 8, default Gemfile, has_secure_password" do
+    prompt = PlanApplicationCreation::AdHocLLM::SYSTEM_PROMPT
+    assert_includes prompt, "default Rails 8 app"
+    assert_includes prompt, "default Gemfile"
+    assert_includes prompt, "has_secure_password"
+  end
+
   test "passes the selected model through to the LLM" do
     with_llm_response(plan_fixture("valid_plan.json")) do |captured|
       PlanApplicationCreation::AdHocLLM.call(intent: "todo list", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-opus-4.6")

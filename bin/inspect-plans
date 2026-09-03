@@ -1,0 +1,103 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Maintainer/debug helper — not part of normal app flow.
+#
+# Dump every implementation plan stored for a project: the initial one
+# (written by the `create_application` tool) and each later modification plan
+# (written by `modify_application`). A "plan" is not a document — it is one
+# Instruction row plus its ordered Revision rows, so this script is the only
+# way to read a finished plan back: the build tab renders revisions only while
+# the instruction is still running.
+#
+# Instructions carry no column recording which tool created them, so the
+# oldest instruction is labelled INITIAL and the rest MODIFICATION. That
+# matches how the tools are bound (CreateApplication is offered only while
+# the workspace is empty — see GeneratorAgent#tools).
+#
+# Usage (locally):    bin/inspect-plans <project_id> [--brief]
+# Usage (on Kamal):   kamal app exec --primary "bin/inspect-plans <project_id>"
+#
+#   --brief   omit each revision's implementer prompt (summaries only)
+#
+# Related: bin/inspect-chat <project_id>       — the conversation that led here
+#          bin/watch-instruction [id]          — live status of a running build
+#          bin/inspect-plan-application-creation     — dry-run the creation planner, persist nothing
+#          bin/inspect-plan-application-modification — dry-run the modification planner against a project's workspace
+
+require_relative "../config/environment"
+
+args = ARGV.dup
+brief = args.delete("--brief")
+project_id = args.shift || abort("usage: bin/inspect-plans <project_id> [--brief]")
+abort("usage: bin/inspect-plans <project_id> [--brief]") if args.any?
+
+project = begin
+  Project.find(project_id)
+rescue ActiveRecord::RecordNotFound
+  abort("no project with id #{project_id.inspect}")
+end
+
+RULE = "=" * 80
+
+def stamp(time)
+  time ? time.utc.strftime("%Y-%m-%d %H:%M UTC") : "—"
+end
+
+def duration(revision)
+  return "—" unless revision.started_at
+
+  seconds = ((revision.finished_at || Time.current) - revision.started_at).to_i
+  format("%dm%02ds", seconds / 60, seconds % 60)
+end
+
+def indent(text)
+  text.to_s.lines.map { |line| "      #{line}" }.join.chomp
+end
+
+puts RULE
+puts "Project ##{project.id} — #{project.name}"
+puts "owner: #{project.user.email} · workspace: #{project.workspace_path}"
+puts "plan models (current selection, not necessarily what ran below):"
+puts "  creation: #{project.plan_creation_model} · modification: #{project.plan_modification_model}"
+puts RULE
+
+instructions = project.instructions.includes(:revisions).sort_by { |i| [ i.created_at, i.id ] }
+
+if instructions.empty?
+  puts "\nNo plans yet — nothing has been generated for this project."
+  exit
+end
+
+instructions.each_with_index do |instruction, index|
+  revisions = instruction.revisions.sort_by(&:position)
+  completed = revisions.count(&:completed?)
+  label = index.zero? ? "INITIAL PLAN      (create_application)" : "MODIFICATION #{index}    (modify_application)"
+
+  puts
+  puts "#{label}  ·  instruction ##{instruction.id}"
+  puts "-" * 80
+  puts "phase:     #{instruction.phase}"
+  puts "created:   #{stamp(instruction.created_at)}"
+  puts "revisions: #{revisions.size} (#{completed} completed)"
+  puts "intent:    #{instruction.user_intent.presence || '(none recorded)'}"
+  puts "plan:      #{instruction.description}"
+
+  revisions.each do |revision|
+    # In full mode each revision is a block of prose — separate them. In brief
+    # mode the summaries read better as a contiguous list.
+    puts unless brief
+    puts format("  R-%03d [%-10s] %-7s %7s  %s",
+                revision.position,
+                revision.status,
+                revision.git_sha.to_s[0, 7].presence || "—",
+                duration(revision),
+                revision.summary)
+    puts indent(revision.prompt) unless brief
+  end
+end
+
+puts
+puts RULE
+puts "chat that produced these plans: bin/inspect-chat #{project.id}"

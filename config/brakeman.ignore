@@ -32,19 +32,8 @@
       "line": 67,
       "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
       "note": "name is the hardcoded gem name from perform (\"herb\"); workspace is the generator-built path. No user input reaches the interpolation."
-    },
-    {
-      "warning_type": "Command Injection",
-      "warning_code": 14,
-      "fingerprint": "fd8aa5dfff7e36ecbd77835204203e6caefea562c8e753733396a7bf945c456e",
-      "check_name": "Execute",
-      "message": "Possible command injection",
-      "file": "app/jobs/export_to_github_job.rb",
-      "line": 78,
-      "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
-      "note": "Array-form Open3.capture3 — no shell is involved, so interpolated values are plain argv entries and cannot inject commands. The token-in-argv trade-off is documented at the call site."
     }
   ],
-  "updated": "2026-06-12",
-  "brakeman_version": "8.0.4"
+  "updated": "2026-09-03",
+  "brakeman_version": "8.0.6"
 }

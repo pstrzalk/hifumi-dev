@@ -193,7 +193,7 @@ Instructions executed by defined workflows (see `../02-architecture/01-workflows
 
 | Step | Type | What happens |
 |------|------|--------------|
-| W4.1 | deterministic | Load app manifest |
+| W4.1 | deterministic | Load app state (Gemfile, schema, routes, `app/` files, `docs/`) |
 | W4.2 | LLM (decision D3) | Research — manifest is enough / look for new solutions / read code |
 | W4.3 | LLM | Generate plan |
 | W4.4 | loop → W2 | Execute revisions |

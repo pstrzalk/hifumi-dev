@@ -248,6 +248,10 @@ execute do
     # get a structural summary via stat, full bodies for small ones.
     diff_body = "#{diff_body[0, 16_000]}\n[... diff truncated at 16k chars ...]" if diff_body.length > 16_000
 
+    # The 8000-character budget in the rules below is AppState::DOC_FILE_CAP
+    # (lib/app_state.rb): the modification planner is fed each docs file whole
+    # and cut off past that length. Hardcoded here because this file runs as a
+    # Roast subprocess outside the Rails autoloader. Update both together.
     <<~PROMPT
       Revision "#{kwarg(:revision_summary)}" was just committed. Update the docs in docs/ to reflect it.
 
@@ -277,6 +281,7 @@ execute do
       - Use Edit (small, targeted edits) or append-only operations. Do not rewrite whole files.
       - If a doc has nothing to update for this revision, skip it — don't write filler.
       - Be terse. Each section in revision_notes is 1-3 sentences max.
+      - Keep each of `architecture.md`, `conventions.md`, `domain.md` and `frontend.md` under 8000 characters (~1200 words). They are fed whole to the change planner and cut off past that. When a file is near or over the limit, condensing a stale section with Edit IS the right move and takes precedence over "do not rewrite whole files" — but never rewrite a file top to bottom, and never touch `frontend.md` for length alone.
     PROMPT
   end
 

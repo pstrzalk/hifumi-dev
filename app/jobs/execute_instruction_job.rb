@@ -187,9 +187,9 @@ class ExecuteInstructionJob < ApplicationJob
     docs_dir = File.join(workspace, "docs")
     FileUtils.mkdir_p(docs_dir)
     {
-      "architecture.md"   => "# Architecture\n\n(empty — will be filled in by the first revision)\n",
-      "conventions.md"    => "# Conventions\n\n(empty — will be filled in by the first revision)\n",
-      "domain.md"         => "# Domain\n\n(empty — will be filled in by the first revision)\n",
+      "architecture.md"   => "# Architecture\n\n#{AppState::PLACEHOLDER}\n",
+      "conventions.md"    => "# Conventions\n\n#{AppState::PLACEHOLDER}\n",
+      "domain.md"         => "# Domain\n\n#{AppState::PLACEHOLDER}\n",
       "revision_notes.md" => "# Revision notes\n\n"
     }.each { |name, content| File.write(File.join(docs_dir, name), content) }
 

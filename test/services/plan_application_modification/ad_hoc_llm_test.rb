@@ -46,6 +46,24 @@ class PlanApplicationModification::AdHocLLMTest < ActiveSupport::TestCase
     end
   end
 
+  # ---- the system prompt states only what a generated app has ----
+  # The stored defect the workspace snapshot fixes: this prompt used to assert
+  # that Devise and hifumi.dev's own `--accent` tokens exist in the generated
+  # app. Neither does. Absences are for the planner to infer from the snapshot,
+  # and the default stack is named as "default Rails 8", never enumerated.
+
+  test "system prompt never names Devise-class gems, hifumi design tokens, or the default stack's parts" do
+    refute_match(/devise|pundit|cancancan|sidekiq|--accent|--paper|--ink|propshaft|importmap|solid_/i,
+                 PlanApplicationModification::AdHocLLM::SYSTEM_PROMPT)
+  end
+
+  test "system prompt frames the stack positively: default Rails 8, the Gems section, has_secure_password" do
+    prompt = PlanApplicationModification::AdHocLLM::SYSTEM_PROMPT
+    assert_includes prompt, "default Rails 8 installation"
+    assert_includes prompt, '"Gems" section'
+    assert_includes prompt, "has_secure_password"
+  end
+
   test "passes the selected model through to the LLM" do
     with_llm_response(plan_fixture("valid_plan.json")) do |captured|
       PlanApplicationModification::AdHocLLM.call(intent: "make banner green", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-opus-4.6")
@@ -65,6 +83,65 @@ class PlanApplicationModification::AdHocLLMTest < ActiveSupport::TestCase
       assert_includes captured[:user], "Clarifications:"
       assert_includes captured[:user], "- shade?: forest"
       assert_includes captured[:user], "- icons too?: no"
+    end
+  end
+
+  # ---- context[:app_state] — the workspace snapshot ModifyApplication builds ----
+
+  APP_STATE = "## Current application state\n\n### Gems\n\nStandard Rails 8.1 application with Tailwind and Hotwire, on the default Gemfile.".freeze
+
+  test "renders context[:app_state] after the intent, separated by a blank line" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(
+        intent: "make banner green", clarifications: {}, context: { app_state: APP_STATE },
+        openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5"
+      )
+      assert_equal "Intent: make banner green\n\n#{APP_STATE}", captured[:user]
+    end
+  end
+
+  # The system prompt says the state is given and forbids hedging, so every path
+  # without a snapshot must say so in the user turn instead of staying silent.
+  NO_STATE = PlanApplicationModification::AdHocLLM::NO_STATE_NOTE
+
+  test "an empty context appends the no-snapshot note where the state would go" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(intent: "make banner green", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+      assert_equal "Intent: make banner green\n\n#{NO_STATE}", captured[:user]
+    end
+  end
+
+  test "a nil app_state (workspace not initialized, or --blind) appends the no-snapshot note" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(intent: "make banner green", clarifications: {}, context: { app_state: nil }, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+      assert_equal "Intent: make banner green\n\n#{NO_STATE}", captured[:user]
+    end
+  end
+
+  test "a non-Hash context is treated as no snapshot rather than raising" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(intent: "make banner green", clarifications: {}, context: nil, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+      assert_equal "Intent: make banner green\n\n#{NO_STATE}", captured[:user]
+    end
+  end
+
+  test "the no-snapshot note never appears when a snapshot is given" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(intent: "make banner green", clarifications: {}, context: { app_state: APP_STATE }, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+      refute_includes captured[:user], NO_STATE
+    end
+  end
+
+  test "clarifications precede app_state so the request is never buried behind the listing" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(
+        intent: "make banner green",
+        clarifications: { "shade?" => "forest" },
+        context: { app_state: APP_STATE },
+        openrouter_api_key: "sk-or-test",
+        model: "anthropic/claude-haiku-4.5"
+      )
+      assert_equal "Intent: make banner green\nClarifications:\n  - shade?: forest\n\n#{APP_STATE}", captured[:user]
     end
   end
 
