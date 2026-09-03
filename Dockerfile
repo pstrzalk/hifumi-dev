@@ -30,6 +30,12 @@ RUN apt-get update -qq && \
     ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
+# Bundler globals. Declared before the claude wrapper below so the wrapper
+# can quote the same values at build time (see the export it writes).
+ENV BUNDLE_DEPLOYMENT="1" \
+    BUNDLE_PATH="/usr/local/bundle" \
+    BUNDLE_WITHOUT="development"
+
 # Install the Claude Code CLI binary. Roast 1.1.0's only agent providers are
 # :claude and :pi, and the :claude provider spawns a `claude` binary via
 # Open3. bin/roast-openrouter sets ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN so
@@ -58,13 +64,22 @@ RUN useradd -m -u 1000 -s /bin/bash generator && \
     rm /root/.local/bin/claude && \
     printf '%s\n' \
       '#!/bin/sh' \
+      '# Roast spawns this binary inside Bundler.with_unbundled_env, which deletes every' \
+      '# BUNDLE_* variable, the image-level BUNDLE_PATH and BUNDLE_WITHOUT included. Without' \
+      '# them Bundler looks for gems under $GEM_HOME/gems instead of $BUNDLE_PATH/ruby/<abi>/gems' \
+      '# and every workspace command (bin/rails, bundle check) reports the whole lockfile' \
+      '# missing. Restore the image defaults for the agent and everything it runs.' \
+      > /usr/local/bin/claude && \
+    printf 'export BUNDLE_PATH="${BUNDLE_PATH:-%s}" BUNDLE_WITHOUT="${BUNDLE_WITHOUT:-%s}"\n' "$BUNDLE_PATH" "$BUNDLE_WITHOUT" \
+      >> /usr/local/bin/claude && \
+    printf '%s\n' \
       'real=/opt/claude/versions/$(ls -1 /opt/claude/versions | sort -V | tail -1)' \
       'if [ "$(id -u)" -eq 0 ]; then' \
       '  HOME=/home/generator exec runuser -p -u generator -- "$real" "$@"' \
       'else' \
       '  exec "$real" "$@"' \
       'fi' \
-      > /usr/local/bin/claude && \
+      >> /usr/local/bin/claude && \
     chmod +x /usr/local/bin/claude && \
     git config --system --add safe.directory '*' && \
     git config --system user.name 'Hifumi' && \
@@ -72,9 +87,6 @@ RUN useradd -m -u 1000 -s /bin/bash generator && \
 
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
 ENV RAILS_ENV="production" \
-    BUNDLE_DEPLOYMENT="1" \
-    BUNDLE_PATH="/usr/local/bundle" \
-    BUNDLE_WITHOUT="development" \
     LD_PRELOAD="/usr/local/lib/libjemalloc.so"
 
 # Throw-away build stage to reduce size of final image

@@ -53,15 +53,10 @@ class VerifyRevisionTest < ActiveSupport::TestCase
                  "BUNDLE_GEMFILE leaked inside the block — workspace bundle commands would resolve against the parent Gemfile"
   end
 
-  test "with_clean_bundler_env delegates to Bundler.with_unbundled_env (regression: hand-rolled scrub stripped BUNDLE_PATH)" do
-    # The earlier implementation stripped every BUNDLE_*-prefixed var, which
-    # over-deleted: it also dropped BUNDLE_PATH (set globally to
-    # /usr/local/bundle by the Dockerfile, where every bundle install
-    # deposits gems). With BUNDLE_PATH gone, subprocess `bundle check`
-    # defaulted to a different lookup path and reported gems missing even
-    # after `bundle install` had populated /usr/local/bundle.
-    # Bundler.with_unbundled_env reverts only what bundler itself set on
-    # entering the bundle, leaving Dockerfile globals intact.
+  test "with_clean_bundler_env delegates to Bundler.with_unbundled_env" do
+    # Bundler's primitive is what knows how to undo `bundle exec` (BUNDLE_GEMFILE,
+    # BUNDLE_BIN_PATH, the -rbundler/setup in RUBYOPT, the RUBYLIB entry). The
+    # hand-rolled scrubber it replaced got that list wrong once already.
     delegated = false
     original = Bundler.method(:with_unbundled_env)
     Bundler.singleton_class.define_method(:with_unbundled_env) do |&blk|
@@ -74,6 +69,37 @@ class VerifyRevisionTest < ActiveSupport::TestCase
     Bundler.singleton_class.define_method(:with_unbundled_env, &original) if original
   end
 
+  # Bundler.with_unbundled_env deletes EVERY BUNDLE_* variable, not only what
+  # `bundle exec` set. In the production image BUNDLE_PATH and BUNDLE_WITHOUT
+  # are Dockerfile globals; losing them made every workspace `bundle check`
+  # report the whole lockfile missing (2026-09-03). These pin the restore.
+
+  test "with_clean_bundler_env restores the image's BUNDLE_PATH and BUNDLE_WITHOUT while still dropping BUNDLE_GEMFILE" do
+    with_original_env_stub(
+      "BUNDLE_GEMFILE" => "/rails/Gemfile", "BUNDLE_BIN_PATH" => "/x/bundle", "RUBYOPT" => "-rbundler/setup",
+      "BUNDLE_PATH" => "/usr/local/bundle", "BUNDLE_WITHOUT" => "development", "BUNDLE_APP_CONFIG" => "/usr/local/bundle"
+    ) do
+      inside = VerifyRevision.with_clean_bundler_env { ENV.to_h.slice(*%w[BUNDLE_GEMFILE BUNDLE_BIN_PATH BUNDLE_PATH BUNDLE_WITHOUT BUNDLE_APP_CONFIG]) }
+
+      assert_equal({ "BUNDLE_PATH" => "/usr/local/bundle", "BUNDLE_WITHOUT" => "development" }, inside)
+    end
+  end
+
+  test "with_clean_bundler_env adds nothing when the original env carries no image-level Bundler vars (dev)" do
+    with_original_env_stub("BUNDLE_GEMFILE" => "/rails/Gemfile", "RUBYOPT" => "-rbundler/setup", "BUNDLE_PATH" => nil, "BUNDLE_WITHOUT" => nil) do
+      inside = VerifyRevision.with_clean_bundler_env { ENV.to_h.select { |k, _| k.start_with?("BUNDLE_") } }
+
+      assert_empty inside
+    end
+  end
+
+  test "with_clean_bundler_env leaves the parent process env untouched afterwards" do
+    before = ENV.to_h
+    VerifyRevision.with_clean_bundler_env { ENV["BUNDLE_PATH"] = "/leaked" }
+
+    assert_equal before, ENV.to_h
+  end
+
   test "with_clean_bundler_env returns the block's value and propagates exceptions" do
     assert_equal 42, VerifyRevision.with_clean_bundler_env { 42 }
 
@@ -84,6 +110,18 @@ class VerifyRevisionTest < ActiveSupport::TestCase
   end
 
   private
+
+  # Bundler.unbundled_env builds on Bundler.original_env (the env before
+  # `bundle exec`), so swapping that one method is enough to simulate the
+  # production image's env from a dev box. nil removes a key.
+  def with_original_env_stub(overrides)
+    original = Bundler.method(:original_env)
+    fake = original.call.merge(overrides).compact
+    Bundler.singleton_class.define_method(:original_env) { fake.dup }
+    yield
+  ensure
+    Bundler.singleton_class.define_method(:original_env, &original) if original
+  end
 
   # Replace VerifyRevision.perform with a stub that returns the configured
   # outcome per check. Defaults to pass for unspecified checks.

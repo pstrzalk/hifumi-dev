@@ -67,17 +67,25 @@ module VerifyRevision
     with_clean_bundler_env { system("cd #{workspace} && bundle show #{name} > /dev/null 2>&1") }
   end
 
-  # Roast runs under `bundle exec`, which sets BUNDLE_GEMFILE pointing at the
-  # generator's Gemfile. Subprocess `bundle check` / `bin/rails` against the
-  # workspace must NOT see that, or it'd resolve gems against the wrong
-  # bundle. The earlier hand-rolled scrubber stripped every BUNDLE_* var,
-  # which over-deleted: it also dropped BUNDLE_PATH (set globally by the
-  # Dockerfile to /usr/local/bundle) so bundler defaulted to a different
-  # lookup path and reported gems missing even after `bundle install` had
-  # populated /usr/local/bundle. Bundler's own with_unbundled_env reverts
-  # only what bundler itself set on entering the bundle, leaving Dockerfile
-  # globals intact.
-  def self.with_clean_bundler_env(&block)
-    Bundler.with_unbundled_env(&block)
+  # Roast runs under `bundle exec`, which sets BUNDLE_GEMFILE to the generator's
+  # Gemfile and RUBYOPT=-rbundler/setup. Subprocess `bundle check` / `bin/rails`
+  # against the workspace must not see those, or they resolve against the wrong
+  # bundle. Bundler.with_unbundled_env removes them — but it removes EVERY
+  # BUNDLE_* variable, the image-level ones included (this comment used to claim
+  # otherwise; production disproved it on 2026-09-03). Without BUNDLE_PATH,
+  # Bundler looks under $GEM_HOME/gems instead of $BUNDLE_PATH/ruby/<abi>/gems
+  # and reports the whole lockfile missing; without BUNDLE_WITHOUT it wants the
+  # development group the image never installs. Both are restored here from the
+  # env as it was before `bundle exec`. In dev neither is set, so nothing is
+  # added. The claude wrapper in the Dockerfile does the same for the agent,
+  # which roast spawns unbundled as well.
+  IMAGE_BUNDLER_ENV = %w[BUNDLE_PATH BUNDLE_WITHOUT].freeze
+
+  def self.with_clean_bundler_env
+    Bundler.with_unbundled_env do
+      original = Bundler.original_env
+      IMAGE_BUNDLER_ENV.each { |key| ENV[key] = original[key] if original.key?(key) }
+      yield
+    end
   end
 end
