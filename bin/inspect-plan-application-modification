@@ -1,0 +1,111 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Maintainer/debug helper — not part of normal app flow.
+#
+# Dry-run the modification planner (PlanApplicationModification) against a real
+# project's workspace and dump the resulting revisions. Persists nothing and
+# runs no implementer: this is the planner call `modify_application` makes,
+# minus the Instruction/Revision rows and the `instruction.requested` event.
+#
+# Use it to verify changes to app/prompts/plan_application_modification_system.md,
+# to PlanApplicationModification::AdHocLLM, or to AppState (the workspace
+# snapshot the planner is fed). The snapshot is printed first, with its size,
+# so a prompt change can be inspected next to the plan it produced.
+#
+# Usage (locally):    bin/inspect-plan-application-modification <project_id> "<intent>" ["<intent>" ...] [--model <id>] [--blind]
+# Usage (on Kamal):   kamal app exec --primary "bin/inspect-plan-application-modification <project_id> '<intent>'"
+#
+#   --model <id>  OpenRouter model id; default is the project's plan_modification_model
+#   --blind       omit the workspace snapshot, i.e. plan from the intent alone —
+#                 a same-session A/B against the pre-AppState behaviour
+#
+# Examples:
+#   bin/inspect-plan-application-modification 42 "let people delete a standup entry"
+#   bin/inspect-plan-application-modification 42 "let people delete a standup entry" --blind
+#   bin/inspect-plan-application-modification 39 "add a note field to time entries" --model anthropic/claude-sonnet-4.6
+#
+# Reads the OpenRouter key from the project owner's Profile, falling back to the
+# first Profile that has one (typically your own dev user). Planner alone is a
+# few cents per intent; the W2 implementer is never run.
+#
+# Related: bin/inspect-plan-application-creation — the same for the creation planner
+#          bin/inspect-plans <project_id>        — plans already stored for a project
+#          bin/inspect-chat <project_id>         — the conversation that led there
+
+require_relative "../config/environment"
+require "optparse"
+
+USAGE = "usage: bin/inspect-plan-application-modification <project_id> \"<intent>\" [\"<intent>\" ...] [--model <id>] [--blind]"
+
+options = { model: nil, blind: false }
+parser = OptionParser.new do |o|
+  o.banner = USAGE
+  o.on("--model ID", "OpenRouter model id (default: the project's plan_modification_model)") { |v| options[:model] = v }
+  o.on("--blind", "omit the workspace snapshot (plan from the intent alone)") { options[:blind] = true }
+end
+args = parser.parse(ARGV)
+
+project_id = args.shift || abort(parser.help)
+intents = args
+abort(parser.help) if intents.empty?
+
+project = begin
+  Project.find(project_id)
+rescue ActiveRecord::RecordNotFound
+  abort("no project with id #{project_id.inspect}")
+end
+
+model = options[:model] || project.plan_modification_model
+key = project.user.profile.openrouter_api_key.presence ||
+      Profile.where.not(openrouter_api_key: nil).first&.openrouter_api_key
+abort("no Profile with an openrouter_api_key found in this DB") if key.nil?
+
+app_state = options[:blind] ? nil : AppState.build(workspace: project.workspace_path)
+
+RULE = "=" * 80
+
+puts RULE
+puts "Project ##{project.id} — #{project.name}"
+puts "workspace: #{project.workspace_path}"
+puts "model:     #{model}#{options[:model] ? ' (--model)' : ' (project.plan_modification_model)'}"
+puts "mode:      #{options[:blind] ? 'BLIND — no workspace snapshot' : 'with AppState snapshot'}"
+puts RULE
+
+if options[:blind]
+  puts "\n(blind: the planner sees only the intent)"
+elsif app_state.nil?
+  puts "\n(workspace not initialized — AppState.build returned nil, the planner sees only the intent)"
+else
+  puts "\nAPP STATE PAYLOAD (#{app_state.bytesize} bytes, #{app_state.length} chars, ~#{app_state.length / 4} tokens)"
+  puts "-" * 80
+  puts app_state
+  puts "-" * 80
+end
+
+intents.each do |intent|
+  puts
+  puts RULE
+  puts "INTENT: #{intent}"
+  puts RULE
+
+  started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  result = PlanApplicationModification.call(
+    intent: intent,
+    clarifications: {},
+    context: { app_state: app_state },
+    openrouter_api_key: key,
+    model: model
+  )
+  elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+
+  puts "instruction_description: #{result.instruction_description}"
+  puts "revisions: #{result.revisions.size} · planner time: #{elapsed.round(1)}s"
+  puts
+  result.revisions.each_with_index do |r, i|
+    puts "--- Revision #{i + 1}: #{r[:summary]} ---"
+    puts r[:prompt]
+    puts
+  end
+end

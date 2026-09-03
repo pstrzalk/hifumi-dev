@@ -1,50 +1,87 @@
 #!/usr/bin/env ruby
-# Invoke PlanApplicationCreation against one or more intents and dump the
-# resulting revisions, without persisting anything or running the W2 implementer.
+# frozen_string_literal: true
+
 #
-# Use this to verify changes to app/prompts/plan_application_creation_system.md
-# or to PlanApplicationCreation::AdHocLLM by inspecting what the planner emits,
-# without paying the full ~900s W2 generation cost (planner alone is haiku, a few cents).
+# Maintainer/debug helper — not part of normal app flow.
 #
-# Usage (locally):
-#   bin/rails runner bin/inspect-plan-application-creation "your intent here" ["another intent" ...]
+# Dry-run the creation planner (PlanApplicationCreation) against one or more
+# intents and dump the resulting revisions. Persists nothing and runs no
+# implementer: this is the planner call `create_application` makes, minus the
+# Instruction/Revision rows and the `instruction.requested` event.
+#
+# Use it to verify changes to app/prompts/plan_application_creation_system.md
+# or to PlanApplicationCreation::AdHocLLM without paying the full ~900s W2
+# generation cost (planner alone is a few cents per intent).
+#
+# The creation planner has no workspace to look at — CreateApplication persists
+# the plan before ExecuteInstructionJob runs `rails new` — so unlike the
+# modification probe there is no snapshot to print and no --blind mode.
+#
+# Usage (locally):    bin/inspect-plan-application-creation ["<intent>" ...] [--model <id>]
+# Usage (on Kamal):   kamal app exec --primary "bin/inspect-plan-application-creation '<intent>'"
+#
+#   --model <id>  OpenRouter model id; default is the plan_creation stage's
+#                 factory default (LLM::Stages)
+#   --help        print usage and exit without an LLM call
 #
 # Examples:
-#   bin/rails runner bin/inspect-plan-application-creation "a todo list app"
-#   bin/rails runner bin/inspect-plan-application-creation \
+#   bin/inspect-plan-application-creation "a todo list app"
+#   bin/inspect-plan-application-creation \
 #     "a todo list app" \
 #     "a personal finance tracker with expenses and budgets and a dashboard"
+#   bin/inspect-plan-application-creation "a blog with authors who sign in" --model anthropic/claude-sonnet-4.6
 #
 # Defaults: when no intents are given, runs a small built-in suite covering
 # single-feature, multi-feature, and "user-overrides-default-routing" cases.
 # Reads the OpenRouter API key from the first Profile that has one set
-# (typically your own dev user). Production: not intended; this is a dev tool.
+# (typically your own dev user).
+#
+# Related: bin/inspect-plan-application-modification <project_id> "<intent>" — the same for the modification planner
+#          bin/inspect-plans <project_id> — plans already stored for a project
+#          bin/inspect-chat <project_id>  — the conversation that led there
 
-require "ruby_llm/schema"
+require_relative "../config/environment"
+require "optparse"
 
-intents =
-  if ARGV.any?
-    ARGV
-  else
-    [
-      "a todo list app",
-      "a personal finance tracker with expenses, budgets, and a dashboard",
-      "a private admin dashboard mounted at /admin for managing users"
-    ]
-  end
+USAGE = "usage: bin/inspect-plan-application-creation [\"<intent>\" ...] [--model <id>]"
+
+options = { model: LLM::Stages.find(:plan_creation).default_model }
+parser = OptionParser.new do |o|
+  o.banner = USAGE
+  o.on("--model ID", "OpenRouter model id (default: #{options[:model]}, the plan_creation stage default)") { |v| options[:model] = v }
+end
+intents = parser.parse(ARGV)
+
+if intents.empty?
+  intents = [
+    "a todo list app",
+    "a personal finance tracker with expenses, budgets, and a dashboard",
+    "a private admin dashboard mounted at /admin for managing users"
+  ]
+end
 
 profile = Profile.where.not(openrouter_api_key: nil).first
 abort "no Profile with an openrouter_api_key found in this DB" if profile.nil?
 key = profile.openrouter_api_key
 
-intents.each do |intent|
-  puts "=" * 80
-  puts "INTENT: #{intent}"
-  puts "=" * 80
+RULE = "=" * 80
 
-  result = PlanApplicationCreation.call(intent: intent, openrouter_api_key: key)
+puts RULE
+puts "model: #{options[:model]}"
+puts RULE
+
+intents.each do |intent|
+  puts
+  puts RULE
+  puts "INTENT: #{intent}"
+  puts RULE
+
+  started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+  result = PlanApplicationCreation.call(intent: intent, openrouter_api_key: key, model: options[:model])
+  elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
 
   puts "instruction_description: #{result.instruction_description}"
+  puts "revisions: #{result.revisions.size} · planner time: #{elapsed.round(1)}s"
   puts
   result.revisions.each_with_index do |r, i|
     puts "--- Revision #{i + 1}: #{r[:summary]} ---"
