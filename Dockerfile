@@ -89,9 +89,26 @@ COPY vendor/* ./vendor/
 COPY Gemfile Gemfile.lock ./
 
 RUN bundle install && \
-    rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
     # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
     bundle exec bootsnap precompile -j 1 --gemfile
+
+# Bake the workspace skeleton's bundle next to the generator's. Every project
+# workspace starts as a copy of lib/preview/skeleton — Gemfile.lock and a
+# frozen .bundle/config included — and the agent sandbox is this very image, so
+# `bundle check` inside a sandbox passes only if the skeleton's exact gem
+# versions already sit in BUNDLE_PATH. When they did not (the generator's own
+# lock had moved on: rails 8.1.3.1 vs the skeleton's 8.1.3), every revision on
+# production paid a fresh ~80s `bundle install` into the throwaway container
+# plus a fix-agent call, and verify never reached the tests before remediation
+# (project 36, 2026-09-03: ~9 of 32 minutes). Two bundles share one BUNDLE_PATH
+# without conflict — each resolves against its own lock and ignores the other's
+# specs. BUNDLE_WITHOUT=development applies to both, which is exactly what the
+# sandbox's `bundle check` expects. The `bundle check` below turns a future
+# drift into an image-build failure instead of a per-revision bill.
+COPY lib/preview/skeleton/Gemfile lib/preview/skeleton/Gemfile.lock ./lib/preview/skeleton/
+RUN BUNDLE_GEMFILE=/rails/lib/preview/skeleton/Gemfile bundle install && \
+    BUNDLE_GEMFILE=/rails/lib/preview/skeleton/Gemfile bundle check && \
+    rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git
 
 # Copy application code
 COPY . .

@@ -8,6 +8,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [semantic versioning](https://semver.org/) (minor for new
 functionality, patch for fixes and internal changes).
 
+## [1.5.1] - 2026-09-03
+
+### Fixed
+
+- Every build step on hifumi.dev was silently paying for a full `bundle
+  install`. The generator image's gems had moved past the versions pinned in
+  the blank-app skeleton every project starts from, and the agent sandbox is
+  that same image, so Bundler inside the sandbox could not satisfy the
+  project's lockfile and downloaded all 116 gems again — in a container that
+  is discarded a minute later. On a six-step build that was about nine of
+  thirty-two minutes, an extra fix-agent call per step, and the verification
+  step never reaching the tests before remediation. The image now carries the
+  skeleton's bundle as well, and its build fails if the two ever drift again.
+  Self-hosters: rebuild the image; the build takes a little longer, every
+  build step afterwards is faster and cheaper.
+
 ## [1.5.0] - 2026-09-03
 
 ### Added
