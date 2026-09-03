@@ -16,7 +16,7 @@ Hosted at **[hifumi.dev](https://hifumi.dev)** · Source: this repo.
 Deferred observations from Phase 2 (revisit later, not blockers):
 - refused-tool-call pill UX (Step 6) — the `🌀 Build started` pill flashing when the LLM ignores the state rule. Nothing rescues it any more: the tool-side guard was deleted in `13e9c1c`, leaving the prompt rule and the `BadRequestError` banner (see the RubyLLM idempotency bullet below).
 - deferred-request handling after `✅ Generation finished.` — see `docs/09-ideas/02-deferred-request-handling.md`.
-- Step 7 wall-time margin (Step 7) — real run consumed ~900s vs the spike's 496s; the integration test's `WALL_TIME_BUDGET = 900` sits right at the edge. Bump the budget or investigate W2-phase slowdown (looks heavy on the docs-update agent) before relying on this in CI.
+- Step 7 wall-time margin (Step 7) — real runs: 496s (spike), ~900s (May, before the per-revision hardening), 550s (2026-09-03, the run that re-validated the repaired E2E test). `WALL_TIME_BUDGET` is 1200 so a slow day is not a red; the budget assertion runs before the generated app's own suite. W2-phase (docs-update agent) is still the heaviest step if the number climbs again.
 
 ## Documentation structure
 

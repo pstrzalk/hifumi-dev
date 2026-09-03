@@ -19,7 +19,8 @@
 #
 #   --model <id>  OpenRouter model id; default is the project's plan_modification_model
 #   --blind       omit the workspace snapshot, i.e. plan from the intent alone —
-#                 a same-session A/B against the pre-AppState behaviour
+#                 a same-session A/B isolating what the snapshot contributes under
+#                 the current prompt (not the pre-AppState prompt, which changed too)
 #
 # Examples:
 #   bin/inspect-plan-application-modification 42 "let people delete a standup entry"

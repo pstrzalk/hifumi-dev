@@ -16,11 +16,11 @@
 module AppState
   DOC_FILES = %w[architecture.md conventions.md domain.md frontend.md].freeze
 
-  # ExecuteInstructionJob#init_docs_baseline scaffolds three of the four docs
-  # with this text, so File.exist? cannot distinguish "the docs agent ran" from
-  # "the docs dir was created". frontend.md is written by Templates::Picker and
-  # is never a placeholder.
-  PLACEHOLDER = "will be filled in by the first revision"
+  # ExecuteInstructionJob#init_docs_baseline scaffolds three of the four docs as
+  # a title line plus this line (it interpolates the constant), so File.exist?
+  # cannot distinguish "the docs agent ran" from "the docs dir was created".
+  # frontend.md is written by Templates::Picker and is never a placeholder.
+  PLACEHOLDER = "(empty — will be filled in by the first revision)"
 
   # Caps each docs file on its own, in characters (see docs_section). There is
   # deliberately no cap on the docs total: a body cap over the joined files would
@@ -63,6 +63,37 @@ module AppState
                            .scan(/^\s*gem\s+["']([^"']+)["']/).flatten.to_set.freeze
   end
 
+  # Major.minor from the skeleton Gemfile's `gem "rails", "~> 8.1.3"` line —
+  # the same file the workspace Gemfile is copied from — so a Rails bump via
+  # bin/preview-regen-skeleton cannot leave this payload asserting a stale
+  # version to a planner told not to hedge.
+  def self.rails_version
+    @rails_version ||= File.read(Rails.root.join("lib/preview/skeleton/Gemfile"))[/^gem "rails",\s*"[^\d]*(\d+\.\d+)/, 1] || "8"
+  end
+
+  # Every workspace file is read through here. The workspace is written by the
+  # sandboxed codegen agent, so a plain File.read does two wrong things:
+  #
+  # - It follows a symlink out of the workspace. `docs/domain.md ->
+  #   ../../project_41/docs/domain.md` resolves against the generator's mount,
+  #   where every tenant's workspace is, and the other project's file lands in
+  #   the planner prompt and in the plan shown to the user. realpath containment
+  #   also catches a symlinked directory, which an lstat on the leaf would not.
+  # - It returns invalid UTF-8 as-is. `rstrip` and `scan` raise on it; the
+  #   tool's rescue then reports a planner failure the user is told to fix by
+  #   rephrasing, and every later request on the project fails the same way.
+  #   `scrub` turns the stray bytes into U+FFFD instead.
+  #
+  # Returns nil when the file is missing, not a regular file, or resolves
+  # outside the workspace — callers treat all three as "not there".
+  def self.read_workspace_file(workspace, relative)
+    path = File.join(workspace, relative)
+    return nil unless File.file?(path)
+    return nil unless File.realpath(path).start_with?("#{File.realpath(workspace)}/")
+
+    File.read(path, encoding: "UTF-8").scrub
+  end
+
   # The single highest-value section: it is what lets the planner see `bcrypt`
   # (has_secure_password) on project_30 instead of assuming Devise.
   #
@@ -75,12 +106,12 @@ module AppState
   # what a default install already is, and naming them invites the planner to
   # treat them as optional extras worth a revision.
   def self.gems_section(workspace)
-    path = File.join(workspace, "Gemfile")
-    return nil unless File.exist?(path)
+    gemfile = read_workspace_file(workspace, "Gemfile")
+    return nil unless gemfile
 
-    extra = File.read(path).scan(/^\s*gem\s+["']([^"']+)["']/).flatten
-                .reject { |g| skeleton_gems.include?(g) }
-    body = "Standard Rails 8.1 application with Tailwind and Hotwire, "
+    extra = gemfile.scan(/^\s*gem\s+["']([^"']+)["']/).flatten
+                   .reject { |g| skeleton_gems.include?(g) }
+    body = "Standard Rails #{rails_version} application with Tailwind and Hotwire, "
     body +=
       if extra.empty?
         "on the default Gemfile."
@@ -93,11 +124,11 @@ module AppState
   # Condensed to table + column names: indexes, foreign keys and the 12-line
   # header are noise for planning. 8431 -> 1652 bytes on project_30.
   def self.schema_section(workspace)
-    path = File.join(workspace, "db/schema.rb")
-    return migrations_section(workspace) unless File.exist?(path)
+    schema = read_workspace_file(workspace, "db/schema.rb")
+    return migrations_section(workspace) unless schema
 
     tables = []
-    File.foreach(path) do |line|
+    schema.each_line do |line|
       case line
       when /^\s*create_table "([^"]+)"/ then tables << +"- #{$1}: "
       when /^\s*t\.(\w+) "([^"]+)"/     then tables.last << "#{$2} (#{$1}), " unless tables.empty?
@@ -124,10 +155,10 @@ module AppState
   end
 
   def self.routes_section(workspace)
-    path = File.join(workspace, "config/routes.rb")
-    return nil unless File.exist?(path)
+    routes = read_workspace_file(workspace, "config/routes.rb")
+    return nil unless routes
 
-    "### Routes (config/routes.rb)\n\n```ruby\n#{File.read(path).rstrip}\n```"
+    "### Routes (config/routes.rb)\n\n```ruby\n#{routes.rstrip}\n```"
   end
 
   # Globs all of app/, not just controllers+models: project_30 put a concern at
@@ -151,17 +182,31 @@ module AppState
     "### Files under app/\n\n#{files.join("\n")}"
   end
 
+  # Each body is fenced, like routes: the docs open with `# Title` and use `##`
+  # subheadings, which would otherwise outrank this payload's `###` sections in
+  # the markdown hierarchy — project_28's conventions.md carries a `## Gems`
+  # table enumerating propshaft/importmap/solid, exactly what gems_section
+  # refuses to name, and unfenced it sits a heading level above that section
+  # while the preamble asks the planner to prefer the lists. Four backticks so
+  # a ``` code block inside a doc cannot close the fence early.
   def self.docs_section(workspace)
     body = DOC_FILES.filter_map do |name|
-      path = File.join(workspace, "docs", name)
-      next unless File.exist?(path)
+      content = read_workspace_file(workspace, File.join("docs", name))
+      next unless content
+      next if placeholder?(content)
 
-      content = File.read(path)
-      next if content.include?(PLACEHOLDER)
-
-      "### docs/#{name}\n\n#{cap_doc(content.rstrip, name)}"
+      "### docs/#{name}\n\n````markdown\n#{cap_doc(content.rstrip, name)}\n````"
     end.join("\n\n")
     body.presence
+  end
+
+  # The untouched baseline is a title line and the placeholder line, nothing
+  # else. A doc the W2.6 agent has populated but appended to (its rules allow
+  # append-only edits) may still carry the placeholder line; that doc is real
+  # and must stay, so this is a whole-body test, not a substring search.
+  def self.placeholder?(content)
+    lines = content.lines.map(&:strip).reject(&:empty?)
+    lines.length <= 2 && lines.last == PLACEHOLDER
   end
 
   # Characters, not bytes: byteslice can cut mid-codepoint, and the docs are

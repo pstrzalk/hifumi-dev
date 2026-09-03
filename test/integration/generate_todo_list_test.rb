@@ -16,14 +16,15 @@ require "shellwords"
 #   <link> land in the workspace exactly as in production.
 #
 # Real: ExecuteInstructionJob, including the `bin/roast` subprocess that calls
-# the Claude CLI for each revision. Wall time ≈ 8 minutes; bounded at 900s.
+# the Claude CLI for each revision. Wall time ≈ 9 minutes (550s measured
+# 2026-09-03, ~900s seen in May); bounded at 1200s.
 #
 # Gated by E2E_GENERATE=1 so the default `bin/rails test` stays fast.
 class GenerateTodoListTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
 
   PROMPT = "Simple todo list, Tailwind".freeze
-  WALL_TIME_BUDGET = 900
+  WALL_TIME_BUDGET = 1200
   TEMPLATE = "office"
 
   setup do
@@ -70,12 +71,18 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
     assert project.revisions.all?(&:completed?),
       "expected all revisions completed, got #{project.revisions.order(:position).map(&:status)}"
 
-    workspace = project.workspace_path
-    assert_equal TEMPLATE, File.read(File.join(workspace, "docs/frontend.md"))[/# Frontend template: (\w+)/, 1]
-    assert_workspace_git_log_at_least(workspace, 4)
-    assert_workspace_tests_pass(workspace)
+    # Before the generated app's own suite runs: a blown budget is the answer
+    # already, no need to spend another minute finding out.
     assert_operator elapsed, :<, WALL_TIME_BUDGET,
       "generation took #{elapsed.round}s, exceeds #{WALL_TIME_BUDGET}s budget"
+
+    workspace = project.workspace_path
+    # Presence, not the H1: the W2.6 docs agent may edit frontend.md on a styling
+    # revision, and this asserts that `apply` wrote the pinned template, not
+    # that the heading survived three revisions untouched.
+    assert_includes File.read(File.join(workspace, "docs/frontend.md")), TEMPLATE
+    assert_workspace_git_log_at_least(workspace, 4)
+    assert_workspace_tests_pass(workspace)
   end
 
   private

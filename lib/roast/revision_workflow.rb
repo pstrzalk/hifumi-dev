@@ -281,7 +281,7 @@ execute do
       - Use Edit (small, targeted edits) or append-only operations. Do not rewrite whole files.
       - If a doc has nothing to update for this revision, skip it — don't write filler.
       - Be terse. Each section in revision_notes is 1-3 sentences max.
-      - Keep each of `architecture.md`, `conventions.md`, `domain.md` and `frontend.md` under 8000 characters (~1200 words). They are fed whole to the change planner and cut off past that. When a file is approaching the limit, condense or replace stale sections instead of appending.
+      - Keep each of `architecture.md`, `conventions.md`, `domain.md` and `frontend.md` under 8000 characters (~1200 words). They are fed whole to the change planner and cut off past that. When a file is near or over the limit, condensing a stale section with Edit IS the right move and takes precedence over "do not rewrite whole files" — but never rewrite a file top to bottom, and never touch `frontend.md` for length alone.
     PROMPT
   end
 

@@ -49,7 +49,7 @@ Good: MIT LICENSE, contributor-facing README (mission, pipeline diagram, CLI ent
 Missing for a credible "learn how to build a Rails generator" repo:
 
 - `CONTRIBUTING.md` (only an inline README section exists), `CODE_OF_CONDUCT.md`, GitHub issue/PR templates.
-- The gated E2E generator test is broken (matches a fixture instead of the created instruction — see `docs/09-ideas/05-followups.md` 2026-05-14). It is the only end-to-end safety net; any "follow along" reader who runs it gets a false signal.
+- The gated E2E generator test is broken (matches a fixture instead of the created instruction). It is the only end-to-end safety net; any "follow along" reader who runs it gets a false signal. *Has since been actioned (2026-09-03): the test scopes to the signed-in user's project, signs in as Phase 4 requires, and ran green in 550s against a 1200s budget.*
 - Minor sanitization: local `/Users/pawel/...` paths in `spikes/roast/tmp/` logs.
 
 ## Candidate directions discussed (decision deferred)
@@ -57,7 +57,7 @@ Missing for a credible "learn how to build a Rails generator" repo:
 Recorded so the next planning session doesn't start from zero. Four tracks, in tension:
 
 1. **Harden for real multi-tenant users** — agent workspace isolation (done — `Roast::Sandbox`) + prompt-intake moderation as a proper Phase 5.
-2. **Repo as teaching artifact** — architecture walkthrough docs, CONTRIBUTING, annotated reading paths, good first issues, fix the E2E test.
+2. **Repo as teaching artifact** — architecture walkthrough docs, CONTRIBUTING, annotated reading paths, good first issues. (The E2E test fix listed here originally was done 2026-09-03.)
 3. **External content** — articles / talks built on this codebase (Rails World angle: new builders Rails could gain).
 4. **In-product education** — the `01-git-integration.md` ideas (diff view, annotated commits, "explain this change").
 

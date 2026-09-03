@@ -31,7 +31,12 @@ class AppStateTest < ActiveSupport::TestCase
     out = AppState.gems_section(@workspace)
 
     assert_includes out, "### Gems"
-    assert_includes out, "Standard Rails 8.1 application with Tailwind and Hotwire, on the default Gemfile."
+    assert_includes out, "Standard Rails #{AppState.rails_version} application with Tailwind and Hotwire, on the default Gemfile."
+  end
+
+  test "gems: the Rails version comes from the skeleton Gemfile, so a Rails bump cannot leave it stale" do
+    assert_match(/\A\d+\.\d+\z/, AppState.rails_version)
+    assert_includes File.read(SKELETON_GEMFILE), "gem \"rails\", \"~> #{AppState.rails_version}."
   end
 
   test "gems: extras are listed after the default Gemfile, skeleton gems are not" do
@@ -57,7 +62,7 @@ class AppStateTest < ActiveSupport::TestCase
     with_extra = AppState.gems_section(@workspace)
 
     [ baseline, with_extra ].each do |out|
-      refute_match(/\bno\b/i, out, "gems section must state only what is there")
+      refute_match(/\b(no|not|without|absent|missing)\b/i, out, "gems section must state only what is there")
     end
   end
 
@@ -94,6 +99,11 @@ class AppStateTest < ActiveSupport::TestCase
     refute_includes out, "index_tasks_on_user_id"
     refute_includes out, "add_foreign_key"
     refute_includes out, "ActiveRecord::Schema"
+  end
+
+  test "schema: a column line before any create_table is ignored rather than raising" do
+    write("db/schema.rb", "ActiveRecord::Schema[8.1].define(version: 1) do\n  t.string \"stray\"\n  create_table \"tasks\" do |t|\n    t.string \"title\"\n  end\nend\n")
+    assert_includes AppState.schema_section(@workspace), "- tasks: title (string)"
   end
 
   test "schema: present but without tables -> section omitted" do
@@ -173,6 +183,14 @@ class AppStateTest < ActiveSupport::TestCase
     refute_includes out, "app/assets/builds/tailwind.css"
   end
 
+  test "files: listing is sorted by full path, not glob order, so the payload is deterministic" do
+    write("app/foo/a.css", "")
+    write("app/foo/y.rb", "")
+    write("app/foo-bar/x.rb", "")
+
+    assert_equal "### Files under app/\n\napp/foo-bar/x.rb\napp/foo/a.css\napp/foo/y.rb", AppState.files_section(@workspace)
+  end
+
   test "files: ignores non-source files under app/" do
     write("app/assets/images/logo.png", "PNG")
     write("app/models/standup.rb", "class Standup; end\n")
@@ -200,10 +218,19 @@ class AppStateTest < ActiveSupport::TestCase
 
     out = AppState.docs_section(@workspace)
 
-    assert_includes out, "### docs/architecture.md\n\n# Architecture\n\nStandup model, StandupsController."
+    assert_includes out, "### docs/architecture.md\n\n````markdown\n# Architecture\n\nStandup model, StandupsController."
     refute_includes out, "### docs/domain.md"
     refute_includes out, "### docs/conventions.md"
     refute_includes out, AppState::PLACEHOLDER
+  end
+
+  test "docs: a populated doc that still carries the baseline placeholder line is kept" do
+    write("docs/domain.md", "# Domain\n\n#{AppState::PLACEHOLDER}\n\n## Standup\n\nOne row per daily standup.\n")
+
+    out = AppState.docs_section(@workspace)
+
+    assert_includes out, "### docs/domain.md"
+    assert_includes out, "One row per daily standup."
   end
 
   test "docs: frontend.md alone appears" do
@@ -211,7 +238,7 @@ class AppStateTest < ActiveSupport::TestCase
 
     out = AppState.docs_section(@workspace)
 
-    assert_includes out, "### docs/frontend.md\n\n# Frontend\n\nOffice template. Primary #0052CC."
+    assert_includes out, "### docs/frontend.md\n\n````markdown\n# Frontend\n\nOffice template. Primary #0052CC."
   end
 
   test "docs: revision_notes.md is never read" do
@@ -254,7 +281,7 @@ class AppStateTest < ActiveSupport::TestCase
 
     assert_includes out, "[... docs/architecture.md truncated at"
     refute_includes out, "[... docs/frontend.md truncated at"
-    assert_includes out, "### docs/frontend.md\n\n#{frontend.rstrip}"
+    assert_includes out, "### docs/frontend.md\n\n````markdown\n#{frontend.rstrip}"
   end
 
   test "docs cap is per file: two oversized files each carry their own marker" do
@@ -267,6 +294,14 @@ class AppStateTest < ActiveSupport::TestCase
     assert_includes out, "[... docs/domain.md truncated at"
   end
 
+  test "docs: bodies are fenced with four backticks, so a code block inside a doc cannot close the fence" do
+    write("docs/conventions.md", "# Conventions\n\n## Gems\n\n```ruby\ngem \"roo\"\n```\n")
+
+    out = AppState.docs_section(@workspace)
+
+    assert_equal "### docs/conventions.md\n\n````markdown\n# Conventions\n\n## Gems\n\n```ruby\ngem \"roo\"\n```\n````", out
+  end
+
   test "docs cap counts characters, so a multi-byte boundary stays valid UTF-8" do
     # 7999 ASCII chars, then an em dash straddling the 8000th character. A byte
     # slice would cut inside the 3-byte em dash; a character slice cannot.
@@ -277,6 +312,69 @@ class AppStateTest < ActiveSupport::TestCase
     assert_predicate out, :valid_encoding?
     assert_includes out, "a—\n[... docs/architecture.md truncated at"
     refute_includes out, "b"
+  end
+
+  # ---- reads: the workspace is agent-written ----
+
+  test "reads: invalid UTF-8 in any workspace file is scrubbed, never raised" do
+    # One stray byte in each file the module reads. Before read_workspace_file,
+    # scan (Gemfile), the per-line regex (schema) and rstrip (routes, docs) each
+    # raised on it and the tool reported a planner failure for every request after.
+    write_bytes("Gemfile", (File.read(SKELETON_GEMFILE) + "gem \"roo\" # caf\xE9\n").b)
+    write_bytes("db/schema.rb", "ActiveRecord::Schema[8.1].define(version: 1) do\n  create_table \"standups\" do |t|\n    t.string \"name\" # caf\xE9\n  end\nend\n".b)
+    write_bytes("config/routes.rb", "Rails.application.routes.draw do\n  resources :standups # caf\xE9\nend\n".b)
+    write_bytes("docs/architecture.md", "# Architecture\n\nStandup model. caf\xE9\n".b)
+
+    out = nil
+    assert_nothing_raised { out = AppState.build(workspace: @workspace) }
+
+    assert_predicate out, :valid_encoding?
+    assert_includes out, "default Gemfile: roo."
+    assert_includes out, "- standups: name (string)"
+    assert_includes out, "resources :standups # caf�"
+    assert_includes out, "### docs/architecture.md\n\n````markdown\n# Architecture\n\nStandup model. caf�"
+  end
+
+  test "reads: a symlink that resolves outside the workspace is treated as absent" do
+    outside = Dir.mktmpdir("app-state-outside-")
+    File.write(File.join(outside, "domain.md"), "# Domain\n\nOTHER TENANT SECRET\n")
+    File.write(File.join(outside, "routes.rb"), "Rails.application.routes.draw do\n  # OTHER TENANT SECRET\nend\n")
+    copy_skeleton_gemfile
+    FileUtils.mkdir_p(File.join(@workspace, "docs"))
+    FileUtils.mkdir_p(File.join(@workspace, "config"))
+    FileUtils.ln_s(File.join(outside, "domain.md"), File.join(@workspace, "docs/domain.md"))
+    FileUtils.ln_s(File.join(outside, "routes.rb"), File.join(@workspace, "config/routes.rb"))
+
+    out = AppState.build(workspace: @workspace)
+
+    refute_includes out, "OTHER TENANT SECRET"
+    refute_includes out, "### docs/domain.md"
+    refute_includes out, "### Routes"
+  ensure
+    FileUtils.remove_entry(outside) if outside && File.exist?(outside)
+  end
+
+  test "reads: a symlink that stays inside the workspace is read" do
+    write("notes/architecture.md", "# Architecture\n\nStandup model, linked in.\n")
+    FileUtils.mkdir_p(File.join(@workspace, "docs"))
+    FileUtils.ln_s("../notes/architecture.md", File.join(@workspace, "docs/architecture.md"))
+
+    assert_includes AppState.docs_section(@workspace), "### docs/architecture.md\n\n````markdown\n# Architecture\n\nStandup model, linked in."
+  end
+
+  test "the W2.6 docs-writer prompt quotes DOC_FILE_CAP — the two are maintained together" do
+    assert_includes File.read(Rails.root.join("lib/roast/revision_workflow.rb")), "under #{AppState::DOC_FILE_CAP} characters"
+  end
+
+  test "build returns nil when no section has anything to say" do
+    outside = Dir.mktmpdir("app-state-outside-")
+    File.write(File.join(outside, "Gemfile"), "gem \"rails\"\n")
+    FileUtils.ln_s(File.join(outside, "Gemfile"), File.join(@workspace, "Gemfile"))
+    write("db/schema.rb", "ActiveRecord::Schema[8.1].define(version: 0) do\nend\n")
+
+    assert_nil AppState.build(workspace: @workspace)
+  ensure
+    FileUtils.remove_entry(outside) if outside && File.exist?(outside)
   end
 
   # ---- build: assembly ----
@@ -308,7 +406,7 @@ class AppStateTest < ActiveSupport::TestCase
 
     out = AppState.build(workspace: @workspace)
 
-    assert_includes out, "The gems, tables, routes and file list are\nauthoritative."
+    assert_match(/The gems, tables, routes and file list are\s+authoritative\./, out)
     assert_includes out, "prefer the lists above it on any conflict."
   end
 
@@ -333,13 +431,20 @@ class AppStateTest < ActiveSupport::TestCase
     File.write(path, content)
   end
 
+  # File.write transcodes to the external encoding; binwrite keeps a stray byte a stray byte.
+  def write_bytes(relative_path, bytes)
+    path = File.join(@workspace, relative_path)
+    FileUtils.mkdir_p(File.dirname(path))
+    File.binwrite(path, bytes)
+  end
+
   def copy_skeleton_gemfile(extra: "")
     write("Gemfile", File.read(SKELETON_GEMFILE) + extra)
   end
 
   def write_placeholder_docs
     %w[architecture conventions domain].each do |name|
-      write("docs/#{name}.md", "# #{name.capitalize}\n\n(empty — will be filled in by the first revision)\n")
+      write("docs/#{name}.md", "# #{name.capitalize}\n\n#{AppState::PLACEHOLDER}\n")
     end
     write("docs/revision_notes.md", "# Revision notes\n\n")
   end

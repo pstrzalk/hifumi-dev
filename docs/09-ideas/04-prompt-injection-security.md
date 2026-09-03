@@ -6,6 +6,18 @@ is fed into `agent(:generate_code)` along with the workspace snapshot,
 the `docs/` files, and a static rules block. The agent has Edit / Read /
 Write / Bash tools available inside a generator container.
 
+Since 2026-09-03 there is a second, indirect channel. The modification
+planner (`PlanApplicationModification::AdHocLLM`) reads the workspace
+through `AppState.build` — `config/routes.rb` and the four `docs/*.md`
+verbatim, all writable by the codegen agent on a prior revision — and its
+output *becomes* the next `revision_prompt`. So text planted in a doc by
+one revision reaches the code agent's prompt on the next. Mitigations in
+place: the planner has no tools and emits a fixed JSON schema; the `app/`
+section lists paths only, never contents; every verbatim body is fenced;
+reads are realpath-contained to the workspace and encoding-scrubbed
+(`AppState.read_workspace_file`). Not in place: any moderation of what
+the docs agent writes.
+
 Two distinct concerns surfaced 2026-05-01 while reviewing
 `tmp/blog_application_run_kamal.log` and considering whether to add
 `--bare` to `agent(:generate_code)` (the codegen agent currently runs

@@ -32,6 +32,14 @@ class ModifyApplicationTest < ActiveSupport::TestCase
     PlanApplicationModification.define_singleton_method(:call, original) if original
   end
 
+  def stub_app_state_build(proc)
+    original = AppState.method(:build)
+    AppState.define_singleton_method(:build) { |**kwargs| proc.call(**kwargs) }
+    yield
+  ensure
+    AppState.define_singleton_method(:build, original) if original
+  end
+
   test "persists an Instruction with user_intent, description, implementing phase, and user anchor_message" do
     stub_planner(@plan) do
       @tool.execute(intent: "make the primary color teal", clarifications: {})
@@ -217,20 +225,18 @@ class ModifyApplicationTest < ActiveSupport::TestCase
   # hash (the tool_use still gets its tool_result) rather than escape and kill
   # the chat. This is the path that made the backstop necessary.
   test "an unreadable workspace file reaches the backstop: error hash, report, nothing persisted" do
-    skip "chmod 000 does not restrict root" if Process.uid.zero?
-
-    FileUtils.mkdir_p(@project.workspace_path)
-    gemfile = File.join(@project.workspace_path, "Gemfile")
-    File.write(gemfile, "gem \"rails\"\n")
-    File.chmod(0o000, gemfile)
-
+    # Stubbed rather than chmod 000: root ignores file modes, so the chmod form
+    # skipped in a root container. What this pins is that AppState.build is
+    # called inside #execute's rescue, not how the read fails.
     planner_called = false
     result = nil
     reports = capture_error_reports(Errno::EACCES) do
       assert_no_difference -> { Instruction.count } do
         assert_no_difference -> { Revision.count } do
-          stub_planner(->(**) { planner_called = true; @plan }) do
-            result = @tool.execute(intent: "x", clarifications: {})
+          stub_app_state_build(->(**) { raise Errno::EACCES, "Gemfile" }) do
+            stub_planner(->(**) { planner_called = true; @plan }) do
+              result = @tool.execute(intent: "x", clarifications: {})
+            end
           end
         end
       end
@@ -240,8 +246,6 @@ class ModifyApplicationTest < ActiveSupport::TestCase
     assert_match(/Could not generate a modification plan/, result[:error])
     assert_equal 1, reports.size
     assert_equal @project.id, reports.first.context[:project_id]
-  ensure
-    File.chmod(0o644, gemfile) if gemfile && File.exist?(gemfile)
   end
 
   test "refuses and persists nothing when an implementing instruction already exists" do

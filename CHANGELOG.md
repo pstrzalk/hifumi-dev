@@ -15,18 +15,24 @@ functionality, patch for fixes and internal changes).
 - Change requests are now planned against the application as it actually is.
   Before asking the model for a plan, hifumi.dev reads the project's workspace
   — the gems installed beyond the Rails defaults, the database tables and
-  their columns, the routes file, every file under `app/`, and the project's
-  own `docs/` — and hands that to the planner alongside the request. Plans name
-  the real files, columns, routes and colours instead of guessing: "let people
-  delete an entry" no longer invents an authorization step for an app that has
-  no users, and a styling tweak names the template's actual hex value rather
-  than a CSS variable the app does not have. The first build of a project is
-  unaffected; there is no application to read at that point.
-- Two maintainer scripts dry-run the planners without persisting anything.
-  `bin/inspect-plan-application-modification <project_id> "<intent>"` prints
-  the workspace snapshot and the plan it produces, and `--blind` shows what the
-  planner would have done without it. `bin/inspect-plan-application-creation`
-  works again — the RubyLLM 2.0 upgrade had broken it.
+  their columns, the routes file, the list of source files under `app/`, and
+  the project's own `docs/` — and hands that to the planner alongside the
+  request. Plans name the real files, columns, routes and colours instead of
+  guessing: "let people delete an entry" no longer invents an authorization
+  step for an app that has no users, and a styling tweak names the template's
+  actual hex value rather than a CSS variable the app does not have. The first
+  build of a project is unaffected; there is no application to read at that
+  point. The snapshot travels with every change request's planning call — a
+  few kilobytes for a fresh app, up to ~35 KB for the largest existing one — so
+  plans cost a little more on a bring-your-own-key account.
+- Three maintainer scripts for plans, none of which persists anything.
+  `bin/inspect-plan-application-modification <project_id> "<intent>"` dry-runs
+  the change planner and prints the workspace snapshot and the plan it
+  produces; `--blind` shows what the planner would have done without the
+  snapshot. `bin/inspect-plan-application-creation` dry-runs the first-build
+  planner and works again — the RubyLLM 2.0 upgrade had broken it.
+  `bin/inspect-plans <project_id>` reads back every plan already stored for a
+  project without calling a model.
 
 ### Changed
 
@@ -36,9 +42,11 @@ functionality, patch for fixes and internal changes).
   design tokens such as `--accent` exist in the generated app. Plans that used
   to hedge ("if it uses a CSS class…", "assuming a User model exists") are told
   not to, now that they can see the answer.
-- The documentation agent that runs after every build step keeps each of the
-  four `docs/` files under 8 000 characters — the length the planner reads —
-  condensing stale sections instead of appending to them.
+- The documentation agent that runs after every build step is now asked to
+  keep each of the four `docs/` files under 8 000 characters, condensing stale
+  sections instead of appending to them. The planner reads each file up to
+  that length and cuts it there, per file — an oversized file loses its tail,
+  never a sibling file.
 
 ## [1.4.0] - 2026-08-24
 

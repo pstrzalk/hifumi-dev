@@ -170,7 +170,7 @@ W4.5  [deterministic]  Mark Instruction as completed
 W4.6  [deterministic]  Trigger W3 (restart preview)
 ```
 
-Same principle as W1 for W4.2-W4.3: they live inside the `PlanApplicationModification` service (W4's twin of `CreatePlan`, today `PlanApplicationCreation`), and D3 lives in its prompt engineering, not in the chat LLM.
+Same principle as W1 for W4.2-W4.3: they live inside the `PlanApplicationModification` service (the W4 counterpart of `PlanApplicationCreation`, which implements W1's `CreatePlan`), and D3 lives in its prompt engineering, not in the chat LLM.
 
 W4.1 is different — it is deterministic code, built 2026-09-03. The `ModifyApplication` tool calls `AppState.build` (`lib/app_state.rb`), which reads the workspace fresh: gems beyond the default Gemfile, database tables (or the migrations on disk when `db/schema.rb` has not been written yet), `config/routes.rb` verbatim, every source file under `app/`, and the four `docs/` files each capped at 8 000 characters. The text travels as `context[:app_state]` and `PlanApplicationModification::AdHocLLM` renders it after the intent in the user turn, under a preamble that ranks the lists above the `docs/` prose on any conflict. The creation planner (W1) gets no such snapshot, by ordering rather than choice: `CreateApplication` persists the plan before `ExecuteInstructionJob` runs `rails new`, so at W1 planning time there is no workspace to describe.
 
@@ -215,7 +215,7 @@ Every place where the LLM makes a decision, explicitly described.
 | D5 | Chat | — | What to suggest to the user? | Agent generates suggested prompts |
 | D6 | Chat | — | How to react to failure? | Agent decides: change approach / ask the user (has verification errors in context) |
 
-**D3, as built (2026-09-03)**: only [a] is implemented — the W4.1 snapshot is the planner's whole research, prefed in a single turn. [c] was measured on `project_42` with a file-reading tool and the same model: matching plan quality at 3–8× the latency (14–29 s against 3.6–4.3 s, 11–15 tool calls per plan), and it would hand the planner file access on user-controlled input inside the generator container, outside `Roast::Sandbox`. Deferred rather than rejected — worth revisiting only if plans start failing for want of code the snapshot does not carry. [b] is not built.
+**D3, as built (2026-09-03)**: only [a] is implemented — the W4.1 snapshot is the planner's whole research, prefed in a single turn. [c] was measured on `project_42` with a file-reading tool and the same model: matching plan quality at 3–8× the latency (14–29 s against 3.6–4.3 s, 11–15 tool calls per plan), and it would give a model-steered file-read tool to a planner running inside the generator container, outside `Roast::Sandbox`. [a] reads agent-written files there too, but as a fixed read of five known paths — realpath-contained to the workspace, encoding-scrubbed, bodies fenced, `app/` as paths only — with no tool for the model to point anywhere else. Deferred rather than rejected — worth revisiting only if plans start failing for want of code the snapshot does not carry. [b] is not built.
 
 ---
 

@@ -181,6 +181,18 @@ kamal app exec --primary "bin/rails runner bin/inspect-chat 15"     # against pr
 
 Dumps a project's chat messages and `tool_calls` rows in order, then runs a structural pairing analysis (every `tool_result` must follow its matching assistant `tool_use`). Use when the chat fails with `RubyLLM::BadRequestError` ("unexpected `tool_use_id`...") — the dump tells you whether a tool was called twice in one turn or a tool_result is orphaned.
 
+### Inspect stored and dry-run plans — `bin/inspect-plans`, `bin/inspect-plan-application-*`
+
+```sh
+bin/inspect-plans 42                                                       # every plan stored for project 42 (DB only, no model call)
+bin/inspect-plan-application-modification 42 "let people delete an entry"  # dry-run the change planner with the workspace snapshot
+bin/inspect-plan-application-modification 42 "..." --blind                 # same intent without the snapshot — the A/B
+bin/inspect-plan-application-creation "a flower shop with inventory"       # dry-run the first-build planner
+kamal app exec --primary "bin/inspect-plans 42"                            # any of them against prod
+```
+
+`bin/inspect-plans` reads the database only. The two `inspect-plan-application-*` scripts call the planner LLM with the project owner's (or your profile's) OpenRouter key and persist nothing — run them before shipping any planner-prompt or `AppState` change; the "Modification planner context" convention in `CLAUDE.md` says what to look for.
+
 ### Run the test suite
 
 ```sh
