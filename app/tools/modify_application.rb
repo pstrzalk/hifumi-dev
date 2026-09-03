@@ -28,7 +28,11 @@ class ModifyApplication < RubyLLM::Tool
     result = PlanApplicationModification.call(
       intent: intent,
       clarifications: clarifications,
-      context: { project_id: @project.id },
+      # Built here rather than in the planner so AdHocLLM stays a pure function
+      # of its arguments, and so the file reads sit inside the rescue below —
+      # ENOENT/EACCES on a workspace file degrades to a chat-safe error hash
+      # instead of orphaning the tool_use.
+      context: { app_state: AppState.build(workspace: @project.workspace_path) },
       openrouter_api_key: @project.user.profile.openrouter_api_key,
       model: @project.plan_modification_model
     )

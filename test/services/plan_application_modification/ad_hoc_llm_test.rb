@@ -68,6 +68,47 @@ class PlanApplicationModification::AdHocLLMTest < ActiveSupport::TestCase
     end
   end
 
+  # ---- context[:app_state] — the workspace snapshot ModifyApplication builds ----
+
+  APP_STATE = "## Current application state\n\n### Gems\n\nStandard Rails 8.1 application with Tailwind and Hotwire, on the default Gemfile.".freeze
+
+  test "renders context[:app_state] after the intent, separated by a blank line" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(
+        intent: "make banner green", clarifications: {}, context: { app_state: APP_STATE },
+        openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5"
+      )
+      assert_equal "Intent: make banner green\n\n#{APP_STATE}", captured[:user]
+    end
+  end
+
+  test "an empty context leaves the user prompt byte-identical to the intent line" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(intent: "make banner green", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+      assert_equal "Intent: make banner green", captured[:user]
+    end
+  end
+
+  test "a nil app_state (workspace not initialized) renders nothing extra" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(intent: "make banner green", clarifications: {}, context: { app_state: nil }, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+      assert_equal "Intent: make banner green", captured[:user]
+    end
+  end
+
+  test "clarifications precede app_state so the request is never buried behind the listing" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationModification::AdHocLLM.call(
+        intent: "make banner green",
+        clarifications: { "shade?" => "forest" },
+        context: { app_state: APP_STATE },
+        openrouter_api_key: "sk-or-test",
+        model: "anthropic/claude-haiku-4.5"
+      )
+      assert_equal "Intent: make banner green\nClarifications:\n  - shade?: forest\n\n#{APP_STATE}", captured[:user]
+    end
+  end
+
   test "raises InvalidResponse when LLM returns no content" do
     with_llm_response(nil) do
       assert_raises(PlanApplicationModification::AdHocLLM::InvalidResponse) do

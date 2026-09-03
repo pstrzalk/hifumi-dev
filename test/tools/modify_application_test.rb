@@ -18,6 +18,10 @@ class ModifyApplicationTest < ActiveSupport::TestCase
     )
   end
 
+  teardown do
+    FileUtils.rm_rf(@project.workspace_path) if File.exist?(@project.workspace_path)
+  end
+
   def stub_planner(result_or_proc)
     original = PlanApplicationModification.method(:call)
     PlanApplicationModification.define_singleton_method(:call) do |**kwargs|
@@ -168,6 +172,76 @@ class ModifyApplicationTest < ActiveSupport::TestCase
 
     assert_match(/Could not generate a modification plan/, result[:error])
     assert_equal [ "upstream boom" ], reports.map { |r| r.error.message }
+  end
+
+  # ---- context[:app_state]: the workspace snapshot fed to the planner ----
+
+  test "passes the workspace snapshot to the planner as context[:app_state]" do
+    FileUtils.mkdir_p(@project.workspace_path)
+    File.write(File.join(@project.workspace_path, "Gemfile"), File.read(Rails.root.join("lib/preview/skeleton/Gemfile")))
+    FileUtils.mkdir_p(File.join(@project.workspace_path, "app/models"))
+    File.write(File.join(@project.workspace_path, "app/models/story.rb"), "class Story < ApplicationRecord; end\n")
+
+    captured = nil
+    capturing = ->(**kwargs) { captured = kwargs; @plan }
+
+    stub_planner(capturing) do
+      @tool.execute(intent: "make the primary color teal", clarifications: {})
+    end
+
+    assert_kind_of String, captured[:context][:app_state]
+    assert_includes captured[:context][:app_state], "## Current application state"
+    assert_includes captured[:context][:app_state], "app/models/story.rb"
+    assert_equal "make the primary color teal", captured[:intent]
+  end
+
+  test "with no workspace on disk, context[:app_state] is nil and the plan still persists" do
+    refute @project.workspace_initialized?
+
+    captured = nil
+    capturing = ->(**kwargs) { captured = kwargs; @plan }
+
+    assert_difference -> { Instruction.count }, 1 do
+      assert_difference -> { Revision.count }, 1 do
+        stub_planner(capturing) do
+          @tool.execute(intent: "make the primary color teal", clarifications: {})
+        end
+      end
+    end
+
+    assert_nil captured[:context][:app_state]
+  end
+
+  # The file reads happen inside #execute so that the rescue StandardError
+  # backstop covers them: an unreadable workspace file must degrade to an error
+  # hash (the tool_use still gets its tool_result) rather than escape and kill
+  # the chat. This is the path that made the backstop necessary.
+  test "an unreadable workspace file reaches the backstop: error hash, report, nothing persisted" do
+    skip "chmod 000 does not restrict root" if Process.uid.zero?
+
+    FileUtils.mkdir_p(@project.workspace_path)
+    gemfile = File.join(@project.workspace_path, "Gemfile")
+    File.write(gemfile, "gem \"rails\"\n")
+    File.chmod(0o000, gemfile)
+
+    planner_called = false
+    result = nil
+    reports = capture_error_reports(Errno::EACCES) do
+      assert_no_difference -> { Instruction.count } do
+        assert_no_difference -> { Revision.count } do
+          stub_planner(->(**) { planner_called = true; @plan }) do
+            result = @tool.execute(intent: "x", clarifications: {})
+          end
+        end
+      end
+    end
+
+    refute planner_called, "the planner must not be called when the snapshot cannot be read"
+    assert_match(/Could not generate a modification plan/, result[:error])
+    assert_equal 1, reports.size
+    assert_equal @project.id, reports.first.context[:project_id]
+  ensure
+    File.chmod(0o644, gemfile) if gemfile && File.exist?(gemfile)
   end
 
   test "refuses and persists nothing when an implementing instruction already exists" do
