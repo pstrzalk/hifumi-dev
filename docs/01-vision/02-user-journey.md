@@ -203,7 +203,7 @@ Non-deterministic decisions (D1, D3) are explicitly described points in workflow
 
 ### Verification + remediation (safeguard)
 
-After every revision (W2.4) verification runs: bundle check, migrations, herb lint, boot check, tests. If something doesn't pass:
+After every revision (W2.4) verification runs: bundle check, migrations, zeitwerk (every file loads), route smoke (every static page responds), tests. Route smoke is advisory — it triggers the same remediation but never blocks the commit. If something doesn't pass:
 
 1. **Remediation loop** (max 2 attempts): errors go back to Claude CLI → agent fixes → re-verify
 2. If still failing after 2 attempts → W2.F1: mark the revision as failed with full error log
@@ -399,7 +399,7 @@ The user can write, ask, comment. They can write *"stop"* → the LLM calls `Can
 1. `revision.update!(status: :generating)` → Turbo Stream
 2. Prompt + context (plan + app manifest + revision notes from the previous revision) → `claude -p "..." --cwd workspace/...`
 3. Stream output → Turbo Stream (throttled)
-4. **Verify**: `bundle check` → `rails db:prepare` → `herb lint` → `rails runner "puts :ok"` → `rails test`
+4. **Verify**: route smoke baseline at the parent commit (before step 2), then `bundle check` → `rails db:prepare` → `rails zeitwerk:check` → route smoke (advisory) → `rails test`; every run is persisted to `revision.metrics["verify"]`
 5. If verify fails → **remediation loop** (errors → Claude CLI → re-verify, max 2 attempts)
 6. `git commit` → update app manifest + revision notes → `revision.update!(status: :completed, git_sha: sha)`
 7. Next revision
@@ -541,7 +541,7 @@ Actions in the UI (not via chat):
 ## Critical risks
 
 1. **Generation time** — minutes, remediation loop may extend it. Mitigation: live progress, async chat, suggested prompts (user plans the next step while waiting).
-2. **Code quality** — mitigation: verify step after every revision (bundle, migrations, herb, boot, tests) + remediation loop (max 2 fix attempts). Git history contains only verified revisions.
+2. **Code quality** — mitigation: verify step after every revision (bundle, migrations, zeitwerk, route smoke, tests) + remediation loop (max 2 fix attempts). Git history contains only revisions that pass every blocking check; a page that still raises after remediation is committed with the failure recorded, not discarded.
 3. **Costs** — token tracking per Instruction. Remediation loop increases per-revision cost (max 3x in the worst case). We monitor remediation rate as a signal of prompt quality.
 4. **Context between revisions** — revision notes (implementation decisions, not summary) are fed into the next revisions. App manifest gives high-level, revision notes give details.
 5. **Tool call reliability** — the LLM must correctly invoke the tools. Mitigation: well-described tools, parameter validation, fallback to UI buttons.

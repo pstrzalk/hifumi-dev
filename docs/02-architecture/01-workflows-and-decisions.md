@@ -64,7 +64,7 @@ In Phase 2, W1 starts from W1.5 — steps W1.1-W1.4 (archetype, research, plan, 
 
 Triggered by: W1.5 or W4.4 (iteration).
 
-Cycle per revision: **Implement → Verify → Commit**. We don't commit code that doesn't pass verification.
+Cycle per revision: **Implement → Verify → Commit**. We don't commit code that fails a **blocking** check; advisory checks trigger the same remediation and are recorded, but do not block the commit.
 
 ```
 W2.1  [deterministic]  Mark revision as generating
@@ -73,16 +73,33 @@ W2.2  [deterministic]  Build prompt:
         - app manifest (docs/)
         - revision notes from the previous revision (if any)
         - plan context (what's done, what remains)
+W2.B  [deterministic]  Route smoke baseline at the parent commit: request every static GET
+        page once and record which already fail. W2.4 skips those, so only breakage
+        NEW in this revision is attributed to it — the fix agent is never asked to
+        repair a page an earlier revision left broken.
 W2.3  [LLM/agent]      Execute Claude CLI with the prompt in the workspace cwd
         → Agent (Claude Code) with a constrained scope: step description + cwd.
-W2.4  [deterministic]  Verification — sequence of checks:
-        a) bundle check              — dependencies resolve
-        b) rails db:prepare          — migrations pass
-        c) herb lint app/views/      — ERB/HTML correct
-        d) rails runner "puts :ok"   — application boots
-        e) rails test (if tests exist) — tests pass
+W2.4  [deterministic]  Verification — five checks, in order:
+        bundle check                 — the lockfile is satisfied              [blocking; the only
+                                       short-circuit: every later check would repeat its error]
+        rails db:prepare             — the app boots, migrations run; writes  [blocking]
+                                       db/schema.rb for the two Minitest-based checks below
+        rails zeitwerk:check         — every app/ file loads; the only check  [blocking]
+                                       that sees code no route and no test touches
+        route smoke                  — every static GET page responds without [advisory]
+                                       raising or 5xx (test env, 10 s per request);
+                                       pages recorded by W2.B are skipped
+        rails test (if tests exist)  — the app's own suite                    [blocking]
+        → Every run's result — per check: name, pass/fail, tier, duration, capped
+          error text, failing paths — is printed as a `[HIFUMI:VERIFY]` JSON line and
+          persisted to revision.metrics["verify"] by ExecuteInstructionJob.
         → If all pass → W2.5
-        → If fail → W2.R (remediation loop)
+        → If any fail → W2.AR
+W2.AR [deterministic]  Auto-remediation: known recipes (missing gems → `bundle install`,
+        unreadable master.key → restore from git) applied with no LLM turn, then a
+        full re-verify (W2.4).
+        → pass → W2.5
+        → no recipe matched, or still failing → W2.R
 W2.5  [deterministic]  Git add + commit (annotated: what and why)
 W2.6  [LLM]            Update app manifest (docs/) + revision notes
         → Decision D2: what changed in architecture/conventions/domain?
@@ -104,10 +121,10 @@ W2.R1 [deterministic]  Collect output from failed checks (error messages, stack 
 W2.R2 [LLM/agent]      Claude CLI: fix the problems
         → Prompt: "Verification did not pass. Here are the errors: {errors}. Fix."
         → Same workspace, same cwd. Agent sees its earlier code.
-W2.R3 [deterministic]  Re-run verification (W2.4 a-e)
+W2.R3 [deterministic]  Re-run verification (W2.4)
         → pass → continue to W2.5
         → fail and retry_count < 2 → W2.R1
-        → fail and retry_count >= 2 → W2.F1 (failure path)
+        → fail and retry_count >= 2 → failure path: W2.F0 if only advisory checks fail, else W2.F1
 ```
 
 Why max 2: the third attempt to fix the same error is "the agent cannot do this", not "minor fix." We escalate to the user.
@@ -115,10 +132,16 @@ Why max 2: the third attempt to fix the same error is "the agent cannot do this"
 #### Failure path
 
 ```
-W2.F1 [deterministic]  Mark revision as failed, save last verification errors
+W2.F0 [deterministic]  Only ADVISORY checks still failing after remediation → commit anyway
+        (W2.5 onwards). The failure stays in the last verify record, and the next
+        revision's W2.B sees the page failing at HEAD and skips it.
+W2.F1 [deterministic]  Mark revision as failed. The per-check result of every verification
+        run (W2.B, W2.4, W2.AR, W2.RV × 2) is already in revision.metrics["verify"].
 W2.F2 [deterministic]  Git reset --hard to parent revision
 W2.F3 [deterministic]  Report failure to the conversation layer
-        → Payload contains: what failed (which check), errors, how many attempts
+        → As built: the `revision.failed` / `instruction.failed` notifications carry the
+          revision id and exit code; the chat renders status only (`❌ Build failed:
+          <summary>`). Which check failed, and why, lives in revision.metrics["verify"].
         → Agent (chat) decides how to react (D6): change approach, ask the user
 ```
 
@@ -213,9 +236,11 @@ Every place where the LLM makes a decision, explicitly described.
 | D3 | W4 | W4.2 | How much research is needed? | [a] manifest is enough [b] look for new solutions [c] read code |
 | D4 | Chat | — | When to trigger a workflow? | Agent interprets user intent → tool call |
 | D5 | Chat | — | What to suggest to the user? | Agent generates suggested prompts |
-| D6 | Chat | — | How to react to failure? | Agent decides: change approach / ask the user (has verification errors in context) |
+| D6 | Chat | — | How to react to failure? | Agent decides: change approach / ask the user (sees the failure status only — the check-level errors are in `revision.metrics["verify"]`, not in its context) |
 
 **D3, as built (2026-09-03)**: only [a] is implemented — the W4.1 snapshot is the planner's whole research, prefed in a single turn. [c] was measured on `project_42` with a file-reading tool and the same model: matching plan quality at 3–8× the latency (14–29 s against 3.6–4.3 s, 11–15 tool calls per plan), and it would give a model-steered file-read tool to a planner running inside the generator container, outside `Roast::Sandbox`. [a] reads agent-written files there too, but as a fixed read of five known paths — realpath-contained to the workspace, encoding-scrubbed, bodies fenced, `app/` as paths only — with no tool for the model to point anywhere else. Deferred rather than rejected — worth revisiting only if plans start failing for want of code the snapshot does not carry. [b] is not built.
+
+**W2.4, as built (2026-09-06)**: the original a–e list carried two checks with no signal of their own. `rails runner "puts :ok"` failed in exactly one row of a measured coverage matrix, and `db:prepare` — which boots the same app, first — failed there too. `herb lint` was guarded on a gem the skeleton never had and returned "not applicable" on every revision of every project since the Phase 1 spike. Herb was **evaluated and rejected**, not silently dropped: it installs and runs in ~0.5 s, but on four real generated apps every `error`-severity finding was a style convention — instance variables in partials, `<input />`, a missing `autocomplete` — 16 and 10 errors on two apps that render fine. As a blocking check it would have wedged both on day one and spent fix-agent turns rewriting partials to satisfy a linter, on a product whose output the user judges by looking at the page. The replacements close measured holes: `zeitwerk:check` catches the orphan-file class (syntax error, constant missing at class body, filename/constant mismatch) that every old check passed, and route smoke catches the raising-page class (project 27's `authenticate_user!` without devise, found only when the user opened the preview) that `rails test` catches only if the agent happened to write a test for that action. Route smoke is **advisory** because one raising page among many is not a reason to discard the revision and the ones queued behind it; it still gets the two remediation attempts with the exact exception. **W2.B** exists because without it a page committed broken under W2.F0 would be re-remediated on every later revision (up to 2 × the fix budget each, forever), and a fix agent told `Timeout::Error` on a page that calls an external API may "fix" it by deleting the feature. "Signal-only" (record, never remediate) was considered and rejected: it delivers nothing user-visible — the user still meets the 500 in the preview with no help. Both additions were run against all 29 existing workspaces before landing; none is wedged. Plan and measurements: `thoughts/shared/plans/2026-09-05/verify-revision-coverage-rework.md`.
 
 ---
 

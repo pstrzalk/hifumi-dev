@@ -49,17 +49,6 @@ gem "pagy"
 - Rails Way: helper + partial, zero magic
 - Why not Kaminari: Pagy is faster, simpler, less monkey-patching
 
-### ERB toolchain — Herb + ReActionView
-
-```ruby
-gem "herb"
-gem "reactionview"
-```
-- **Herb** — HTML-aware ERB parser written in C. Linter, formatter, LSP, dev tools. Replaces `erb_lint` with a much better parser (understands HTML context, not just ERB tags).
-- **ReActionView** — Herb::Engine integration with Rails ActionView. Drop-in replacement. HTML validation during rendering, better errors.
-- Herb runs after every revision and in git hooks
-- Templates can be `.html.erb` (with interception) or `.html.herb` (native)
-
 ### Authorization — Pundit
 
 ```ruby
@@ -162,8 +151,7 @@ gem "image_processing", "~> 1.2"
 | Webpacker / jsbundling | Importmap |
 | Devise alternatives (Sorcery, Clearance) | Devise has the best ecosystem |
 | Bootstrap | Tailwind |
-| Haml / Slim | ERB + Herb |
-| erb_lint | Herb replaces it with a better parser |
+| Haml / Slim | ERB |
 | GraphQL | REST + Turbo. GraphQL is overengineering for 99% of apps |
 | Docker in development | `rails server`. Simplicity. |
 | Soft-delete (Discard, Paranoia) | Leads to problems. Archive via `archived_at`. |

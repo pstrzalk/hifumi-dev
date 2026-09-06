@@ -36,7 +36,7 @@ Git isn't just an internal mechanism (checkpointing, revert). It's an educationa
 ### Professional workflow
 - **Branch per feature** — instead of linear history, optionally: every instruction is a branch + merge. More realistic git flow.
 - **PR-like review** — before applying a revision the user can do a "review" of changes. Code review as a form of learning.
-- **Git hooks in the generated app** — linting (HERB), tests, formatting. Teaches good practices from day one.
+- **Git hooks in the generated app** — linting (rubocop, which every generated app already ships), tests, formatting. Teaches good practices from day one.
 - **Conventional commits** — commit format (feat:, fix:, refactor:) for readable history
 
 ### Collaboration

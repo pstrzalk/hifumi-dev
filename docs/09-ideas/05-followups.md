@@ -26,19 +26,6 @@ Date a section header when adding entries so future-you can see the chronology.
 
 ---
 
-### W2.4 verify: grep for missing-gem signals
-
-**Motivation**: defense-in-depth in front of the W2.1 prompt hardening (`739c844`). Even if the agent ignores the prompt instructions and writes `before_action :authenticate_user!` (or `Sidekiq::Worker`, or `redirect_to user_path` against a Devise-style route), W2.4 can catch it before the user ever sees a preview crash.
-
-**Sketch**:
-- Add a recipe-style check to `VerifyRevision` (or a sibling helper) that scans generated `app/` for known missing-gem signals: `:authenticate_user!` / `current_user` without `devise` in `Gemfile`; `< Sidekiq::Worker` without `sidekiq`; `class .* < ApplicationJob` calling `perform_async` without `sidekiq`; `policy(...)` / `authorize` without `pundit`; `paginate` without `kaminari` or `pagy`.
-- Fail fast with a clear error string so W2.R (the LLM-driven remediation loop) gets the same signal the user would have, without the round-trip through the preview iframe.
-- Follow the existing recipe pattern in `lib/roast/auto_remediate.rb` (regex + auto-fix proc) — but here the auto-fix would either add the gem to Gemfile + `bundle install` + run `rails g <gem>:install`, OR replace the call with the Rails-built-in equivalent. The first is uniform but expensive; the second is surgical but per-gem.
-
-Pairs naturally with the prompt change — together they cover both "agent didn't know" (prompt) and "agent ignored what it knew" (verify).
-
----
-
 ### Smaller cleanups
 
 - **`ProjectsControllerTest#test_GET_/projects/new_(signed_in)_renders_new_with_placeholder_text`** at `test/controllers/projects_controller_test.rb:43` has been failing on `main` since the projects/new redesign. Test expects `placeholder="a flower shop page, with full payment system"` but the textarea now uses different copy. 5-minute fix: update the assertion to match the current placeholder string (or remove it if placeholder content is no longer a contract worth pinning).
@@ -213,3 +200,17 @@ v2's `raw_content` and leaves v1's `content_raw` in place. Nothing in the gem,
 `app/`, `lib/` or `bin/` reads it, so it silently holds every pre-upgrade raw
 payload under a name no v2 code path reaches. Same shape as the two above:
 needs its own migration, since the upgrade migration has already run.
+
+---
+
+## 2026-09-07
+
+### W2.4 verification rework — follow-ups
+
+The check set was reworked (`thoughts/shared/plans/2026-09-05/verify-revision-coverage-rework.md`, PR from `verify-revision-coverage-rework`): `zeitwerk:check` and an advisory route smoke replaced `boot_check` and the never-running `herb_lint`, a W2.B baseline skips pages already broken at HEAD, and every verification run is persisted to `revision.metrics["verify"]`. The "grep for missing-gem signals" entry that used to sit above was deleted: route smoke catches that class of failure where it actually breaks, generically, instead of through an enumerated regex list per gem. Left open, in priority order:
+
+- **Never discard a committable state.** An advisory-only W2.4 failure enters remediation; if the fix agent then breaks a *blocking* check and fails to repair it on the second try, `ensure_passing` resets the revision — discarding a state that was committable after W2.3. Detectable exactly: a `failed` revision whose first `W2.4` record has no blocking failure and whose last record has one. Two candidate mechanisms, ~5 lines each, both unprobed — (1) *snapshot*: after an advisory-only W2.4, `git add -A && tree=$(git write-tree)`; on a blocking failure in `ensure_passing`, `git read-tree --reset -u $tree && git clean -fd`, then commit; (2) *early commit*: after an advisory-only W2.4, run W2.5's commit immediately, `--amend` on remediation success, and let the existing reset land on the committable HEAD on failure. Build neither until the query returns rows.
+- **A net-empty revision still runs W2.6 against the parent commit** (observed 2026-09-06, project 37 revision 185): the fix agent resolved a deliberately failing test by deleting it, so W2.5's `git add -A && git commit` printed "nothing to commit" and the `cmd` cog completed anyway; W2.6 then summarised `git show HEAD` — the *previous* revision's diff — and W2.7 committed 13 lines of docs about a footer this revision never touched. Same root as the pre-`abort_on_failure!` incident, on the success path. Skip W2.6/W2.7 when W2.5 committed nothing, or hand W2.6 a diff scoped to this revision.
+- **Tell the code agent about the smoke check** in `RevisionPrompt` ("every static page is requested once during verification; pages must not raise with no session and fixture data"). Likely to reduce smoke failures at the source, but a change to the code-agent prompt changes every generation and deserves its own before/after evaluation.
+- **`db:prepare` in `init_rails_app`** so `db/schema.rb` exists from the first commit (the modification planner would like that too). The W2.B baseline does not need it.
+- **Generated tests with hardcoded dates rot.** project_39's suite (green when generated) now fails 26 of 214 tests with `Start date can't be in the past` — fixture dates the calendar has since passed. Not a verification defect, but the kind of thing a `RevisionPrompt` rule (relative dates in fixtures and tests) would prevent; noticed while sweeping all 29 workspaces.

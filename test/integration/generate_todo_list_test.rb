@@ -83,6 +83,7 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
     assert_includes File.read(File.join(workspace, "docs/frontend.md")), TEMPLATE
     assert_workspace_git_log_at_least(workspace, 4)
     assert_workspace_tests_pass(workspace)
+    assert_verify_metrics_persisted(project)
   end
 
   private
@@ -137,6 +138,37 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
     log = `cd #{Shellwords.escape(workspace)} && git log --oneline 2>/dev/null`.lines
     assert_operator log.size, :>=, expected,
       "expected >= #{expected} commits in workspace, got #{log.size}:\n#{log.join}"
+  end
+
+  # Every verification run of a revision is persisted to
+  # revision.metrics["verify"] via the [HIFUMI:VERIFY] sentinel the workflow
+  # prints and ExecuteInstructionJob parses out of the subprocess's streams.
+  # This test is transactional, so the rows are gone afterwards — the
+  # round-trip through a real roast subprocess is checked here or nowhere.
+  # The first record is W2.B, the route smoke baseline at the parent commit;
+  # every later one is a full run of the five checks, route smoke advisory.
+  # Each revision of the fixture writes tests, so rails test always runs.
+  def assert_verify_metrics_persisted(project)
+    project.revisions.order(:position).each do |revision|
+      verify = revision.metrics["verify"]
+      assert_kind_of Array, verify,
+        "revision #{revision.position}: metrics carry no verify records — sentinel lost at the subprocess boundary? #{revision.metrics.inspect}"
+      baseline, *runs = verify
+      assert_equal "W2.B", baseline["stage"], "revision #{revision.position}: the first record must be the W2.B baseline"
+      assert_equal [ "route smoke" ], baseline["checks"].map { |c| c["name"] }
+      assert_not_empty runs, "revision #{revision.position}: no verification run after the baseline"
+      assert_equal "W2.4", runs.first["stage"]
+      runs.each do |run|
+        assert_equal [ "bundle check", "db:prepare", "zeitwerk check", "route smoke", "rails test" ],
+                     run["checks"].map { |c| c["name"] }, "#{run['stage']} of revision #{revision.position}"
+        assert_equal [ "route smoke" ], run["checks"].select { |c| c["advisory"] }.map { |c| c["name"] }
+        assert run["checks"].all? { |c| [ true, false ].include?(c["passed"]) && c["ms"].is_a?(Integer) }, run.inspect
+      end
+      puts "[verify] revision #{revision.position}: " + verify.map { |run|
+        "#{run['stage']}#{" ##{run['attempt']}" if run['attempt'].to_i > 1}: " +
+          run["checks"].map { |c| "#{c['passed'] ? 'PASS' : 'FAIL'} #{c['name']}" }.join(", ")
+      }.join(" | ")
+    end
   end
 
   def assert_workspace_tests_pass(workspace)

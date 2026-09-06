@@ -30,8 +30,11 @@ DOCS_MODEL     = Roast::WorkflowEnv.docs_model
 FIX_BUDGET_USD = Roast::WorkflowEnv.fix_budget_usd
 
 # Shared state between workflow steps (Roast DSL blocks do not share `metadata`
-# or instance variables). Used to pass verify errors from W2.4 verify
-# to the W2.R repeat(:remediate) block.
+# or instance variables). Keys:
+#   :verify_errors     — W2.4/W2.AR error text for the W2.R repeat(:remediate) block
+#   :last_fix_response — the previous agent(:fix) response, for the next attempt
+#   :smoke_baseline    — W2.B's list of pages already failing at the parent commit
+#   :last_verify       — the most recent VerifyRevision result, for W2.F's decision
 WORKFLOW_STATE = {}
 
 config do
@@ -107,13 +110,18 @@ execute(:fix_and_reverify) do
     PROMPT
   end
 
-  ruby(:reverify) do
+  # Every cog input block is instance_exec'd with (input, scope_value,
+  # scope_index) regardless of cog type (roast-ai-1.1.0 cog.rb:79-81), so idx
+  # here is the same 0-based repeat index agent(:fix) above receives.
+  ruby(:reverify) do |_, _, idx|
     # Capture the agent's response so the next iteration can build on it
     # instead of starting over with `whoami / id / ls -la` from scratch.
     WORKFLOW_STATE[:last_fix_response] = (agent!(:fix).response.to_s if agent?(:fix))
 
-    result = VerifyRevision.run(WORKSPACE)
+    result = VerifyRevision.run(WORKSPACE, known_failing_routes: WORKFLOW_STATE[:smoke_baseline] || [])
+    WORKFLOW_STATE[:last_verify] = result
     puts "[W2.RV] " + VerifyRevision.summary(result).gsub("\n", "\n[W2.RV] ")
+    puts VerifyRevision.sentinel(result, stage: "W2.RV", attempt: idx + 1)
     if VerifyRevision.failed?(result)
       errors = VerifyRevision.format_errors(result)
       puts "[W2.RV] --- verify errors ---"
@@ -155,6 +163,23 @@ execute do
     )
   end
 
+  # W2.B: Route smoke baseline — which pages already fail at the parent commit.
+  # W2.4 skips these, so only breakage NEW in this revision reaches the fix
+  # agent. Without it a page committed broken under W2.F0 would be re-remediated
+  # on every later revision (≤ 2 × FIX_BUDGET_USD each, forever), and a fix agent
+  # told "Timeout::Error" on a page calling an external API may "fix" it by
+  # deleting the feature. Runs the check alone: no db:prepare needed (probed on a
+  # fresh skeleton with no schema.rb — 0 runs, exit 0), and at HEAD the workspace
+  # has already passed every blocking check.
+  ruby(:smoke_baseline) do
+    result = VerifyRevision.run_one(:route_smoke, WORKSPACE)
+    failing = result[:checks].first&.dig(:failing_routes) || []
+    WORKFLOW_STATE[:smoke_baseline] = failing
+    puts "[W2.B] #{failing.empty? ? 'no pages failing at HEAD' : "already failing at HEAD: #{failing.join(', ')}"}"
+    puts VerifyRevision.sentinel(result, stage: "W2.B")
+    failing
+  end
+
   # W2.3: Implement — Claude CLI generates the code
   agent(:generate_code) do
     ruby!(:build_prompt).value
@@ -162,8 +187,10 @@ execute do
 
   # W2.4: Verify
   ruby(:verify) do
-    result = VerifyRevision.run(WORKSPACE)
+    result = VerifyRevision.run(WORKSPACE, known_failing_routes: WORKFLOW_STATE[:smoke_baseline] || [])
+    WORKFLOW_STATE[:last_verify] = result
     puts "[W2.4] " + VerifyRevision.summary(result).gsub("\n", "\n[W2.4] ")
+    puts VerifyRevision.sentinel(result, stage: "W2.4")
     if VerifyRevision.failed?(result)
       errors = VerifyRevision.format_errors(result)
       puts "[W2.4] --- verify errors ---"
@@ -189,8 +216,10 @@ execute do
     end
 
     puts "[W2.AR] Applied: #{fixes.join('; ')}"
-    result = VerifyRevision.run(WORKSPACE)
+    result = VerifyRevision.run(WORKSPACE, known_failing_routes: WORKFLOW_STATE[:smoke_baseline] || [])
+    WORKFLOW_STATE[:last_verify] = result
     puts "[W2.AR] " + VerifyRevision.summary(result).gsub("\n", "\n[W2.AR] ")
+    puts VerifyRevision.sentinel(result, stage: "W2.AR", applied: fixes)
     if VerifyRevision.failed?(result)
       errors = VerifyRevision.format_errors(result)
       puts "[W2.AR] --- verify errors ---"
@@ -212,15 +241,27 @@ execute do
     WORKFLOW_STATE[:verify_errors] || "initial verification failed"
   end
 
-  # W2.F: Failure guard — if verify and remediation fail, we don't commit
+  # W2.F: Failure guard — if a blocking check still fails after remediation,
+  # we don't commit. Advisory-only failures commit (W2.F0).
   ruby(:ensure_passing) do
     passed = ruby?(:verify) || ruby?(:auto_remediate) ||
              (ruby?(:remediate) && repeat!(:remediate).value == :succeeded)
     unless passed
-      puts "[W2.F1] Verification failed after remediation — aborting without commit"
-      puts "[W2.F2] Resetting uncommitted changes in workspace"
-      system("cd #{Shellwords.escape(WORKSPACE)} && git reset --hard HEAD && git clean -fd")
-      fail!("W2.F: revision failed, workspace reset to parent HEAD")
+      last = WORKFLOW_STATE[:last_verify]
+      if last && !VerifyRevision.blocking_failed?(last)
+        # Only advisory checks are still failing. Remediation had its two tries
+        # with the exact error; a raising page is not worth discarding the whole
+        # revision (and the ones queued after it) over. Commit, and leave the
+        # failure in the last verify sentinel for revision.metrics. The next
+        # revision's W2.B will see this page failing at HEAD and skip it.
+        names = last[:failed].map { |c| c[:name] }.join(", ")
+        puts "[W2.F0] Advisory checks still failing after remediation (#{names}) — committing"
+      else
+        puts "[W2.F1] Verification failed after remediation — aborting without commit"
+        puts "[W2.F2] Resetting uncommitted changes in workspace"
+        system("cd #{Shellwords.escape(WORKSPACE)} && git reset --hard HEAD && git clean -fd")
+        fail!("W2.F: revision failed, workspace reset to parent HEAD")
+      end
     end
     "ready to commit"
   end
