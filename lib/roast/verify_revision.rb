@@ -10,7 +10,27 @@ require_relative "route_smoke"
 require_relative "verify_report"
 
 module VerifyRevision
-  CHECKS = %i[bundle_check db_prepare herb_lint boot_check rails_test].freeze
+  # Five checks, none dead and none dominated by another (reworked 2026-09-06):
+  #   bundle_check   — lockfile satisfied; the only short-circuit (see run)
+  #   db_prepare     — full boot + migrations; also writes db/schema.rb, which
+  #                    the test env's maintain_test_schema! needs for the two
+  #                    Minitest-based checks that follow
+  #   zeitwerk_check — eager-loads every app/ file: the only check that sees
+  #                    code no route and no test touches (syntax errors,
+  #                    constants missing at class-body level, filename/constant
+  #                    mismatches)
+  #   route_smoke    — requests every static GET page in the test env;
+  #                    advisory (see ADVISORY). Catches what db:prepare,
+  #                    zeitwerk and an untested action all miss: a page that
+  #                    raises at request time. After zeitwerk_check because a
+  #                    load error is a clearer message than the same failure
+  #                    surfacing as a raising page
+  #   rails_test     — the app's own suite, when it has one
+  # boot_check (`rails runner "puts :ok"`) was removed as dominated: db_prepare
+  # boots the same app, first. herb_lint never ran (herb is not in the
+  # skeleton) and was evaluated and rejected — the as-built note in
+  # docs/02-architecture/01-workflows-and-decisions.md records why.
+  CHECKS = %i[bundle_check db_prepare zeitwerk_check route_smoke rails_test].freeze
 
   # Checks whose failure triggers remediation but does not block the commit.
   # route_smoke is advisory: one raising page among many is not a reason to
@@ -40,7 +60,7 @@ module VerifyRevision
   ROUTE_SMOKE_FILES = { "route_smoke.rb" => "route_smoke.rb", "route_smoke_check.rb" => "route_smoke_test.rb" }.freeze
 
   # Short-circuit on bundle_check failure: every later check (db_prepare,
-  # herb_lint, boot_check, rails_test) loads bundler and would emit the same
+  # zeitwerk_check, route_smoke, rails_test) loads bundler and would emit the same
   # Bundler::GemNotFound stacktrace. Surfacing all four padded the fix-agent
   # prompt with 4× the same noise, costing input tokens with zero new info.
   def self.run(workspace, known_failing_routes: [])
@@ -139,11 +159,8 @@ module VerifyRevision
       run_cmd(workspace, "bundle check", :bundle_check, "bundle check")
     when :db_prepare
       run_cmd(workspace, "bin/rails db:prepare", :db_prepare, "db:prepare")
-    when :herb_lint
-      return nil unless gem_available?(workspace, "herb")
-      run_cmd(workspace, "bundle exec herb lint app/views/", :herb_lint, "herb lint")
-    when :boot_check
-      run_cmd(workspace, 'bin/rails runner "puts :ok"', :boot_check, "boot check")
+    when :zeitwerk_check
+      run_cmd(workspace, "bin/rails zeitwerk:check", :zeitwerk_check, "zeitwerk check")
     when :route_smoke
       with_route_smoke_installed(workspace, known_failing_routes) do |dir|
         result = run_cmd(workspace, "bin/rails test #{ROUTE_SMOKE_DIR}/route_smoke_test.rb", :route_smoke, "route smoke")
@@ -170,10 +187,6 @@ module VerifyRevision
     output = with_clean_bundler_env { `cd #{Shellwords.escape(workspace)} && #{cmd} 2>&1` }
     { check: check, name: name, passed: $?.success?, output: output,
       ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round }
-  end
-
-  def self.gem_available?(workspace, name)
-    with_clean_bundler_env { system("cd #{Shellwords.escape(workspace)} && bundle show #{name} > /dev/null 2>&1") }
   end
 
   # Roast runs under `bundle exec`, which sets BUNDLE_GEMFILE to the generator's

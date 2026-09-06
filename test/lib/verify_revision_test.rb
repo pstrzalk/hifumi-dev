@@ -6,19 +6,35 @@ require Rails.root.join("lib/roast/verify_revision")
 class VerifyRevisionTest < ActiveSupport::TestCase
   WORKSPACE = "/tmp/fake_ws_for_verify_test".freeze
 
-  test "all-pass: returns every check, none failed" do
+  test "CHECKS is the reworked five-check set; boot_check and herb_lint are gone along with the herb guard" do
+    assert_equal %i[bundle_check db_prepare zeitwerk_check route_smoke rails_test], VerifyRevision::CHECKS
+    refute_includes VerifyRevision::CHECKS, :boot_check, "dominated by db_prepare, which boots the same app first"
+    refute_includes VerifyRevision::CHECKS, :herb_lint, "never ran: herb is not in the skeleton Gemfile"
+    refute VerifyRevision.respond_to?(:gem_available?), "herb_lint was its only caller"
+  end
+
+  test "all-pass with no tests: returns the four applicable checks in order, none failed" do
     with_perform_stub(
       bundle_check: true,
       db_prepare: true,
-      herb_lint: nil, # not applicable, e.g. herb gem absent
-      boot_check: true,
-      rails_test: true
+      zeitwerk_check: true,
+      route_smoke: true,
+      rails_test: nil # the realistic skip: a revision that wrote no tests
     ) do |_calls|
       result = VerifyRevision.run(WORKSPACE)
       refute VerifyRevision.failed?(result)
-      assert_equal 4, result[:checks].size, "nil check (herb) is filtered"
-      assert_equal %i[bundle_check db_prepare boot_check rails_test],
+      assert_equal 4, result[:checks].size, "nil check (rails_test) is filtered"
+      assert_equal %i[bundle_check db_prepare zeitwerk_check route_smoke],
                    result[:checks].map { |c| c[:name].to_sym }
+    end
+  end
+
+  test "all-pass with tests: returns all five checks in order" do
+    with_perform_stub({}) do |calls|
+      result = VerifyRevision.run(WORKSPACE)
+      refute VerifyRevision.failed?(result)
+      assert_equal %i[bundle_check db_prepare zeitwerk_check route_smoke rails_test], calls
+      assert_equal 5, result[:checks].size
     end
   end
 
@@ -33,14 +49,23 @@ class VerifyRevisionTest < ActiveSupport::TestCase
   end
 
   test "db_prepare failure does NOT short-circuit (later checks may report independent errors)" do
-    with_perform_stub(bundle_check: true, db_prepare: false, herb_lint: nil, boot_check: true, rails_test: true) do |calls|
+    with_perform_stub(bundle_check: true, db_prepare: false, zeitwerk_check: true, route_smoke: true, rails_test: true) do |calls|
       VerifyRevision.run(WORKSPACE)
-      assert_equal %i[bundle_check db_prepare herb_lint boot_check rails_test], calls
+      assert_equal %i[bundle_check db_prepare zeitwerk_check route_smoke rails_test], calls
+    end
+  end
+
+  test "a run where only route_smoke fails: failed? (remediation triggers) but not blocking_failed? (the commit stands)" do
+    with_perform_stub(route_smoke: false) do
+      result = VerifyRevision.run(WORKSPACE)
+      assert VerifyRevision.failed?(result)
+      refute VerifyRevision.blocking_failed?(result)
+      assert_equal [ :route_smoke ], result[:failed].map { |c| c[:check] }
     end
   end
 
   test "run forwards known_failing_routes to every perform call" do
-    with_perform_stub(herb_lint: nil) do |_calls, kwargs|
+    with_perform_stub({}) do |_calls, kwargs|
       VerifyRevision.run(WORKSPACE, known_failing_routes: [ "/", "/about" ])
       assert_equal 5, kwargs.size
       assert kwargs.all? { |kw| kw == { known_failing_routes: [ "/", "/about" ] } }, kwargs.inspect
@@ -48,7 +73,7 @@ class VerifyRevisionTest < ActiveSupport::TestCase
   end
 
   test "run defaults known_failing_routes to []" do
-    with_perform_stub(herb_lint: nil) do |_calls, kwargs|
+    with_perform_stub({}) do |_calls, kwargs|
       VerifyRevision.run(WORKSPACE)
       assert kwargs.all? { |kw| kw == { known_failing_routes: [] } }, kwargs.inspect
     end
@@ -99,7 +124,7 @@ class VerifyRevisionTest < ActiveSupport::TestCase
 
   test "summary appends (advisory) to route_smoke and nothing to the others" do
     result = build_result(failed: %i[route_smoke])
-    assert_equal "PASS bundle check\nPASS db:prepare\nFAIL route smoke (advisory)\nPASS rails test",
+    assert_equal "PASS bundle check\nPASS db:prepare\nPASS zeitwerk check\nFAIL route smoke (advisory)\nPASS rails test",
                  VerifyRevision.summary(result)
   end
 
@@ -161,8 +186,8 @@ class VerifyRevisionTest < ActiveSupport::TestCase
     record = VerifyReport.parse_line(line)
     assert_equal "W2.4", record["stage"]
     assert_equal 1, record["attempt"]
-    assert_equal %w[bundle_check db_prepare route_smoke rails_test], record["checks"].map { |c| c["check"] }
-    assert_equal [ "bundle check", "db:prepare", "route smoke", "rails test" ], record["checks"].map { |c| c["name"] }
+    assert_equal %w[bundle_check db_prepare zeitwerk_check route_smoke rails_test], record["checks"].map { |c| c["check"] }
+    assert_equal [ "bundle check", "db:prepare", "zeitwerk check", "route smoke", "rails test" ], record["checks"].map { |c| c["name"] }
     assert record["checks"].all? { |c| c["passed"] == true && c["ms"] == 1 }
   end
 
@@ -178,9 +203,9 @@ class VerifyRevisionTest < ActiveSupport::TestCase
     assert_equal false, checks["bundle_check"].key?("error")
     assert_equal "fail route_smoke", checks["route_smoke"]["error"]
     assert_includes checks["rails_test"]["error"], "[... 10 chars truncated ...]"
-    assert_equal [ true, false, false, false ], %w[route_smoke bundle_check db_prepare rails_test].map { |c| checks[c]["advisory"] }
+    assert_equal [ true, false, false, false, false ], %w[route_smoke bundle_check db_prepare zeitwerk_check rails_test].map { |c| checks[c]["advisory"] }
     assert_equal [ "/" ], checks["route_smoke"]["failing_routes"]
-    assert_equal [ false, false, false ], %w[bundle_check db_prepare rails_test].map { |c| checks[c].key?("failing_routes") }
+    assert_equal [ false, false, false, false ], %w[bundle_check db_prepare zeitwerk_check rails_test].map { |c| checks[c].key?("failing_routes") }
   end
 
   test "sentinel includes applied only when given, and attempt defaults to 1" do
@@ -371,10 +396,10 @@ class VerifyRevisionTest < ActiveSupport::TestCase
     route_smoke: "route smoke", rails_test: "rails test"
   }.freeze
 
-  # A result hash in the shape VerifyRevision.run returns, over a fixed
-  # four-check run, with the given checks failing.
+  # A result hash in the shape VerifyRevision.run returns, over a full
+  # five-check run, with the given checks failing.
   def build_result(failed:)
-    checks = %i[bundle_check db_prepare route_smoke rails_test].map do |check|
+    checks = VerifyRevision::CHECKS.map do |check|
       passed = !failed.include?(check)
       { check: check, name: NAMES.fetch(check), passed: passed, output: passed ? "" : "fail #{check}", ms: 1 }
     end
