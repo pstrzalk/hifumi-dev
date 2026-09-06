@@ -488,6 +488,71 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal "#{expected_bin}:#{ENV.fetch('PATH', '')}", env["PATH"]
   end
 
+  # --- verify sentinel → revision.metrics["verify"] -----------------------
+
+  test "run_roast_subprocess collects sentinels from either stream, in order, ignores malformed ones, and returns them as a 4th element" do
+    prefix = VerifyReport::PREFIX
+    # What the real subprocess looks like: Roast relays cog stdout through its
+    # logger on STDERR with a decoration in front of the sentinel.
+    script = [
+      %(echo 'agent chatter on stdout'),
+      %(echo 'I, [2026-09-06T23:39:41.814076]  INFO -- ruby(:verify) ❯ #{prefix} {"stage":"W2.4","attempt":1,"checks":[{"check":"rails_test","name":"rails test","passed":false,"advisory":false,"ms":9,"error":"1 failures"}]}' >&2),
+      %(echo '#{prefix} {not json' >&2),
+      %(echo 'I, [2026-09-06T23:39:45.000000]  INFO -- ruby(:reverify) ❯ #{prefix} {"stage":"W2.RV","attempt":1,"checks":[{"check":"rails_test","name":"rails test","passed":true,"advisory":false,"ms":8}]}' >&2),
+      %(exit 3)
+    ].join("; ")
+
+    ok, exit_code, wall, verify = ExecuteInstructionJob.new.send(:run_roast_subprocess, {}, [ "sh", "-c", script ])
+
+    assert_equal false, ok
+    assert_equal 3, exit_code
+    assert_kind_of Float, wall
+    assert_equal %w[W2.4 W2.RV], verify.map { |r| r["stage"] }
+    assert_equal "1 failures", verify.first["checks"].first["error"]
+  end
+
+  test "sentinel records land in revision.metrics['verify'] in order" do
+    records = [
+      { "stage" => "W2.4", "attempt" => 1, "checks" => [ { "check" => "rails_test", "name" => "rails test", "passed" => false, "advisory" => false, "ms" => 9, "error" => "boom" } ] },
+      { "stage" => "W2.RV", "attempt" => 1, "checks" => [ { "check" => "rails_test", "name" => "rails test", "passed" => true, "advisory" => false, "ms" => 8 } ] }
+    ]
+    with_stubs(subprocess: [ [ true, 0, 1.2, records ], [ true, 0, 0.1 ] ], git_shas: [ "sha_one", "sha_two" ]) do
+      ExecuteInstructionJob.perform_now(@instruction.id)
+    end
+
+    assert_equal "completed", @rev1.reload.status
+    assert_equal records, @rev1.metrics["verify"]
+    assert_equal %w[W2.4 W2.RV], @rev1.metrics["verify"].map { |r| r["stage"] }
+  end
+
+  test "a subprocess emitting no sentinel leaves metrics without a verify key (three-element stubs keep working)" do
+    with_stubs(subprocess: [ [ true, 0, 1.2 ], [ true, 0, 0.1, [] ] ]) do
+      ExecuteInstructionJob.perform_now(@instruction.id)
+    end
+
+    assert_equal %w[exit_code git_sha wall_seconds], @rev1.reload.metrics.keys.sort
+    assert_equal %w[exit_code git_sha wall_seconds], @rev2.reload.metrics.keys.sort, "an empty verify array must not be stored either"
+  end
+
+  test "a failed revision's metrics['verify'] names the failing check and carries its error text" do
+    records = [
+      { "stage" => "W2.4", "attempt" => 1, "checks" => [
+        { "check" => "bundle_check", "name" => "bundle check", "passed" => true, "advisory" => false, "ms" => 170 },
+        { "check" => "route_smoke", "name" => "route smoke", "passed" => false, "advisory" => true, "ms" => 1400,
+          "error" => "NoMethodError: undefined method 'authenticate_user!'", "failing_routes" => [ "/" ] }
+      ] }
+    ]
+    with_stubs(subprocess: [ [ false, 1, 0.5, records ] ]) do
+      ExecuteInstructionJob.perform_now(@instruction.id)
+    end
+
+    assert_equal "failed", @rev1.reload.status
+    failing = @rev1.metrics["verify"].last["checks"].reject { |c| c["passed"] }
+    assert_equal [ "route smoke" ], failing.map { |c| c["name"] }
+    assert_equal "NoMethodError: undefined method 'authenticate_user!'", failing.first["error"]
+    assert_equal [ "/" ], failing.first["failing_routes"]
+  end
+
   # --- notification payload shapes --------------------------------------
 
   test "revision.completed payload is {revision_id:, git_sha:}" do
@@ -678,8 +743,8 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
   end
 
   # Stubs all side-effectful helpers on ExecuteInstructionJob.
-  # - `subprocess:` Array of [ok, exit_code, wall_seconds] tuples, one per call.
-  #   Defaults to [true, 0, 0.1] if exhausted.
+  # - `subprocess:` Array of [ok, exit_code, wall_seconds(, verify_records)]
+  #   tuples, one per call. Defaults to [true, 0, 0.1] if exhausted.
   # - `git_shas:` Array of sha strings, one per git_head call. Defaults to "".
   # Yields a spy Hash for call-count / argument assertions.
   def with_stubs(subprocess: [], git_shas: [])

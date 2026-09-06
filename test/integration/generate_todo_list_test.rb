@@ -83,6 +83,7 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
     assert_includes File.read(File.join(workspace, "docs/frontend.md")), TEMPLATE
     assert_workspace_git_log_at_least(workspace, 4)
     assert_workspace_tests_pass(workspace)
+    assert_verify_metrics_persisted(project)
   end
 
   private
@@ -137,6 +138,31 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
     log = `cd #{Shellwords.escape(workspace)} && git log --oneline 2>/dev/null`.lines
     assert_operator log.size, :>=, expected,
       "expected >= #{expected} commits in workspace, got #{log.size}:\n#{log.join}"
+  end
+
+  # Every verification run of a revision is persisted to
+  # revision.metrics["verify"] via the [HIFUMI:VERIFY] sentinel the workflow
+  # prints and ExecuteInstructionJob parses out of the subprocess's streams.
+  # This test is transactional, so the rows are gone afterwards — the
+  # round-trip through a real roast subprocess is checked here or nowhere.
+  # Each revision of the fixture writes tests, so its W2.4 runs all four live
+  # checks (herb_lint is guarded out until the check set is reworked).
+  def assert_verify_metrics_persisted(project)
+    project.revisions.order(:position).each do |revision|
+      verify = revision.metrics["verify"]
+      assert_kind_of Array, verify,
+        "revision #{revision.position}: metrics carry no verify records — sentinel lost at the subprocess boundary? #{revision.metrics.inspect}"
+      first = verify.first
+      assert_equal "W2.4", first["stage"], "revision #{revision.position}: the first verification run must be W2.4"
+      assert_equal [ "bundle check", "db:prepare", "boot check", "rails test" ], first["checks"].map { |c| c["name"] }
+      verify.each do |run|
+        assert run["checks"].all? { |c| [ true, false ].include?(c["passed"]) && c["ms"].is_a?(Integer) }, run.inspect
+      end
+      puts "[verify] revision #{revision.position}: " + verify.map { |run|
+        "#{run['stage']}#{" ##{run['attempt']}" if run['attempt'].to_i > 1}: " +
+          run["checks"].map { |c| "#{c['passed'] ? 'PASS' : 'FAIL'} #{c['name']}" }.join(", ")
+      }.join(" | ")
+    end
   end
 
   def assert_workspace_tests_pass(workspace)

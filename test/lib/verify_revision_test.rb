@@ -151,6 +151,57 @@ class VerifyRevisionTest < ActiveSupport::TestCase
     parts.each { |part| assert part.end_with?("L" * VerifyRevision::ERROR_TAIL_CHARS) }
   end
 
+  # --- sentinel -------------------------------------------------------------------
+
+  test "sentinel emits one prefixed line of valid JSON that round-trips through VerifyReport.parse_line" do
+    line = VerifyRevision.sentinel(build_result(failed: []), stage: "W2.4")
+
+    assert_equal 1, line.lines.size
+    assert line.start_with?("#{VerifyRevision::SENTINEL_PREFIX} {")
+    record = VerifyReport.parse_line(line)
+    assert_equal "W2.4", record["stage"]
+    assert_equal 1, record["attempt"]
+    assert_equal %w[bundle_check db_prepare route_smoke rails_test], record["checks"].map { |c| c["check"] }
+    assert_equal [ "bundle check", "db:prepare", "route smoke", "rails test" ], record["checks"].map { |c| c["name"] }
+    assert record["checks"].all? { |c| c["passed"] == true && c["ms"] == 1 }
+  end
+
+  test "sentinel includes error (capped) only for failing checks, advisory only for route_smoke, failing_routes only when carried" do
+    result = build_result(failed: %i[route_smoke rails_test])
+    smoke = result[:checks].find { |c| c[:check] == :route_smoke }
+    smoke[:failing_routes] = [ "/" ]
+    rails_test = result[:checks].find { |c| c[:check] == :rails_test }
+    rails_test[:output] = "E" * (VerifyRevision::ERROR_CAP_CHARS + 10)
+
+    checks = VerifyReport.parse_line(VerifyRevision.sentinel(result, stage: "W2.RV", attempt: 2))["checks"].index_by { |c| c["check"] }
+
+    assert_equal false, checks["bundle_check"].key?("error")
+    assert_equal "fail route_smoke", checks["route_smoke"]["error"]
+    assert_includes checks["rails_test"]["error"], "[... 10 chars truncated ...]"
+    assert_equal [ true, false, false, false ], %w[route_smoke bundle_check db_prepare rails_test].map { |c| checks[c]["advisory"] }
+    assert_equal [ "/" ], checks["route_smoke"]["failing_routes"]
+    assert_equal [ false, false, false ], %w[bundle_check db_prepare rails_test].map { |c| checks[c].key?("failing_routes") }
+  end
+
+  test "sentinel includes applied only when given, and attempt defaults to 1" do
+    result = build_result(failed: [])
+    without = VerifyReport.parse_line(VerifyRevision.sentinel(result, stage: "W2.4"))
+    with = VerifyReport.parse_line(VerifyRevision.sentinel(result, stage: "W2.AR", applied: [ "bundler missing gems: ran `bundle install`" ]))
+
+    refute without.key?("applied")
+    assert_equal 1, without["attempt"]
+    assert_equal [ "bundler missing gems: ran `bundle install`" ], with["applied"]
+  end
+
+  test "sentinel survives invalid UTF-8 in a failing check's output (JSON.generate would otherwise raise inside the verify cog)" do
+    result = build_result(failed: %i[rails_test])
+    result[:checks].find { |c| c[:check] == :rails_test }[:output] = "bad byte \xFF here".b
+
+    record = VerifyReport.parse_line(VerifyRevision.sentinel(result, stage: "W2.4"))
+
+    assert_equal "bad byte \uFFFD here", record["checks"].last["error"]
+  end
+
   # --- perform(:route_smoke) ----------------------------------------------------
 
   test "perform(:route_smoke) installs both files plus known_failing into tmp/hifumi, then removes the directory" do

@@ -4,6 +4,9 @@ require "open3"
 # files abort() at top level when run outside a roast subprocess. Sandbox is a
 # plain builder, safe to load, so require it explicitly.
 require Rails.root.join("lib/roast/sandbox").to_s
+# VerifyReport parses the [HIFUMI:VERIFY] lines the workflow's verify steps
+# print; it lives next to the workflow because both sides need the same prefix.
+require Rails.root.join("lib/roast/verify_report").to_s
 
 class ExecuteInstructionJob < ApplicationJob
   queue_as :generation
@@ -228,13 +231,18 @@ class ExecuteInstructionJob < ApplicationJob
     # created between revisions. Mirrors PreviewManager#ensure_storage_writable!.
     relax_workspace_permissions(workspace) if sandboxed?
 
-    ok, exit_code, wall_seconds = run_roast_subprocess(env, revision_command(revision, workspace, env))
+    ok, exit_code, wall_seconds, verify = run_roast_subprocess(env, revision_command(revision, workspace, env))
 
     metrics = {
       wall_seconds: wall_seconds,
       exit_code: exit_code,
       git_sha: git_head(workspace)
     }
+    # Every verification run of this revision (W2.4, W2.AR, W2.RV x2 — W2.B once
+    # the baseline lands), in order, with per-check pass/fail and capped error
+    # text. Absent rather than [] when the subprocess printed no sentinel, so
+    # pre-sentinel revisions and post-sentinel ones read the same way.
+    metrics[:verify] = verify if verify.present?
 
     if ok
       revision.update!(
@@ -261,15 +269,19 @@ class ExecuteInstructionJob < ApplicationJob
   # Test seam — stubbed in unit tests, real in Step 7's integration test.
   # popen3 (vs system+inherited TTY) lets us scrub each output line before it
   # hits Rails.logger, so a key echoed by the subprocess can't reach prod logs.
+  # Returns [ok, exit_code, wall_seconds, verify_records]; stubs that return
+  # three elements still work (verify destructures to nil).
   def run_roast_subprocess(env, args)
     started = Time.current
     exit_code = nil
+    verify = []
+    verify_lock = Mutex.new
 
     Open3.popen3(env, *args) do |stdin, stdout, stderr, wait_thread|
       stdin.close
       threads = [
-        Thread.new { stdout.each_line { |line| Rails.logger.info(LogScrub.call(line.chomp)) } },
-        Thread.new { stderr.each_line { |line| Rails.logger.error(LogScrub.call(line.chomp)) } }
+        Thread.new { relay_subprocess_lines(stdout, :info, verify, verify_lock) },
+        Thread.new { relay_subprocess_lines(stderr, :error, verify, verify_lock) }
       ]
       threads.each(&:join)
       exit_code = wait_thread.value.exitstatus
@@ -277,7 +289,24 @@ class ExecuteInstructionJob < ApplicationJob
 
     ok = exit_code == 0
     wall = (Time.current - started).round(2)
-    [ ok, exit_code, wall ]
+    [ ok, exit_code, wall, verify ]
+  end
+
+  # Both streams are scanned for the verify sentinel: Roast captures whatever a
+  # cog prints and relays it through its own logger on stderr, decorated
+  # ("I, [ts]  INFO -- ruby(:verify) ❯ [HIFUMI:VERIFY] {...}"), so the
+  # sentinel is neither on stdout nor at column 0 by the time it gets here.
+  # VerifyReport.parse_line locates it; the lock only orders appends across
+  # the two reader threads. LogScrub runs first — it is a substring gsub for
+  # API-key shapes and cannot break the JSON.
+  def relay_subprocess_lines(io, level, verify, lock)
+    io.each_line do |line|
+      scrubbed = LogScrub.call(line.chomp)
+      if (record = VerifyReport.parse_line(scrubbed))
+        lock.synchronize { verify << record }
+      end
+      Rails.logger.public_send(level, scrubbed)
+    end
   end
 
   def git_head(workspace)

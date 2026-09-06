@@ -4,8 +4,10 @@
 # Run both from the workflow and standalone (bin/verify-workspace).
 
 require "fileutils"
+require "json"
 require "shellwords"
 require_relative "route_smoke"
+require_relative "verify_report"
 
 module VerifyRevision
   CHECKS = %i[bundle_check db_prepare herb_lint boot_check rails_test].freeze
@@ -85,7 +87,10 @@ module VerifyRevision
   ERROR_TAIL_CHARS = 1_000
 
   def self.cap_error(output)
-    text = output.to_s
+    # scrub: a generated app's test output is arbitrary bytes, and JSON.generate
+    # (the sentinel below) raises on invalid UTF-8. A logging failure must not
+    # abort the verify cog.
+    text = output.to_s.dup.force_encoding(Encoding::UTF_8).scrub
     return text if text.length <= ERROR_CAP_CHARS
 
     head = text[0, ERROR_CAP_CHARS - ERROR_TAIL_CHARS]
@@ -103,6 +108,29 @@ module VerifyRevision
     result[:checks].map do |c|
       "#{c[:passed] ? 'PASS' : 'FAIL'} #{c[:name]}#{' (advisory)' if ADVISORY.include?(c[:check])}"
     end.join("\n")
+  end
+
+  # The only channel out of the roast subprocess is its output streams:
+  # ExecuteInstructionJob streams them line-by-line into Rails.logger and keeps
+  # nothing else. A prefixed single-line JSON record lets the job reconstruct
+  # which check failed without parsing human-readable log text (or, worse,
+  # reading by line position). Roast wraps every line a cog prints in its own
+  # log format before it reaches the job — VerifyReport is the matching side.
+  SENTINEL_PREFIX = VerifyReport::PREFIX
+
+  def self.sentinel(result, stage:, attempt: 1, applied: nil)
+    record = {
+      stage: stage,
+      attempt: attempt,
+      checks: result[:checks].map do |c|
+        entry = { check: c[:check], name: c[:name], passed: c[:passed], advisory: ADVISORY.include?(c[:check]), ms: c[:ms] }
+        entry[:error] = cap_error(c[:output]) unless c[:passed]
+        entry[:failing_routes] = c[:failing_routes] if c.key?(:failing_routes)
+        entry
+      end
+    }
+    record[:applied] = applied if applied
+    "#{SENTINEL_PREFIX} #{JSON.generate(record)}"
   end
 
   def self.perform(check, workspace, known_failing_routes: [])

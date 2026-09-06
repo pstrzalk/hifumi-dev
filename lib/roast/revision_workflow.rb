@@ -107,13 +107,17 @@ execute(:fix_and_reverify) do
     PROMPT
   end
 
-  ruby(:reverify) do
+  # Every cog input block is instance_exec'd with (input, scope_value,
+  # scope_index) regardless of cog type (roast-ai-1.1.0 cog.rb:79-81), so idx
+  # here is the same 0-based repeat index agent(:fix) above receives.
+  ruby(:reverify) do |_, _, idx|
     # Capture the agent's response so the next iteration can build on it
     # instead of starting over with `whoami / id / ls -la` from scratch.
     WORKFLOW_STATE[:last_fix_response] = (agent!(:fix).response.to_s if agent?(:fix))
 
     result = VerifyRevision.run(WORKSPACE)
     puts "[W2.RV] " + VerifyRevision.summary(result).gsub("\n", "\n[W2.RV] ")
+    puts VerifyRevision.sentinel(result, stage: "W2.RV", attempt: idx + 1)
     if VerifyRevision.failed?(result)
       errors = VerifyRevision.format_errors(result)
       puts "[W2.RV] --- verify errors ---"
@@ -164,6 +168,7 @@ execute do
   ruby(:verify) do
     result = VerifyRevision.run(WORKSPACE)
     puts "[W2.4] " + VerifyRevision.summary(result).gsub("\n", "\n[W2.4] ")
+    puts VerifyRevision.sentinel(result, stage: "W2.4")
     if VerifyRevision.failed?(result)
       errors = VerifyRevision.format_errors(result)
       puts "[W2.4] --- verify errors ---"
@@ -191,6 +196,7 @@ execute do
     puts "[W2.AR] Applied: #{fixes.join('; ')}"
     result = VerifyRevision.run(WORKSPACE)
     puts "[W2.AR] " + VerifyRevision.summary(result).gsub("\n", "\n[W2.AR] ")
+    puts VerifyRevision.sentinel(result, stage: "W2.AR", applied: fixes)
     if VerifyRevision.failed?(result)
       errors = VerifyRevision.format_errors(result)
       puts "[W2.AR] --- verify errors ---"
