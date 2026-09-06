@@ -1,0 +1,72 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Run the W2.4 verification checks against a generated workspace and report
+# which passed. Read-only with respect to the generator; note that the checks
+# themselves run `bin/rails db:prepare` and `bin/rails test` in the workspace,
+# which create databases and write db/schema.rb.
+#
+# Usage:
+#   bin/verify-workspace ~/projects/hifumi-dev-workspaces/project_43
+#   bin/verify-workspace ~/projects/hifumi-dev-workspaces/project_*   # all of them
+#   bin/verify-workspace --check route_smoke <workspace>              # one check
+#   bin/verify-workspace --check route_smoke --known-failing /,/about <workspace>
+#       # what W2.4 sees after a W2.B baseline that recorded those pages failing
+#
+# Development only. The checks execute the workspace's own code (initializers,
+# test_helper, controllers) in this process's environment — that is what
+# Roast::Sandbox exists to contain in production. Do not run this against a
+# tenant workspace inside the shared generator container.
+#
+# Why this exists: VerifyRevision only ever runs inside a roast subprocess, so
+# a change to CHECKS could previously only be exercised by a full generation.
+# This runs the same module against a real workspace in a few seconds.
+#
+# Each check line ends with its duration and the last line the command printed
+# (Minitest's "N runs, ... M skips" for the test-based checks), so a pass with
+# skipped pages is distinguishable from a pass with none.
+#
+# Exits non-zero if any workspace fails any check, advisory included — this is
+# a diagnostic, and whoever runs it wants to see every failure. (The workflow's
+# commit decision ignores advisory failures; that is the workflow's business.)
+
+require "bundler"
+require_relative "../lib/roast/verify_revision"
+
+def take_option(name)
+  return nil unless (i = ARGV.index(name))
+
+  ARGV.delete_at(i)
+  ARGV.delete_at(i) || abort("#{name} needs a value")
+end
+
+only = take_option("--check")&.to_sym
+known_failing = take_option("--known-failing").to_s.split(",").reject(&:empty?)
+abort("usage: bin/verify-workspace [--check NAME] [--known-failing PATH,PATH] WORKSPACE [WORKSPACE...]") if ARGV.empty?
+
+failed = ARGV.reject do |workspace|
+  abort("not a directory: #{workspace}") unless File.directory?(workspace)
+
+  result = if only
+    VerifyRevision.run_one(only, workspace, known_failing_routes: known_failing)
+  else
+    VerifyRevision.run(workspace, known_failing_routes: known_failing)
+  end
+
+  puts "== #{workspace}"
+  puts "   (no applicable check)" if result[:checks].empty?
+  result[:checks].each do |check|
+    tag = VerifyRevision.summary(checks: [ check ])
+    lines = check[:output].to_s.lines.map(&:strip).reject(&:empty?)
+    # Minitest prints "You have skipped tests" AFTER its counts line; the
+    # counts are the line worth seeing.
+    tail = lines.reverse.find { |l| l.match?(/\A\d+ runs, /) } || lines.last
+    puts "   #{tag} (#{check[:ms]} ms)#{" — #{tail}" if tail}"
+  end
+  puts VerifyRevision.format_errors(result).lines.map { |l| "   #{l}" }.join unless result[:failed].empty?
+  !VerifyRevision.failed?(result)
+end
+
+puts "\n#{ARGV.size - failed.size}/#{ARGV.size} workspace(s) passed"
+exit(failed.empty? ? 0 : 1)
