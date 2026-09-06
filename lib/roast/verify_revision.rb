@@ -5,7 +5,7 @@
 
 require "fileutils"
 require "json"
-require "shellwords"
+require "open3"
 require_relative "route_smoke"
 require_relative "verify_report"
 
@@ -156,19 +156,19 @@ module VerifyRevision
   def self.perform(check, workspace, known_failing_routes: [])
     case check
     when :bundle_check
-      run_cmd(workspace, "bundle check", :bundle_check, "bundle check")
+      run_cmd(workspace, %w[bundle check], :bundle_check, "bundle check")
     when :db_prepare
-      run_cmd(workspace, "bin/rails db:prepare", :db_prepare, "db:prepare")
+      run_cmd(workspace, %w[bin/rails db:prepare], :db_prepare, "db:prepare")
     when :zeitwerk_check
-      run_cmd(workspace, "bin/rails zeitwerk:check", :zeitwerk_check, "zeitwerk check")
+      run_cmd(workspace, %w[bin/rails zeitwerk:check], :zeitwerk_check, "zeitwerk check")
     when :route_smoke
       with_route_smoke_installed(workspace, known_failing_routes) do |dir|
-        result = run_cmd(workspace, "bin/rails test #{ROUTE_SMOKE_DIR}/route_smoke_test.rb", :route_smoke, "route smoke")
+        result = run_cmd(workspace, [ "bin/rails", "test", "#{ROUTE_SMOKE_DIR}/route_smoke_test.rb" ], :route_smoke, "route smoke")
         result.merge(failing_routes: RouteSmoke.read_paths(File.join(dir, RouteSmoke::FAILING_FILE)))
       end
     when :rails_test
       return nil if Dir.glob("#{workspace}/test/**/*_test.rb").empty?
-      run_cmd(workspace, "bin/rails test", :rails_test, "rails test")
+      run_cmd(workspace, %w[bin/rails test], :rails_test, "rails test")
     end
   end
 
@@ -182,11 +182,25 @@ module VerifyRevision
     FileUtils.rm_rf(dir)
   end
 
-  def self.run_cmd(workspace, cmd, check, name)
+  # argv, not a shell string: the program is spawned directly with the
+  # workspace as its cwd, so there is no shell to inject into and nothing to
+  # escape — every argument reaches the program byte-for-byte. capture2e merges
+  # stderr into stdout, as `2>&1` did.
+  def self.run_cmd(workspace, argv, check, name)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    output = with_clean_bundler_env { `cd #{Shellwords.escape(workspace)} && #{cmd} 2>&1` }
-    { check: check, name: name, passed: $?.success?, output: output,
+    output, passed = capture(argv, workspace)
+    { check: check, name: name, passed: passed, output: output,
       ms: ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round }
+  end
+
+  # A program that cannot be started (missing bin/rails, unreadable workspace)
+  # is a failed check with the error as its output, not a verifier crash — a
+  # shell would have reported "command not found" the same way.
+  def self.capture(argv, workspace)
+    output, status = with_clean_bundler_env { Open3.capture2e(*argv, chdir: workspace) }
+    [ output, status.success? ]
+  rescue SystemCallError => e
+    [ "#{e.class}: #{e.message}", false ]
   end
 
   # Roast runs under `bundle exec`, which sets BUNDLE_GEMFILE to the generator's

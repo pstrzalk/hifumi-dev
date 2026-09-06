@@ -250,7 +250,7 @@ class VerifyRevisionTest < ActiveSupport::TestCase
       assert_equal "/\n/about", seen[:known]
       assert_equal File.read(Rails.root.join("lib/roast/route_smoke.rb")), seen[:smoke_rb]
       assert_equal File.read(Rails.root.join("lib/roast/route_smoke_check.rb")), seen[:smoke_test]
-      assert_equal "bin/rails test tmp/hifumi/route_smoke_test.rb", seen[:cmd]
+      assert_equal [ "bin/rails", "test", "tmp/hifumi/route_smoke_test.rb" ], seen[:cmd]
       assert_equal :route_smoke, seen[:check]
       assert_equal "route smoke", seen[:name]
       refute Dir.exist?(File.join(ws, "tmp/hifumi")), "tmp/hifumi must be removed after the run"
@@ -288,7 +288,7 @@ class VerifyRevisionTest < ActiveSupport::TestCase
 
   test "run_cmd records the check symbol, the display name, the output and a non-negative Integer ms" do
     Dir.mktmpdir do |ws|
-      result = VerifyRevision.run_cmd(ws, "echo hello", :probe, "probe check")
+      result = VerifyRevision.run_cmd(ws, %w[echo hello], :probe, "probe check")
 
       assert_equal :probe, result[:check]
       assert_equal "probe check", result[:name]
@@ -301,22 +301,49 @@ class VerifyRevisionTest < ActiveSupport::TestCase
 
   test "run_cmd reports a failing command with its combined stdout+stderr" do
     Dir.mktmpdir do |ws|
-      result = VerifyRevision.run_cmd(ws, "sh -c 'echo oops >&2; exit 1'", :probe, "probe check")
+      result = VerifyRevision.run_cmd(ws, [ "sh", "-c", "echo oops >&2; exit 1" ], :probe, "probe check")
 
       refute result[:passed]
       assert_equal "oops\n", result[:output]
     end
   end
 
-  test "run_cmd escapes a workspace path with spaces" do
+  test "run_cmd runs the program with the workspace as cwd, spaces in the path included" do
     Dir.mktmpdir do |root|
       ws = File.join(root, "with space")
       FileUtils.mkdir_p(ws)
-      result = VerifyRevision.run_cmd(ws, "pwd", :probe, "probe")
+      result = VerifyRevision.run_cmd(ws, %w[pwd], :probe, "probe")
 
       assert result[:passed], result[:output]
       assert_equal File.realpath(ws), File.realpath(result[:output].strip)
     end
+  end
+
+  test "run_cmd passes arguments to the program verbatim — no shell ever interprets them" do
+    Dir.mktmpdir do |ws|
+      hostile = "$HOME; rm -rf / && `id` | cat"
+      result = VerifyRevision.run_cmd(ws, [ "printf", "%s", hostile ], :probe, "probe")
+
+      assert result[:passed]
+      assert_equal hostile, result[:output]
+    end
+  end
+
+  test "run_cmd reports a program that cannot be started as a failed check, not an exception" do
+    Dir.mktmpdir do |ws|
+      result = VerifyRevision.run_cmd(ws, [ "hifumi-no-such-program" ], :probe, "probe")
+
+      refute result[:passed]
+      assert_match(/Errno::ENOENT/, result[:output])
+      assert_kind_of Integer, result[:ms]
+    end
+  end
+
+  test "run_cmd reports a missing workspace as a failed check" do
+    result = VerifyRevision.run_cmd("/nonexistent/hifumi/workspace", %w[pwd], :probe, "probe")
+
+    refute result[:passed]
+    assert_match(/Errno::ENOENT/, result[:output])
   end
 
   test "with_clean_bundler_env hides parent's BUNDLE_GEMFILE so workspace bundle commands resolve against the workspace" do
