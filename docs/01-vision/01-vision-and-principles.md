@@ -43,7 +43,6 @@ Two paths, chosen by the user:
 - Solid Cable/Queue/Cache instead of Redis wherever possible
 - **Devise** for authentication — handles emails, password reset, and derivative gems (devise_invitable etc.) provide a full ecosystem
 - **Hotwire only** — Turbo + Stimulus, no React/Vue
-- **HERB + ReActionView** — linting and formatting of ERB files
 - Standard Rails approach (Action Mailer, Active Storage, etc.)
 
 Full gem list: `../02-architecture/03-tech-stack.md`.
