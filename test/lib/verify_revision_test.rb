@@ -110,6 +110,47 @@ class VerifyRevisionTest < ActiveSupport::TestCase
     assert_equal "route smoke:\n#{VerifyRevision::HINTS[:route_smoke]}\nfail route_smoke\n\n---\n\nrails test:\nfail rails_test", errors
   end
 
+  # --- cap_error ------------------------------------------------------------------
+
+  test "cap_error returns short output unchanged" do
+    assert_equal "1 runs, 1 failures", VerifyRevision.cap_error("1 runs, 1 failures")
+  end
+
+  test "cap_error returns output of exactly ERROR_CAP_CHARS unchanged (boundary)" do
+    text = "x" * VerifyRevision::ERROR_CAP_CHARS
+    assert_equal text, VerifyRevision.cap_error(text)
+  end
+
+  test "cap_error truncates longer output, keeping the first ERROR_CAP_CHARS - ERROR_TAIL_CHARS chars, the last ERROR_TAIL_CHARS, and a marker between" do
+    head_size = VerifyRevision::ERROR_CAP_CHARS - VerifyRevision::ERROR_TAIL_CHARS
+    text = ("a" * head_size) + ("b" * 2_500) + ("c" * VerifyRevision::ERROR_TAIL_CHARS)
+
+    capped = VerifyRevision.cap_error(text)
+
+    assert capped.start_with?("a" * head_size), "head must be preserved verbatim"
+    assert capped.end_with?("c" * VerifyRevision::ERROR_TAIL_CHARS), "tail (the Minitest counts line) must be preserved verbatim"
+    assert_includes capped, "\n[... 2500 chars truncated ...]\n"
+    refute_includes capped, "b", "the middle is what gets dropped"
+  end
+
+  test "cap_error handles nil" do
+    assert_equal "", VerifyRevision.cap_error(nil)
+  end
+
+  test "format_errors caps each failing check's output after the hint, keeping the name prefix and the --- separator" do
+    head_size = VerifyRevision::ERROR_CAP_CHARS - VerifyRevision::ERROR_TAIL_CHARS
+    long = "L" * (VerifyRevision::ERROR_CAP_CHARS + 500)
+    result = build_result(failed: %i[route_smoke rails_test])
+    result[:failed].each { |c| c[:output] = long }
+
+    parts = VerifyRevision.format_errors(result).split("\n\n---\n\n")
+
+    assert_equal 2, parts.size
+    assert parts[0].start_with?("route smoke:\n#{VerifyRevision::HINTS[:route_smoke]}\n#{'L' * head_size}\n[... 500 chars truncated ...]\n")
+    assert parts[1].start_with?("rails test:\n#{'L' * head_size}\n[... 500 chars truncated ...]\n")
+    parts.each { |part| assert part.end_with?("L" * VerifyRevision::ERROR_TAIL_CHARS) }
+  end
+
   # --- perform(:route_smoke) ----------------------------------------------------
 
   test "perform(:route_smoke) installs both files plus known_failing into tmp/hifumi, then removes the directory" do

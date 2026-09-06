@@ -76,9 +76,26 @@ module VerifyRevision
     result[:failed].any? { |c| !ADVISORY.include?(c[:check]) }
   end
 
+  # format_errors feeds agent(:fix) verbatim. A single check has been measured at
+  # 9 374 chars (`rails test` with every action broken); three failing checks in
+  # one run, times up to three fix prompts, is real money. Head-and-tail rather
+  # than head-only because `rails test` puts its run/failure/error counts on the
+  # last line — the same reason StatCap preserves the git-stat summary.
+  ERROR_CAP_CHARS  = 4_000
+  ERROR_TAIL_CHARS = 1_000
+
+  def self.cap_error(output)
+    text = output.to_s
+    return text if text.length <= ERROR_CAP_CHARS
+
+    head = text[0, ERROR_CAP_CHARS - ERROR_TAIL_CHARS]
+    tail = text[-ERROR_TAIL_CHARS..]
+    "#{head}\n[... #{text.length - ERROR_CAP_CHARS} chars truncated ...]\n#{tail}"
+  end
+
   def self.format_errors(result)
     result[:failed].map do |c|
-      [ "#{c[:name]}:", HINTS[c[:check]], c[:output] ].compact.join("\n")
+      [ "#{c[:name]}:", HINTS[c[:check]], cap_error(c[:output]) ].compact.join("\n")
     end.join("\n\n---\n\n")
   end
 
