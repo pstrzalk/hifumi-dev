@@ -80,6 +80,11 @@ class RevisionPromptTest < ActiveSupport::TestCase
     assert_includes out, "NOT jsbundling-rails/webpack/esbuild"
   end
 
+test "anti-reflex: NOT RSpec/FactoryBot" do
+  out = build_minimal
+  assert_includes out, "NOT RSpec/FactoryBot"
+end
+
   test "documents the extra-gem escape hatch (Gemfile + bundle install + generator)" do
     out = build_minimal
     assert_includes out, "add it to Gemfile"
@@ -173,6 +178,23 @@ class RevisionPromptTest < ActiveSupport::TestCase
     assert_includes out, "## Context from previous revisions"
     assert_includes out, "Added Todo."
   end
+
+# ---- rules: the code agent must not follow a task that names spec/ ----
+# Production project 40: the plan named spec/ files, the agent said out loud
+# that "Minitest, not RSpec" conflicted with the task, and followed the task.
+# The rule now says which one wins and what to do instead.
+
+test "rules: a task naming spec/ is translated to test/, not followed" do
+  out = build_minimal
+  assert_includes out, "Tests are Minitest under `test/`, run with `bin/rails test`"
+  assert_includes out, "write the equivalent Minitest tests under `test/` instead"
+  assert_includes out, "the task's wording does not override this"
+end
+
+test "rules: no test gem may be added" do
+  out = build_minimal
+  assert_includes out, "Do not add rspec-rails or any other test gem"
+end
 
   # ---- ordering: stack inventory precedes manifest precedes rules ----
 
