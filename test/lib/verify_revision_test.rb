@@ -100,6 +100,28 @@ class VerifyRevisionTest < ActiveSupport::TestCase
     end
   end
 
+  # --- tally -------------------------------------------------------------------
+  # run, run_one and the W2.B baseline all return the same shape. W2.B assembles
+  # its list itself (bundle_check from AutoRemediate.ensure_bundle, then
+  # route_smoke), so the split lives here rather than inside either runner.
+
+  test "tally splits a mixed list into passed and failed while keeping checks in order" do
+    checks = [
+      { check: :bundle_check, passed: false },
+      { check: :route_smoke, passed: true },
+      { check: :rails_test, passed: false }
+    ]
+    result = VerifyRevision.tally(checks)
+
+    assert_equal checks, result[:checks], "order is the order the checks ran in"
+    assert_equal [ :route_smoke ], result[:passed].map { |c| c[:check] }
+    assert_equal [ :bundle_check, :rails_test ], result[:failed].map { |c| c[:check] }
+  end
+
+  test "tally of an empty list is the empty result run_one returns for a skipped check" do
+    assert_equal({ checks: [], passed: [], failed: [] }, VerifyRevision.tally([]))
+  end
+
   # --- the two decisions the workflow rests on ---------------------------------
 
   test "blocking_failed? is false when only route_smoke (advisory) failed" do

@@ -47,6 +47,22 @@ module AutoRemediate
     applied
   end
 
+  # W2.B runs before the agent, in a fresh throwaway container. Gems an earlier
+  # revision added are in the lockfile but not in this container's BUNDLE_PATH —
+  # `bundle install` wrote them into the previous container, which is gone — so
+  # `bundle check` fails and the baseline smoke would die on Bundler::GemNotFound
+  # with no per-route data: blind exactly when the agent has added gems
+  # (production project 40, 2026-09-06: every W2.B after revision 106). The same
+  # recipe W2.AR applies after a failed W2.4, applied before instead. Returns the
+  # bundle-check result and the fixes applied ([] when nothing was needed AND
+  # when the install failed — the caller tells those apart by the result).
+  def self.ensure_bundle(workspace)
+    check = VerifyRevision.run_one(:bundle_check, workspace)
+    return [ check, [] ] unless VerifyRevision.failed?(check)
+
+    [ check, run(workspace, VerifyRevision.format_errors(check)) ]
+  end
+
   # Single shell seam — recipes route through here so tests can stub it. Same
   # scrubbed env as VerifyRevision: under roast's `bundle exec` a plain system()
   # carries BUNDLE_GEMFILE=<generator Gemfile>, so the `bundle install` recipe
