@@ -73,10 +73,13 @@ W2.2  [deterministic]  Build prompt:
         - app manifest (docs/)
         - revision notes from the previous revision (if any)
         - plan context (what's done, what remains)
-W2.B  [deterministic]  Route smoke baseline at the parent commit: request every static GET
-        page once and record which already fail. W2.4 skips those, so only breakage
-        NEW in this revision is attributed to it — the fix agent is never asked to
-        repair a page an earlier revision left broken.
+W2.B  [deterministic]  Bundle + route smoke baseline at the parent commit. Runs `bundle check`
+        first and installs the missing gems if it fails: the sandbox container is
+        throwaway, so gems an earlier revision added are in the lockfile but not in
+        the new container. Then requests every static GET page once and records which
+        already fail. W2.4 skips those, so only breakage NEW in this revision is
+        attributed to it — the fix agent is never asked to repair a page an earlier
+        revision left broken.
 W2.3  [LLM/agent]      Execute Claude CLI with the prompt in the workspace cwd
         → Agent (Claude Code) with a constrained scope: step description + cwd.
 W2.4  [deterministic]  Verification — five checks, in order:
@@ -241,6 +244,8 @@ Every place where the LLM makes a decision, explicitly described.
 **D3, as built (2026-09-03)**: only [a] is implemented — the W4.1 snapshot is the planner's whole research, prefed in a single turn. [c] was measured on `project_42` with a file-reading tool and the same model: matching plan quality at 3–8× the latency (14–29 s against 3.6–4.3 s, 11–15 tool calls per plan), and it would give a model-steered file-read tool to a planner running inside the generator container, outside `Roast::Sandbox`. [a] reads agent-written files there too, but as a fixed read of five known paths — realpath-contained to the workspace, encoding-scrubbed, bodies fenced, `app/` as paths only — with no tool for the model to point anywhere else. Deferred rather than rejected — worth revisiting only if plans start failing for want of code the snapshot does not carry. [b] is not built.
 
 **W2.4, as built (2026-09-06)**: the original a–e list carried two checks with no signal of their own. `rails runner "puts :ok"` failed in exactly one row of a measured coverage matrix, and `db:prepare` — which boots the same app, first — failed there too. `herb lint` was guarded on a gem the skeleton never had and returned "not applicable" on every revision of every project since the Phase 1 spike. Herb was **evaluated and rejected**, not silently dropped: it installs and runs in ~0.5 s, but on four real generated apps every `error`-severity finding was a style convention — instance variables in partials, `<input />`, a missing `autocomplete` — 16 and 10 errors on two apps that render fine. As a blocking check it would have wedged both on day one and spent fix-agent turns rewriting partials to satisfy a linter, on a product whose output the user judges by looking at the page. The replacements close measured holes: `zeitwerk:check` catches the orphan-file class (syntax error, constant missing at class body, filename/constant mismatch) that every old check passed, and route smoke catches the raising-page class (project 27's `authenticate_user!` without devise, found only when the user opened the preview) that `rails test` catches only if the agent happened to write a test for that action. Route smoke is **advisory** because one raising page among many is not a reason to discard the revision and the ones queued behind it; it still gets the two remediation attempts with the exact exception. **W2.B** exists because without it a page committed broken under W2.F0 would be re-remediated on every later revision (up to 2 × the fix budget each, forever), and a fix agent told `Timeout::Error` on a page that calls an external API may "fix" it by deleting the feature. "Signal-only" (record, never remediate) was considered and rejected: it delivers nothing user-visible — the user still meets the 500 in the preview with no help. Both additions were run against all 29 existing workspaces before landing; none is wedged. Plan and measurements: `thoughts/shared/plans/2026-09-05/verify-revision-coverage-rework.md`.
+
+**Which framework the suite is written in is decided in the plan, not in the rules (2026-09-06)**: production project 40 was asked for "all business logic covered by automated tests" and got RSpec — `spec/` paths in all six revision prompts, `rspec-rails` in the Gemfile, 62 examples `rails test` never ran, because it is gated on `test/**/*_test.rb` and there were none. The code agent's rules said "Minitest, not RSpec"; the log shows it naming the conflict and following the task's file paths anyway. So the fix goes to the source: both planner prompts pin tests to Minitest under `test/` and close the test stack against extra gems, and the code agent's rule now says what to do when a task disagrees with it — write the equivalent Minitest tests, do not follow the path. Measured on the creation planner with project 40's own intent: 3 of 5 dry runs produced RSpec before, 0 of 5 after. Plan: `thoughts/shared/plans/2026-09-07/minitest-planning-and-baseline-bundle.md`.
 
 ---
 
