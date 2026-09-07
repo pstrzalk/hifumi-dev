@@ -75,19 +75,20 @@ module VerifyRevision
       end
     end
 
-    {
-      checks: results,
-      passed: results.select { |r| r[:passed] },
-      failed: results.reject { |r| r[:passed] }
-    }
+    tally(results)
   end
 
   # One check, same result shape as run. Used by bin/verify-workspace --check and
   # by the W2.B baseline.
   def self.run_one(check, workspace, known_failing_routes: [])
-    result = perform(check, workspace, known_failing_routes: known_failing_routes)
-    checks = [ result ].compact
-    { checks: checks, passed: checks.select { |r| r[:passed] }, failed: checks.reject { |r| r[:passed] } }
+    tally([ perform(check, workspace, known_failing_routes: known_failing_routes) ].compact)
+  end
+
+  # The result shape every caller reads: the checks that ran, split by outcome.
+  # W2.B needs it over a list it assembled itself (bundle_check from
+  # AutoRemediate.ensure_bundle, then route_smoke) rather than over one run.
+  def self.tally(checks)
+    { checks: checks, passed: checks.select { |c| c[:passed] }, failed: checks.reject { |c| c[:passed] } }
   end
 
   def self.failed?(result)

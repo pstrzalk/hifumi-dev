@@ -168,15 +168,33 @@ execute do
   # agent. Without it a page committed broken under W2.F0 would be re-remediated
   # on every later revision (≤ 2 × FIX_BUDGET_USD each, forever), and a fix agent
   # told "Timeout::Error" on a page calling an external API may "fix" it by
-  # deleting the feature. Runs the check alone: no db:prepare needed (probed on a
-  # fresh skeleton with no schema.rb — 0 runs, exit 0), and at HEAD the workspace
-  # has already passed every blocking check.
+  # deleting the feature. Runs the smoke alone: no db:prepare needed (probed on a
+  # fresh skeleton with no schema.rb — 0 runs, exit 0).
+  #
+  # ensure_bundle first: HEAD passed every blocking check in the container that
+  # committed it, and this is not that container. `docker run --rm` mounts the
+  # workspace and nothing else, so gems an earlier revision added are in the
+  # lockfile but not in this BUNDLE_PATH, and the smoke would die on
+  # Bundler::GemNotFound with no per-route data — blind exactly when a gem has
+  # been added (production project 40, 2026-09-06). The install also spares the
+  # agent the turn it used to spend rediscovering the hole.
   ruby(:smoke_baseline) do
-    result = VerifyRevision.run_one(:route_smoke, WORKSPACE)
-    failing = result[:checks].first&.dig(:failing_routes) || []
+    bundle, fixes = AutoRemediate.ensure_bundle(WORKSPACE)
+    puts "[W2.B] #{fixes.join('; ')}" unless fixes.empty?
+    checks = bundle[:checks]
+
+    failing = []
+    if !VerifyRevision.failed?(bundle) || !fixes.empty?
+      smoke = VerifyRevision.run_one(:route_smoke, WORKSPACE)
+      checks += smoke[:checks]
+      failing = smoke[:checks].first&.dig(:failing_routes) || []
+      puts "[W2.B] #{failing.empty? ? 'no pages failing at HEAD' : "already failing at HEAD: #{failing.join(', ')}"}"
+    else
+      puts "[W2.B] bundle still incomplete after remediation — baseline skipped, W2.4 will see every page"
+    end
+
     WORKFLOW_STATE[:smoke_baseline] = failing
-    puts "[W2.B] #{failing.empty? ? 'no pages failing at HEAD' : "already failing at HEAD: #{failing.join(', ')}"}"
-    puts VerifyRevision.sentinel(result, stage: "W2.B")
+    puts VerifyRevision.sentinel(VerifyRevision.tally(checks), stage: "W2.B", applied: (fixes.empty? ? nil : fixes))
     failing
   end
 

@@ -155,7 +155,9 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
         "revision #{revision.position}: metrics carry no verify records — sentinel lost at the subprocess boundary? #{revision.metrics.inspect}"
       baseline, *runs = verify
       assert_equal "W2.B", baseline["stage"], "revision #{revision.position}: the first record must be the W2.B baseline"
-      assert_equal [ "route smoke" ], baseline["checks"].map { |c| c["name"] }
+      assert_equal [ "bundle check", "route smoke" ], baseline["checks"].map { |c| c["name"] },
+        "the baseline ensures the bundle before it smokes"
+      assert_nil baseline["applied"], "the fixture adds no gem, so no install is needed"
       assert_not_empty runs, "revision #{revision.position}: no verification run after the baseline"
       assert_equal "W2.4", runs.first["stage"]
       runs.each do |run|

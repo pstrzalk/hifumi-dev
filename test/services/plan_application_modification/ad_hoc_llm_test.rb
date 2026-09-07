@@ -53,7 +53,7 @@ class PlanApplicationModification::AdHocLLMTest < ActiveSupport::TestCase
   # and the default stack is named as "default Rails 8", never enumerated.
 
   test "system prompt never names Devise-class gems, hifumi design tokens, or the default stack's parts" do
-    refute_match(/devise|pundit|cancancan|sidekiq|--accent|--paper|--ink|propshaft|importmap|solid_/i,
+    refute_match(/devise|pundit|cancancan|sidekiq|rspec|spec\/|factory_bot|factorybot|simplecov|--accent|--paper|--ink|propshaft|importmap|solid_/i,
                  PlanApplicationModification::AdHocLLM::SYSTEM_PROMPT)
   end
 
@@ -62,6 +62,14 @@ class PlanApplicationModification::AdHocLLMTest < ActiveSupport::TestCase
     assert_includes prompt, "default Rails 8 installation"
     assert_includes prompt, '"Gems" section'
     assert_includes prompt, "has_secure_password"
+  end
+
+  test "system prompt pins tests to Minitest under test/ and closes the test stack" do
+    prompt = PlanApplicationModification::AdHocLLM::SYSTEM_PROMPT
+    assert_includes prompt, "Minitest under `test/`"
+    assert_includes prompt, "bin/rails test"
+    assert_includes prompt, "test/models/<name>_test.rb"
+    assert_includes prompt, "plan no additional testing gems"
   end
 
   test "passes the selected model through to the LLM" do

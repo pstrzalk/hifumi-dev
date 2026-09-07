@@ -56,6 +56,7 @@ module RevisionPrompt
       - Authz → `before_action` checks in controllers, NOT Pundit/CanCanCan
       - Background jobs → Solid Queue, NOT Sidekiq/Resque
       - JS bundling → Importmap, NOT jsbundling-rails/webpack/esbuild
+      - Tests → Minitest + fixtures in `test/`, NOT RSpec/FactoryBot
       - Pagination, slugs, soft-delete: write them yourself
 
       If you do need an extra gem, add it to Gemfile + run `bundle install` + run any install generator BEFORE using it. The verify step will catch a missing constant otherwise.
@@ -97,7 +98,7 @@ module RevisionPrompt
       - Tailwind CSS for styling
       - Follow `docs/frontend.md` (palette, fonts, density, class snippets) for every view. Don't ship default Rails scaffold markup or unstyled forms — apply the template's class snippets to buttons, inputs, cards, navs, alerts. Inline hex values in arbitrary-value brackets (`bg-[#00FFCC]`) are fine.
       - Hotwire (Turbo + Stimulus), no React/Vue
-      - Minitest, not RSpec
+      - Tests are Minitest under `test/`, run with `bin/rails test`. If the task names `spec/` paths or RSpec, write the equivalent Minitest tests under `test/` instead — the task's wording does not override this. Do not add rspec-rails or any other test gem.
       - Write tests for new functionality
       - Don't create empty directories or files that aren't needed
       - You are working in #{workspace} — all paths are relative to this directory
