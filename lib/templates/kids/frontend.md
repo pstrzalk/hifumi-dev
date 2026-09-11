@@ -56,6 +56,32 @@ Variants: primary blue `bg-[#0074D9]`, primary yellow `bg-[#FFD23F] text-[#1A1A1
 ```
 States: success `bg-[#2ECC40]`, error `bg-[#FF4136] text-white`, info `bg-[#0074D9] text-white`. Border + shadow stay constant.
 
+## Images
+
+Photos are remote files, not asset-pipeline assets: pass the **full absolute URL** from the
+photo list, never a bare filename — `image_tag "photos/x.jpg"` resolves through Propshaft and
+breaks. Geometry is fixed: bands are 16:9, cards 1:1, headshots 2:3 — pair each with the
+matching `aspect-` class and `object-cover`. Write `alt` from what is in the picture, never
+"Placeholder". These snippets style the image only; keep your own caption or card content.
+
+Photos get the same treatment as every other block: thick black border, chunky offset
+shadow, big radius. Push the colour up rather than down.
+
+### Hero band
+```erb
+<section class="relative rounded-2xl border-2 border-[#1A1A1A] shadow-[6px_6px_0_#1A1A1A] overflow-hidden">
+  <%= image_tag "<absolute URL from the photo list>", alt: "Striped hot-air balloon", class: "absolute inset-0 w-full h-full object-cover saturate-125" %>
+  <div class="absolute inset-0 bg-[#1A1A1A]/30"></div>
+  <div class="relative px-6 py-14 max-w-2xl space-y-4"><h1 class="font-display text-4xl text-white drop-shadow-[3px_3px_0_#1A1A1A]">Headline</h1></div>
+</section>
+```
+
+### Portrait / avatar
+`class: "w-full object-cover aspect-[2/3] rounded-2xl border-2 border-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] saturate-125"`
+
+### Image card
+Wrap in the Card snippet; image `class: "w-full object-cover aspect-square rounded-xl border-2 border-[#1A1A1A]"`.
+
 ## Layout density
 
 - Container max-width: `max-w-5xl`. Page padding: `px-5 py-8`.

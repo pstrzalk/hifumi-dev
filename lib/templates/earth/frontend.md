@@ -56,6 +56,32 @@ Secondary: `bg-transparent border border-[#6B7F5F] text-[#6B7F5F] hover:bg-[#EDE
 ```
 States: success `bg-[#E3EAD6] text-[#3F5232] border-[#C4D2B0]`, warning `bg-[#F2E5C2] text-[#6E5A1F] border-[#D9C58A]`, error `bg-[#EFD7CC] text-[#7A3826] border-[#D9B59E]`.
 
+## Images
+
+Photos are remote files, not asset-pipeline assets: pass the **full absolute URL** from the
+photo list, never a bare filename — `image_tag "photos/x.jpg"` resolves through Propshaft and
+breaks. Geometry is fixed: bands are 16:9, cards 1:1, headshots 2:3 — pair each with the
+matching `aspect-` class and `object-cover`. Write `alt` from what is in the picture, never
+"Placeholder". These snippets style the image only; keep your own caption or card content.
+
+Low contrast is the point. Warm the photos slightly and pull the saturation back so they
+sit with the paper tones instead of jumping off the page. No shadows.
+
+### Hero band
+```erb
+<section class="relative rounded-md border border-[#E5DDC8] overflow-hidden">
+  <%= image_tag "<absolute URL from the photo list>", alt: "Hand holding hailstones", class: "absolute inset-0 w-full h-full object-cover sepia-[.15] saturate-75" %>
+  <div class="absolute inset-0 bg-[#2E2A22]/40"></div>
+  <div class="relative px-6 py-14 max-w-2xl space-y-4"><h1 class="font-display text-3xl text-[#FBF8F1]">Headline</h1></div>
+</section>
+```
+
+### Portrait / avatar
+`class: "w-full object-cover aspect-[2/3] rounded-md border border-[#E5DDC8] sepia-[.15] saturate-75"`
+
+### Image card
+Wrap in the Card snippet; image `class: "w-full object-cover aspect-square rounded-md sepia-[.15] saturate-75"`.
+
 ## Layout density
 
 - Container max-width: `max-w-4xl`. Page padding: `px-6 py-10`.

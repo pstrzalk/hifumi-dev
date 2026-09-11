@@ -58,6 +58,32 @@ Secondary: `bg-white border border-[#DFE1E6] text-[#172B4D] hover:bg-[#F4F5F7]`.
 ```
 States: success `bg-[#E3FCEF] text-[#006644] border-[#00875A]`, warning `bg-[#FFFAE6] text-[#974F0C] border-[#FF991F]`, error `bg-[#FFEBE6] text-[#BF2600] border-[#DE350B]`.
 
+## Images
+
+Photos are remote files, not asset-pipeline assets: pass the **full absolute URL** from the
+photo list, never a bare filename — `image_tag "photos/x.jpg"` resolves through Propshaft and
+breaks. Geometry is fixed: bands are 16:9, cards 1:1, headshots 2:3 — pair each with the
+matching `aspect-` class and `object-cover`. Write `alt` from what is in the picture, never
+"Placeholder". These snippets style the image only; keep your own caption or card content.
+
+Images are content, not decoration: hairline border, small radius, no filter and no
+shadow. Keep `rounded-sm` — `rounded-lg` on a photo breaks the shell.
+
+### Hero band
+```erb
+<section class="relative rounded-sm border border-[#DFE1E6] overflow-hidden">
+  <%= image_tag "<absolute URL from the photo list>", alt: "Empty conference stage", class: "absolute inset-0 w-full h-full object-cover" %>
+  <div class="absolute inset-0 bg-[#172B4D]/75"></div>
+  <div class="relative px-6 py-10 max-w-2xl space-y-3"><h1 class="font-semibold text-2xl text-white">Headline</h1></div>
+</section>
+```
+
+### Portrait / avatar
+`class: "w-full object-cover aspect-[2/3] rounded-sm border border-[#DFE1E6]"`
+
+### Image card
+Wrap in the Card snippet; image `class: "w-full object-cover aspect-square rounded-sm border border-[#DFE1E6]"`.
+
 ## Layout density
 
 - Container max-width: `max-w-7xl`. Page padding: `px-4 py-6`.
