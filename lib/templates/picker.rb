@@ -54,6 +54,27 @@ module Templates
       name
     end
 
+    # The templates' snippets use `font-display` and expect the body face from
+    # `fonts.html` to apply, but nothing ever defined either: Tailwind 4 resolves
+    # `font-display` from a `--font-display` theme token, and the skeleton's
+    # application.css is a bare `@import "tailwindcss"`. So every generated app
+    # downloaded its typeface and rendered in system sans — project 51 used
+    # `font-display` 18 times and its built CSS never mentioned Space Grotesk.
+    #
+    # Written here rather than asked of the agent because an instruction can be
+    # forgotten and this one demonstrably was. lib/preview/Dockerfile runs
+    # `tailwindcss:build`, so the block reaches the preview container's CSS.
+    THEME_MARKER = "/* hifumi:template-theme */"
+
+    def self.apply_theme(workspace:, theme_css:)
+      path = File.join(workspace, "app/assets/tailwind/application.css")
+      raise "tailwind application.css missing in #{workspace}" unless File.exist?(path)
+
+      # Idempotent: drop any block this method wrote before, then append.
+      base = File.read(path).split(THEME_MARKER).first.rstrip
+      File.write(path, "#{base}\n\n#{THEME_MARKER}\n#{theme_css.strip}\n")
+    end
+
     def self.apply(workspace:, name:)
       tpl = Templates.find(name)
 
@@ -61,13 +82,16 @@ module Templates
       FileUtils.mkdir_p(File.dirname(frontend_path))
       File.write(frontend_path, tpl.frontend_md)
 
+      apply_theme(workspace: workspace, theme_css: tpl.theme_css)
+
       layout_path = File.join(workspace, "app/views/layouts/application.html.erb")
       layout = File.read(layout_path)
       raise "layout missing </head>" unless layout.include?("</head>")
       File.write(layout_path, layout.sub("</head>", "    #{tpl.fonts_html.strip}\n  </head>"))
 
       ok = system(
-        "cd #{Shellwords.escape(workspace)} && git add docs/frontend.md app/views/layouts/application.html.erb && " \
+        "cd #{Shellwords.escape(workspace)} && " \
+        "git add docs/frontend.md app/views/layouts/application.html.erb app/assets/tailwind/application.css && " \
         "git -c user.email=#{Shellwords.escape(Project::COMMIT_AUTHOR_EMAIL)} " \
         "-c user.name=#{Shellwords.escape(Project::COMMIT_AUTHOR_NAME)} " \
         "commit -q -m 'docs: pick frontend template (#{name})'"

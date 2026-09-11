@@ -116,4 +116,41 @@ class TemplatesTest < ActiveSupport::TestCase
     assert_includes prompt, "where flower is soft and sweet"
     assert_includes prompt, "where earth is quiet and personal"
   end
+
+  # Every template's snippets use `font-display`, and `fonts.html` loads a body
+  # face the markup never names a class for. Both resolve from theme tokens, so
+  # a template without a theme.css renders in system sans with the webfont
+  # downloaded and unused — the state all five shipped in until 2026-09-12.
+  test "every template defines the theme tokens its own snippets and fonts rely on" do
+    Templates::NAMES.each do |name|
+      css = Templates.find(name).theme_css
+      assert_includes css, "@theme",          "#{name}/theme.css must declare an @theme block"
+      assert_includes css, "--font-display:", "#{name}/theme.css must define --font-display"
+      assert_includes css, "--font-sans:",    "#{name}/theme.css must define --font-sans"
+    end
+  end
+
+  # The token has to name the family fonts.html actually downloads, or the
+  # webfont is fetched and something else renders.
+  test "each theme.css names the display family its fonts.html loads" do
+    Templates::NAMES.each do |name|
+      tpl = Templates.find(name)
+      family = tpl.frontend_md[/^- Display\/headings: ([^(\n]+)/, 1].to_s.strip
+      assert_predicate family, :present?, "#{name}/frontend.md must name a display font"
+      assert_includes tpl.theme_css, %("#{family}"),
+                      "#{name}/theme.css --font-display must name #{family}"
+      assert_includes tpl.fonts_html, family.tr(" ", "+"),
+                      "#{name}/fonts.html must load #{family}"
+    end
+  end
+
+  # Every token needs a real fallback: a webfont that fails to load must not
+  # drop the page to the browser default.
+  test "every theme token has a fallback stack" do
+    Templates::NAMES.each do |name|
+      Templates.find(name).theme_css.scan(/--font-[a-z]+: (.+);/).flatten.each do |stack|
+        assert_operator stack.split(",").size, :>=, 2, "#{name}: '#{stack}' has no fallback"
+      end
+    end
+  end
 end

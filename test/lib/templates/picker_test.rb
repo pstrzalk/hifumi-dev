@@ -70,14 +70,49 @@ class Templates::PickerTest < ActiveSupport::TestCase
     end
   end
 
-  test "apply commits both files with the expected message" do
+  test "apply commits all three files with the expected message" do
     in_workspace do |ws|
       Templates::Picker.apply(workspace: ws, name: "office")
       msg = `cd #{Shellwords.escape(ws)} && git log -1 --pretty=%s`.strip
       assert_equal "docs: pick frontend template (office)", msg
 
       changed = `cd #{Shellwords.escape(ws)} && git show --name-only --pretty=format: HEAD`.split("\n").reject(&:empty?).sort
-      assert_equal %w[app/views/layouts/application.html.erb docs/frontend.md], changed
+      assert_equal %w[app/assets/tailwind/application.css app/views/layouts/application.html.erb docs/frontend.md], changed
+    end
+  end
+
+  # --- apply: theme tokens land in the workspace's tailwind entrypoint ------
+
+  test "apply writes the template's theme tokens into app/assets/tailwind/application.css" do
+    in_workspace do |ws|
+      Templates::Picker.apply(workspace: ws, name: "cyber")
+
+      css = File.read(File.join(ws, "app/assets/tailwind/application.css"))
+      assert_includes css, '@import "tailwindcss";', "the base import must survive"
+      assert_includes css, Templates::Picker::THEME_MARKER
+      assert_includes css, '--font-display: "Space Grotesk"'
+      assert_operator css.index('@import "tailwindcss";'), :<, css.index("@theme"),
+                      "@theme must come after the import or Tailwind ignores it"
+    end
+  end
+
+  test "apply is idempotent — re-picking replaces the theme block rather than stacking it" do
+    in_workspace do |ws|
+      Templates::Picker.apply(workspace: ws, name: "cyber")
+      Templates::Picker.apply(workspace: ws, name: "luxe")
+
+      css = File.read(File.join(ws, "app/assets/tailwind/application.css"))
+      assert_equal 1, css.scan("@theme").size, "only one @theme block should remain"
+      assert_includes css, '--font-display: "Cormorant Garamond"'
+      assert_not_includes css, "Space Grotesk"
+    end
+  end
+
+  test "apply raises when the tailwind entrypoint is missing rather than silently skipping" do
+    in_workspace do |ws|
+      FileUtils.rm(File.join(ws, "app/assets/tailwind/application.css"))
+      error = assert_raises(RuntimeError) { Templates::Picker.apply(workspace: ws, name: "cyber") }
+      assert_match(/application\.css missing/, error.message)
     end
   end
 
@@ -89,6 +124,8 @@ class Templates::PickerTest < ActiveSupport::TestCase
   def in_workspace
     Dir.mktmpdir("templates-picker-test-") do |ws|
       FileUtils.mkdir_p(File.join(ws, "app/views/layouts"))
+      FileUtils.mkdir_p(File.join(ws, "app/assets/tailwind"))
+      File.write(File.join(ws, "app/assets/tailwind/application.css"), %(@import "tailwindcss";\n))
       File.write(
         File.join(ws, "app/views/layouts/application.html.erb"),
         "<!DOCTYPE html>\n<html>\n  <head>\n    <title>x</title>\n  </head>\n  <body></body>\n</html>"
