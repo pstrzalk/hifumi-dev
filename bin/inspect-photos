@@ -1,0 +1,49 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Print the photo inventory exactly as the planners and the code agent receive
+# it, plus its token cost. Read-only, burns no tokens, writes nothing.
+#
+# Usage:
+#   bin/inspect-photos                          # the rendered prompt section
+#   bin/inspect-photos --table                  # one row per photo instead
+#   PHOTOS_BASE_URL=https://hifumi.dev bin/inspect-photos
+#
+# On a deployed host:
+#   kamal app exec --reuse "bin/inspect-photos"
+#
+# Why this exists: Photos.prompt_section is appended to both planner system
+# prompts and to the W2.1 implementer prompt, so it is paid for on every planner
+# call and every revision. The character count is the thing to watch after
+# adding photos — the inventory is the only description of the set the model
+# ever gets, and it is re-sent every time.
+#
+# Deliberately does NOT boot Rails: lib/photos.rb must stay loadable from the
+# Roast subprocess, where there is no environment.rb. Running it this way means
+# the script fails the same way the sandbox would if that ever regresses.
+#
+
+require_relative "../lib/photos"
+
+if ARGV.include?("--table")
+  rows = Photos.all.map { |p| [ p.slug, "#{p.width}x#{p.height}", p.orientation, p.url ] }
+  abort "No photos found in #{Photos.root}" if rows.empty?
+
+  widths = rows.transpose.map { |col| col.map(&:length).max }
+  rows.each do |row|
+    puts row.each_with_index.map { |cell, i| cell.ljust(widths[i]) }.join("  ").rstrip
+  end
+else
+  puts Photos.prompt_section
+end
+
+section = Photos.prompt_section
+by_orientation = Photos.all.group_by(&:orientation).transform_values(&:size).sort.to_h
+
+warn ""
+warn "-" * 60
+warn "root:        #{Photos.root}"
+warn "base url:    #{Photos.base_url}#{' (default — PHOTOS_BASE_URL unset)' if ENV['PHOTOS_BASE_URL'].nil?}"
+warn "photos:      #{Photos.all.size} (#{by_orientation.map { |k, v| "#{k} #{v}" }.join(', ')})"
+warn "prompt cost: #{section.length} characters, ~#{(section.length / 4.0).round} tokens per call"
