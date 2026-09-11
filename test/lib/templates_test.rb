@@ -1,7 +1,7 @@
 require "test_helper"
 
 class TemplatesTest < ActiveSupport::TestCase
-  test "all five templates load with non-empty frontend.md and fonts.html" do
+  test "every template loads with non-empty frontend.md and fonts.html" do
     Templates::NAMES.each do |name|
       tpl = Templates.find(name)
       assert_equal name, tpl.name
@@ -79,7 +79,8 @@ class TemplatesTest < ActiveSupport::TestCase
   # got rounded-lg from the agent unaided.
   test "each template's image snippets use that template's own radius" do
     { "cyber" => "rounded-none", "office" => "rounded-sm", "earth" => "rounded-md",
-      "flower" => "rounded-2xl", "kids" => "rounded-2xl" }.each do |name, radius|
+      "flower" => "rounded-2xl", "kids" => "rounded-2xl", "launch" => "rounded-xl",
+      "luxe" => "rounded-none", "editorial" => "rounded-none" }.each do |name, radius|
       images = Templates.find(name).frontend_md.split("## Images").last
       assert_includes images, radius, "#{name}/frontend.md Images section should use #{radius}"
     end
@@ -95,5 +96,24 @@ class TemplatesTest < ActiveSupport::TestCase
     refute Templates.known?(nil)
     refute Templates.known?("brutalist")
     Templates::NAMES.each { |n| assert Templates.known?(n) }
+  end
+
+  # The picker sees nothing but these one-liners, so every template needs one
+  # and no name may be missing from the list it picks from.
+  test "the picker prompt describes every template exactly once" do
+    prompt = Templates::Picker::SYSTEM_PROMPT
+    Templates::NAMES.each do |name|
+      assert_equal 1, prompt.scan(/^- #{name} +—/).size,
+                   "picker prompt must describe #{name} exactly once"
+    end
+  end
+
+  # launch/office and luxe/flower are the confusable pairs; the descriptions
+  # lean on the kind of site rather than the mood so the model can separate them.
+  test "the picker prompt separates the confusable pairs explicitly" do
+    prompt = Templates::Picker::SYSTEM_PROMPT
+    assert_includes prompt, "where office is the app behind it"
+    assert_includes prompt, "where flower is soft and sweet"
+    assert_includes prompt, "where earth is quiet and personal"
   end
 end

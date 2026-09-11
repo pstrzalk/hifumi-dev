@@ -1,5 +1,5 @@
 module Templates
-  NAMES = %w[cyber flower earth office kids].freeze
+  NAMES = %w[cyber flower earth office kids launch luxe editorial].freeze
 
   Template = Struct.new(:name, :frontend_md, :fonts_html, keyword_init: true)
 

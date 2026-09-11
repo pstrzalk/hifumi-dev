@@ -5,11 +5,14 @@ module Templates
     SYSTEM_PROMPT = <<~PROMPT.freeze
       You are a frontend template picker. Given a user's plain-language project description, pick the single best-fit template from this fixed list:
 
-      - cyber  — dark, neon, terminal/cyberpunk feel, monospace, sharp corners
-      - flower — pastel, soft, decorative; suits boutiques, lifestyle, wellness, weddings
-      - earth  — muted, warm, low-contrast; suits journals, blogs, slow-living, content
-      - office — clean professional like Jira/Linear; suits dashboards, internal tools, B2B
-      - kids   — bright, playful, bold borders; suits children's apps, games, learning, fun
+      - cyber     — dark, neon, terminal/cyberpunk feel, monospace, sharp corners
+      - flower    — pastel, soft, decorative; suits boutiques, lifestyle, wellness, weddings
+      - earth     — muted, warm, low-contrast; suits journals, blogs, slow-living, content
+      - office    — clean professional like Jira/Linear; suits the INSIDE of a tool: dashboards, admin, B2B apps
+      - kids      — bright, playful, bold borders; suits children's apps, games, learning, fun
+      - launch    — modern product landing page, gradient accent, big headlines; suits marketing sites, startups, waitlists, "promote X" — the page in FRONT of a product, where office is the app behind it
+      - luxe      — ivory, light serif, hairline rules, lots of space; suits hotels, restaurants, jewellery, property, high-end retail — expensive and restrained, where flower is soft and sweet
+      - editorial — black on white, heavy serif headlines, column rules; suits magazines, news, reviews, publications — high-contrast and reported, where earth is quiet and personal
 
       If nothing fits cleanly, pick the closest. Never invent names. Output exactly the JSON schema requested.
     PROMPT
