@@ -218,10 +218,17 @@ class ExecuteInstructionJob < ApplicationJob
     # Override RAILS_ENV for the entire roast subprocess tree (verify steps,
     # the claude CLI, and any rails-generate the agent invokes) so workspace
     # commands land in development.
+    # PHOTOS_BASE_URL belongs here rather than in #revision_command: that method
+    # only reads env.keys. One entry covers both paths — popen3 sets it for a
+    # direct dev run, and Sandbox.wrap turns it into `-e PHOTOS_BASE_URL` that the
+    # docker client resolves from this same overlay. Passed explicitly rather than
+    # left to container inheritance so a sandboxed run cannot silently fall back
+    # to the dev default.
     env = {
       "HIFUMI_DEV_WORKSPACE" => workspace,
       "OPENROUTER_API_KEY" => api_key,
-      "RAILS_ENV" => "development"
+      "RAILS_ENV" => "development",
+      "PHOTOS_BASE_URL" => Photos.base_url
     }.merge(roast_model_env(revision.instruction.project))
 
     # The throwaway runs everything as uid 1000 with --cap-drop=ALL, so any

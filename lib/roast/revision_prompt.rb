@@ -13,10 +13,14 @@
 #      of failure where the agent writes `before_action :authenticate_user!`
 #      because Devise is what its training data reaches for, even though
 #      Devise isn't installed.
-#   4. Current application state (manifest assembled from docs/*.md)
-#   5. Workspace snapshot (controllers/, models/, routes.rb, application_controller.rb)
-#   6. Context from previous revisions (docs/revision_notes.md)
-#   7. Rules
+#   4. Photos available — the hifumi-hosted photo set, same inventory the two
+#      planners get. Part of "what you already have", so it sits with the stack
+#      inventory; before the manifest so docs/frontend.md reads as the more
+#      specific instruction over it.
+#   5. Current application state (manifest assembled from docs/*.md)
+#   6. Workspace snapshot (controllers/, models/, routes.rb, application_controller.rb)
+#   7. Context from previous revisions (docs/revision_notes.md)
+#   8. Rules
 module RevisionPrompt
   def self.build(workspace:, revision_prompt:, revision_summary:)
     docs_dir = File.join(workspace, "docs")
@@ -25,6 +29,7 @@ module RevisionPrompt
     parts << "## Task\n\n#{revision_prompt}"
     parts << "## Summary (git commit message)\n\n#{revision_summary}"
     parts << stack_inventory_section
+    parts << Photos.prompt_section
 
     manifest = build_manifest(docs_dir)
     parts << "## Current application state (manifest)\n\n#{manifest}" unless manifest.empty?

@@ -6,8 +6,17 @@ module PlanApplicationCreation
 
     def self.call(intent:, clarifications:, context:, openrouter_api_key:, model:)
       user_prompt = build_user_prompt(intent, clarifications, context)
-      content = invoke_llm(system: SYSTEM_PROMPT, user: user_prompt, openrouter_api_key: openrouter_api_key, model: model)
+      content = invoke_llm(system: system_prompt, user: user_prompt, openrouter_api_key: openrouter_api_key, model: model)
       build_result(content)
+    end
+
+    # SYSTEM_PROMPT stays the frozen .md file so the refute_match guard keeps
+    # asserting on exactly the hand-written prompt. The photo inventory is
+    # appended here instead of baked into the file because it is derived from
+    # public/photos/ on every boot — a list in the .md would go stale the first
+    # time someone drops a file in.
+    def self.system_prompt
+      SYSTEM_PROMPT + "\n\n" + Photos.prompt_section
     end
 
     def self.invoke_llm(system:, user:, openrouter_api_key:, model:)

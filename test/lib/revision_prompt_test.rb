@@ -198,7 +198,7 @@ end
 
   # ---- ordering: stack inventory precedes manifest precedes rules ----
 
-  test "section order: Task → Summary → Stack → (Manifest) → (Snapshot) → (Notes) → Rules" do
+  test "section order: Task → Summary → Stack → Photos → (Manifest) → (Snapshot) → (Notes) → Rules" do
     docs = File.join(@workspace, "docs")
     FileUtils.mkdir_p(docs)
     File.write(File.join(docs, "architecture.md"), "manifest content")
@@ -210,6 +210,7 @@ end
       task: out.index("## Task"),
       summary: out.index("## Summary"),
       stack: out.index("## Stack already installed"),
+      photos: out.index("## Photos available"),
       manifest: out.index("## Current application state"),
       snapshot: out.index("## Workspace snapshot"),
       notes: out.index("## Context from previous revisions"),
@@ -219,10 +220,52 @@ end
     assert(positions.values.all?, "every section should be present in fixture, got #{positions.inspect}")
     assert_operator positions[:task],     :<, positions[:summary]
     assert_operator positions[:summary],  :<, positions[:stack]
-    assert_operator positions[:stack],    :<, positions[:manifest]
+    assert_operator positions[:stack],    :<, positions[:photos]
+    assert_operator positions[:photos],   :<, positions[:manifest]
     assert_operator positions[:manifest], :<, positions[:snapshot]
     assert_operator positions[:snapshot], :<, positions[:notes]
     assert_operator positions[:notes],    :<, positions[:rules]
+  end
+
+  # ---- the subprocess load path ----
+
+  # RevisionPrompt renders Photos.prompt_section, and both are loaded by
+  # lib/roast/revision_workflow.rb under `bundle exec roast` — no environment.rb,
+  # no Zeitwerk, no Rails constant. In this test process Rails is always loaded,
+  # so the only way to catch a Rails dependency creeping into either file is to
+  # require them the way the subprocess does, in a bare Ruby process.
+  test "the workflow's require chain resolves RevisionPrompt and Photos with no Rails" do
+    script = <<~RUBY
+      raise "Rails is defined" if defined?(Rails)
+      require #{Rails.root.join('lib/roast/revision_prompt').to_s.inspect}
+      require #{Rails.root.join('lib/photos').to_s.inspect}
+      out = RevisionPrompt.build(workspace: Dir.mktmpdir, revision_prompt: "p", revision_summary: "s")
+      raise "no photo section" unless out.include?("## Photos available")
+      print "ok"
+    RUBY
+
+    out = nil
+    Bundler.with_unbundled_env do
+      out = `cd #{Shellwords.escape(Rails.root.to_s)} && bundle exec ruby -rtmpdir -e #{Shellwords.escape(script)} 2>&1`
+    end
+
+    assert_predicate $?, :success?, "bare-Ruby load failed:\n#{out}"
+    assert_equal "ok", out
+  end
+
+  test "the photo section reflects PHOTOS_BASE_URL in the subprocess" do
+    script = <<~RUBY
+      require #{Rails.root.join('lib/photos').to_s.inspect}
+      print Photos.prompt_section
+    RUBY
+
+    out = nil
+    Bundler.with_unbundled_env do
+      out = `cd #{Shellwords.escape(Rails.root.to_s)} && PHOTOS_BASE_URL=https://hifumi.dev bundle exec ruby -e #{Shellwords.escape(script)} 2>&1`
+    end
+
+    assert_predicate $?, :success?, "bare-Ruby load failed:\n#{out}"
+    assert_includes out, "https://hifumi.dev/photos/"
   end
 
   private
