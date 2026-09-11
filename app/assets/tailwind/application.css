@@ -799,9 +799,21 @@ body {
   letter-spacing: 0.16em;
   color: var(--fg-muted);
 }
+/* The id column is max-content, not a fixed width: "R-000" in 18px mono plus
+   the 12px cell padding needs ~80px, and a fixed 56px wrapped it onto two
+   lines, which also skewed the row height. max-content tracks the widest id in
+   the table, so it keeps working past R-999 and through a font-size change.
+
+   The tag column is sized for the longest status, "generating" — 10 chars of
+   16px IBM Plex Mono (0.6em advance) at 0.14em tracking, plus the dot, its
+   gap, and the tag's own padding and border, is ~148px; with the 12px cell
+   padding on each side that needs 172px. It was 160px, so only that one tag
+   overflowed its cell and lost the right-hand gutter every other tag has.
+   Fixed rather than max-content on purpose: max-content would resize the
+   column (and shift every row) as statuses change during a build. */
 .revision-row {
   display: grid;
-  grid-template-columns: 4px 56px 160px 1fr 120px;
+  grid-template-columns: 4px max-content 176px 1fr 120px;
   align-items: stretch;
   border-bottom: 1px solid var(--border);
   min-height: 38px;
@@ -810,13 +822,13 @@ body {
 .revision-row > div {
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 10px 12px;
   border-right: 1px solid var(--border);
   font-size: 20px;
 }
 .revision-row > div:last-child { border-right: 0; }
 .revision-row .stripe { padding: 0; border-right: 1px solid var(--border); background: var(--ink-200); }
-.revision-row .id { font-family: var(--hi-font-mono); font-size: 18px; color: var(--fg-muted); letter-spacing: 0.04em; }
+.revision-row .id { font-family: var(--hi-font-mono); font-size: 18px; color: var(--fg-muted); letter-spacing: 0.04em; white-space: nowrap; }
 .revision-row .summary { color: var(--fg); font-family: var(--hi-font-sans); }
 .revision-row .sha { justify-content: flex-end; font-family: var(--hi-font-mono); font-size: 18px; color: var(--fg-faint); }
 
