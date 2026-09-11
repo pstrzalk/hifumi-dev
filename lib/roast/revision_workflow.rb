@@ -21,6 +21,9 @@ require_relative "auto_remediate"
 require_relative "workflow_env"
 require_relative "stat_cap"
 require_relative "revision_prompt"
+# Rails is never booted here (`bundle exec roast`), so Photos is required by path
+# like everything else above. That is why lib/photos.rb must stay Rails-free.
+require_relative "../photos"
 
 # Defaults, overrides, and validation live in Roast::WorkflowEnv so they're
 # unit-testable without loading the workflow file.

@@ -31,6 +31,7 @@ module HifumiDev
       assets tasks roast
       preview/skeleton preview/skeleton-overlay
       templates/cyber templates/flower templates/earth templates/office templates/kids
+      templates/launch templates/luxe templates/editorial
     ])
 
     # Configuration for the application, engines, and railties goes here.

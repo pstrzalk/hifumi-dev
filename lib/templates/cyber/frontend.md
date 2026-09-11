@@ -56,6 +56,32 @@ Derive secondary by swapping bg to `bg-transparent border border-[#00FFCC] text-
 ```
 Swap colour for state: error `border-[#FF3366] text-[#FF3366]`, warning `border-[#FFCC00] text-[#FFCC00]`, info `border-[#7A8190] text-[#B7C0CC]`.
 
+## Images
+
+Photos are remote files, not asset-pipeline assets: pass the **full absolute URL** from the
+photo list, never a bare filename — `image_tag "photos/x.jpg"` resolves through Propshaft and
+breaks. Geometry is fixed: bands are 16:9, cards 1:1, headshots 2:3 — pair each with the
+matching `aspect-` class and `object-cover`. Write `alt` from what is in the picture, never
+"Placeholder". These snippets style the image only; keep your own caption or card content.
+
+The set is warm and photographic; this template is not. Desaturate every photo and
+sit it under a near-black wash so it reads as terminal chrome, not stock imagery.
+
+### Hero band
+```erb
+<section class="relative rounded-none border border-[#1E2530] overflow-hidden">
+  <%= image_tag "<absolute URL from the photo list>", alt: "Empty server hall", class: "absolute inset-0 w-full h-full object-cover grayscale contrast-125" %>
+  <div class="absolute inset-0 bg-[#07090E]/75"></div>
+  <div class="relative px-6 py-14 max-w-2xl space-y-4"><h1 class="font-display text-3xl text-[#E6EDF3] uppercase tracking-wider">Headline</h1></div>
+</section>
+```
+
+### Portrait / avatar
+`class: "w-full object-cover aspect-[2/3] rounded-none border border-[#1E2530] grayscale hover:grayscale-0 transition"`
+
+### Image card
+Wrap in the Card snippet; image `class: "w-full object-cover aspect-square rounded-none grayscale contrast-125"`.
+
 ## Layout density
 
 - Container max-width: `max-w-6xl`. Page padding: `px-4 py-8`.

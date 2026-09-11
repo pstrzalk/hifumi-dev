@@ -178,6 +178,32 @@ end
 
 The Roast workflow doesn't know about Turbo Streams. It publishes an event, someone else broadcasts.
 
+## The photo seam
+
+One inventory, three prompts, no shared runtime. `public/photos/` is baked into the
+image and served unauthenticated; `lib/photos.rb` globs it, derives each image's
+geometry with ruby-vips, and renders one text block. Both planners append that
+block to their system prompt in `system_prompt`, and `RevisionPrompt` emits it as a
+section after the stack inventory. Nothing else knows the set exists — no
+`AppState` section, no `frontend.md` entry, no Active Storage, no image bytes in
+any LLM call. Generated apps reference `https://hifumi.dev/photos/<slug>.jpg` as
+plain absolute URLs, which is why preview containers and their egress rules are not
+involved: the viewer's browser fetches the image, not the container.
+
+The constraint that shapes the code is that this one module is loaded from two very
+different processes. In the web process Zeitwerk autoloads it. In the codegen
+sandbox, `lib/roast/revision_workflow.rb` requires it by path under
+`bundle exec roast`, where `environment.rb` never runs — so `Photos` resolves its
+root from `__dir__` and its base URL from `ENV["PHOTOS_BASE_URL"]`, which
+`ExecuteInstructionJob` forwards into the throwaway container by name. A
+`Rails.root` in this file would raise on every production revision while dev stayed
+green, so a test loads it in a bare Ruby process with `Rails` undefined.
+
+Adding a photo touches no code: drop a slug-named `.jpg` in, add a `CREDITS.md`
+row, deploy. Geometry is derived rather than declared precisely so that stays true
+— and memoization is free, because `public/` lives in the image and a new photo
+already means a new deploy.
+
 ## Guidelines
 
 ### Subscribers: only enqueue or broadcast

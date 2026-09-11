@@ -20,6 +20,12 @@ env:
   clear:
     SOLID_QUEUE_IN_PUMA: true
     PREVIEW_DOMAIN: hifumi.dev
+    # Origin the generated apps' <img> tags point at. public/photos/ is baked
+    # into this image and served unauthenticated, so this is just the apex.
+    # Read by lib/photos.rb straight from ENV (not a Rails initializer) because
+    # the same module is loaded by the Roast subprocess, which never boots Rails;
+    # ExecuteInstructionJob forwards this var by name into the agent sandbox.
+    PHOTOS_BASE_URL: https://hifumi.dev
     # Pre-issued wildcard cert for *.preview.hifumi.dev. Paths are as seen INSIDE
     # the kamal-proxy container. Uncomment both ONLY after the cert is issued via
     # DNS-01 and mounted into kamal-proxy (see docs/05-runbooks/02-preview-wildcard-tls.md).

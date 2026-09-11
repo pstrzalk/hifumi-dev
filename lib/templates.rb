@@ -1,14 +1,15 @@
 module Templates
-  NAMES = %w[cyber flower earth office kids].freeze
+  NAMES = %w[cyber flower earth office kids launch luxe editorial].freeze
 
-  Template = Struct.new(:name, :frontend_md, :fonts_html, keyword_init: true)
+  Template = Struct.new(:name, :frontend_md, :fonts_html, :theme_css, keyword_init: true)
 
   def self.find(name)
     raise ArgumentError, "unknown template: #{name.inspect}" unless known?(name)
     Template.new(
       name: name,
       frontend_md: File.read(root.join(name, "frontend.md")),
-      fonts_html:  File.read(root.join(name, "fonts.html"))
+      fonts_html:  File.read(root.join(name, "fonts.html")),
+      theme_css:   File.read(root.join(name, "theme.css"))
     )
   end
 

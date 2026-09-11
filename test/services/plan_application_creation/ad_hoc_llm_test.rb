@@ -40,7 +40,9 @@ class PlanApplicationCreation::AdHocLLMTest < ActiveSupport::TestCase
   test "passes system prompt and user prompt with intent to the LLM" do
     with_llm_response(plan_fixture("valid_plan.json")) do |captured|
       PlanApplicationCreation::AdHocLLM.call(intent: "todo list", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
-      assert_equal PlanApplicationCreation::AdHocLLM::SYSTEM_PROMPT, captured[:system]
+      # The photo inventory is appended at assembly time; the hand-written
+      # prompt still leads. Asserted in full further down.
+      assert captured[:system].start_with?(PlanApplicationCreation::AdHocLLM::SYSTEM_PROMPT)
       assert_includes captured[:user], "Intent: todo list"
       assert_not_includes captured[:user], "Clarifications:"
     end
@@ -181,5 +183,27 @@ class PlanApplicationCreation::AdHocLLMTest < ActiveSupport::TestCase
     end
   ensure
     PlanApplicationCreation::AdHocLLM.define_singleton_method(:invoke_llm, original) if original
+  end
+
+  # ---- the photo inventory is appended to the system prompt ----
+  # SYSTEM_PROMPT itself stays the frozen .md file (the refute_match guard above
+  # asserts on it); the inventory is derived from public/photos/ and joined on at
+  # assembly time, so these assert on what actually reaches the model.
+
+  test "system prompt sent to the LLM carries the photo inventory after the hand-written prompt" do
+    with_llm_response(plan_fixture("valid_plan.json")) do |captured|
+      PlanApplicationCreation::AdHocLLM.call(intent: "todo list", clarifications: {}, context: {}, openrouter_api_key: "sk-or-test", model: "anthropic/claude-haiku-4.5")
+
+      system = captured[:system]
+      assert system.start_with?(PlanApplicationCreation::AdHocLLM::SYSTEM_PROMPT),
+             "the hand-written prompt must still lead"
+      assert_includes system, "## Photos available"
+      assert_includes system, Photos.all.first.filename
+    end
+  end
+
+  test "the appended photo block trips none of the guards asserted on SYSTEM_PROMPT" do
+    refute_match(/devise|pundit|cancancan|sidekiq|rspec|spec\/|factory_bot|factorybot|simplecov|--accent|--paper|--ink|propshaft|importmap|solid_/i,
+                 PlanApplicationCreation::AdHocLLM.system_prompt)
   end
 end
