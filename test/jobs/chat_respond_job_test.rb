@@ -178,6 +178,13 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_includes rendered, "`create_application` is the tool offered"
   end
 
+  test "offers to add more before building, and keeps the apply wording for changes" do
+    rendered = rendered_agent_instructions
+
+    assert_includes rendered, "would you like to add anything else?"
+    assert_includes rendered, "Should I apply this?"
+  end
+
   test "registers a CreateApplication tool bound to the project before completing" do
     captured_tools = []
     spy_with_tools(captured_tools) do
