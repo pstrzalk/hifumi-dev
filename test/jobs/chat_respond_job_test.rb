@@ -168,6 +168,16 @@ class ChatRespondJobTest < ActiveJob::TestCase
     assert_includes rendered, "Do NOT call `create_application` or `modify_application`"
   end
 
+  test "instructs the agent to ask about example data when creating a new application" do
+    rendered = rendered_agent_instructions
+
+    # Label-level, like the "Formatting:" assertion above: this guards that the
+    # rule is still shipped and still scoped to the creation path, not its
+    # exact phrasing, which gets tuned by hand.
+    assert_includes rendered, "example data"
+    assert_includes rendered, "`create_application` is the tool offered"
+  end
+
   test "registers a CreateApplication tool bound to the project before completing" do
     captured_tools = []
     spy_with_tools(captured_tools) do
@@ -310,6 +320,19 @@ class ChatRespondJobTest < ActiveJob::TestCase
     Chat.class_eval do
       alias_method :with_context, :_original_with_context if method_defined?(:_original_with_context)
     end
+  end
+
+  # One turn's worth of rendered agent instructions. The two tests above that
+  # assert on state injection keep their own inline spy — they also assert on
+  # how many times with_runtime_instructions was called, which this discards.
+  def rendered_agent_instructions
+    captured = []
+    spy_with_instructions(captured) do
+      stub_complete(chunks: [ "ok" ]) do
+        perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+      end
+    end
+    captured.first.first.first
   end
 
   def spy_with_instructions(captured)
