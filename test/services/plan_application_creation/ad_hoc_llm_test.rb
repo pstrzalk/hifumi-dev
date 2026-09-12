@@ -66,6 +66,10 @@ class PlanApplicationCreation::AdHocLLMTest < ActiveSupport::TestCase
     assert_includes prompt, "has_secure_password"
   end
 
+  test "system prompt asks for 4 to 8 revisions" do
+    assert_includes PlanApplicationCreation::AdHocLLM::SYSTEM_PROMPT, "4 to 8 revisions"
+  end
+
   test "system prompt pins tests to Minitest under test/ and closes the test stack" do
     prompt = PlanApplicationCreation::AdHocLLM::SYSTEM_PROMPT
     assert_includes prompt, "Minitest under `test/`"
