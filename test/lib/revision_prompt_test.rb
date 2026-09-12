@@ -268,6 +268,45 @@ end
     assert_includes out, "https://hifumi.dev/photos/"
   end
 
+  # ---- rules: the agent's throwaway web server ----
+  # The agent boots one unasked (nothing in the prompt requests it) and frees
+  # the port first with `lsof -ti:3000 | xargs kill` — which in dev is the
+  # generator's own puma. These pin both halves of the rule that stops it.
+
+  test "rules name the default port when HIFUMI_AGENT_WEB_SERVER_PORT is unset" do
+    out = with_env("HIFUMI_AGENT_WEB_SERVER_PORT" => nil) { build_minimal }
+
+    assert_includes out, "bin/rails server -p 40000"
+  end
+
+  test "rules name the operator's port when HIFUMI_AGENT_WEB_SERVER_PORT is set" do
+    out = with_env("HIFUMI_AGENT_WEB_SERVER_PORT" => "41234") { build_minimal }
+
+    assert_includes out, "bin/rails server -p 41234"
+    refute_includes out, "bin/rails server -p 40000"
+  end
+
+  test "web_server_port falls back to the default when the env var is blank" do
+    with_env("HIFUMI_AGENT_WEB_SERVER_PORT" => "  ") do
+      assert_equal RevisionPrompt::DEFAULT_WEB_SERVER_PORT, RevisionPrompt.web_server_port
+    end
+  end
+
+  test "rules forbid killing a process the agent did not start" do
+    out = build_minimal
+
+    assert_includes out, "Never kill a process you did not start"
+    assert_includes out, "lsof -ti:<port> | xargs kill"
+    assert_includes out, "pkill -f puma"
+  end
+
+  test "rules point at the verifier so a server is not the way to check a page" do
+    out = build_minimal
+
+    assert_includes out, "requests every static GET page"
+    assert_includes out, "test/integration/"
+  end
+
   private
 
   def build_minimal(workspace: @workspace, revision_prompt: "Do a thing.", revision_summary: "feat: thing")

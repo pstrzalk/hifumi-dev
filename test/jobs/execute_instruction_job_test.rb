@@ -342,6 +342,32 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
     assert_equal "revision_prompt=prompt 1",                          first_call[:args][5]
   end
 
+  test "HIFUMI_AGENT_WEB_SERVER_PORT is forwarded to the subprocess when the operator sets one" do
+    first_call = nil
+    with_env("HIFUMI_AGENT_WEB_SERVER_PORT" => "41234") do
+      with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
+        ExecuteInstructionJob.perform_now(@instruction.id)
+        first_call = spy[:subprocess_calls].first
+      end
+    end
+
+    # Present in env means present in the sandbox argv too: revision_command
+    # turns every env key into `-e KEY`, so the value never reaches argv.
+    assert_equal "41234", first_call[:env]["HIFUMI_AGENT_WEB_SERVER_PORT"]
+  end
+
+  test "HIFUMI_AGENT_WEB_SERVER_PORT is omitted when unset, leaving RevisionPrompt's default to apply" do
+    first_call = nil
+    with_env("HIFUMI_AGENT_WEB_SERVER_PORT" => nil) do
+      with_stubs(subprocess: [ [ true, 0, 0.1 ], [ true, 0, 0.1 ] ]) do |spy|
+        ExecuteInstructionJob.perform_now(@instruction.id)
+        first_call = spy[:subprocess_calls].first
+      end
+    end
+
+    refute_includes first_call[:env].keys, "HIFUMI_AGENT_WEB_SERVER_PORT"
+  end
+
   test "openrouter path: env carries the project's code and docs model selection" do
     @project.update!(code_model: "anthropic/claude-opus-4.6", docs_model: "anthropic/claude-sonnet-4.6")
 

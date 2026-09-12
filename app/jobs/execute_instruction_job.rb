@@ -231,6 +231,13 @@ class ExecuteInstructionJob < ApplicationJob
       "PHOTOS_BASE_URL" => Photos.base_url
     }.merge(roast_model_env(revision.instruction.project))
 
+    # The one port the agent's throwaway server may bind — W2's rules name it,
+    # and RevisionPrompt owns the default, so only a set value travels. Without
+    # this the sandboxed run would see no value at all (the container inherits
+    # nothing) and both sides would have to keep a literal in sync.
+    agent_port = ENV["HIFUMI_AGENT_WEB_SERVER_PORT"]
+    env["HIFUMI_AGENT_WEB_SERVER_PORT"] = agent_port if agent_port.present?
+
     # The throwaway runs everything as uid 1000 with --cap-drop=ALL, so any
     # root-owned 0644 file left by pre-sandbox runs (or by this job's own
     # root-side git/init work) is unwritable inside it. Re-relax before every
