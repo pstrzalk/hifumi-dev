@@ -41,6 +41,12 @@ env:
     # pin to a specific digest/sha if you need throwaways to track the exact
     # running release rather than the newest pushed one.
     HIFUMI_AGENT_IMAGE: localhost:5555/hifumi-dev:latest
+    # The only port the codegen agent may bind when it boots a throwaway server
+    # to look at its own pages — W2's rules name it, and forbid killing whatever
+    # else is listening. Inside the sandbox this is cosmetic (own network
+    # namespace, nothing published); it matters in dev, where the agent runs
+    # directly on the host and 3000 is the generator's own puma.
+    HIFUMI_AGENT_WEB_SERVER_PORT: 40000
     GITHUB_CLIENT_ID: Ov23liLp77TT9zMsowk3
     # Operator identity for /privacy. Public-facing legal display, so values
     # live here (not .kamal/secrets). Tax ID and business URL intentionally

@@ -20,8 +20,24 @@
 #   5. Current application state (manifest assembled from docs/*.md)
 #   6. Workspace snapshot (controllers/, models/, routes.rb, application_controller.rb)
 #   7. Context from previous revisions (docs/revision_notes.md)
-#   8. Rules
+#   8. Rules — including the one port the agent may bind (see
+#      DEFAULT_WEB_SERVER_PORT) and the prohibition on killing processes it
+#      did not start.
 module RevisionPrompt
+  # The one port the code agent may bind when it boots a throwaway server to
+  # look at its own pages. It reaches for a server on its own — nothing here
+  # asks it to — and its habit is to free the port first with
+  # `lsof -ti:<port> | xargs kill`, which on a dev machine is the generator's
+  # own puma on 3000 (see the W2 rules below). Read from ENV rather than
+  # Rails config: this file is required by path from revision_workflow.rb and
+  # runs under `bundle exec roast`, where Rails never boots.
+  DEFAULT_WEB_SERVER_PORT = 40_000
+
+  def self.web_server_port
+    port = ENV["HIFUMI_AGENT_WEB_SERVER_PORT"].to_s.strip
+    port.empty? ? DEFAULT_WEB_SERVER_PORT : port.to_i
+  end
+
   def self.build(workspace:, revision_prompt:, revision_summary:)
     docs_dir = File.join(workspace, "docs")
 
@@ -108,6 +124,8 @@ module RevisionPrompt
       - Don't create empty directories or files that aren't needed
       - You are working in #{workspace} — all paths are relative to this directory
       - The snapshot above is current. Don't glob or list directories to discover what already exists; only read a specific file when you actually need its contents to make the change.
+      - You usually don't need to run a server: when this revision is finished a verifier boots the app in the test env, requests every static GET page and runs `bin/rails test`. Prefer an integration test under `test/integration/` to a hand-run server.
+      - If you do boot one, `bin/rails server -p #{web_server_port}` is the ONLY port you may bind, and stop it afterwards with the pid in `tmp/pids/server.pid`. Never kill a process you did not start — no `lsof -ti:<port> | xargs kill`, no `pkill -f puma`. Anything already listening belongs to another application sharing this machine.
     RULES
   end
 end
