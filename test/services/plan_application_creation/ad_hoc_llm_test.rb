@@ -66,6 +66,18 @@ class PlanApplicationCreation::AdHocLLMTest < ActiveSupport::TestCase
     assert_includes prompt, "has_secure_password"
   end
 
+  # The range alone reads as a target rather than a limit -- probed against the
+  # live planner, both "a todo list app" and a finance tracker came back at
+  # exactly 8, and the earlier "3 to 6" wording anchored on 6 the same way. The
+  # low-end directive is what counteracts it, so it is guarded alongside the
+  # numbers. Same shape as the modification prompt's "PREFER A SINGLE REVISION".
+  test "system prompt asks for 4 to 8 revisions and steers to the low end" do
+    prompt = PlanApplicationCreation::AdHocLLM::SYSTEM_PROMPT
+    assert_includes prompt, "4 to 8 revisions"
+    assert_includes prompt, "PREFER THE SMALLEST NUMBER"
+    assert_includes prompt, "Never split one unit of work"
+  end
+
   test "system prompt pins tests to Minitest under test/ and closes the test stack" do
     prompt = PlanApplicationCreation::AdHocLLM::SYSTEM_PROMPT
     assert_includes prompt, "Minitest under `test/`"

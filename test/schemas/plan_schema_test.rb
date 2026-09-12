@@ -21,5 +21,11 @@ class PlanSchemaTest < ActiveSupport::TestCase
     revisions = doc.dig("properties", "revisions")
     assert_equal "array", revisions["type"]
     assert_equal %w[prompt summary], revisions.dig("items", "properties").keys.sort
+
+    # Must stay in step with app/prompts/plan_application_creation_system.md:4 --
+    # the model reads both, and a disagreement is a contradictory instruction.
+    # Neither bound is enforced: no min_items/max_items is passed, so this is
+    # the description text the model sees, not a schema constraint.
+    assert_equal "Ordered list of 4 to 8 atomic revisions.", revisions["description"]
   end
 end
