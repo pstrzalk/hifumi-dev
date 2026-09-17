@@ -2,8 +2,9 @@
 # frozen_string_literal: true
 
 #
-# Read-only check that every model offered by LLM::Stages actually resolves
-# through RubyLLM. Burns no tokens and writes nothing.
+# Read-only check that the RubyLLM registry store is in the state db/seeds.rb
+# leaves it in, and that every model LLM::Stages offers resolves from it.
+# Burns no tokens and writes nothing.
 #
 # Usage:
 #   bin/verify-model-registry                              # check the offered list
@@ -14,75 +15,69 @@
 #
 # Why this exists: with acts_as installed, RubyLLM v2 uses the ruby_llm_models
 # table as its registry store and falls back to the gem's bundled models.json
-# only when that table is empty (models.rb:85-97). A model absent from both
-# raises ModelNotFoundError on every RubyLLM-backed stage. Pass candidate ids
-# to check a model BEFORE adding it to LLM::Stages::AVAILABLE_MODELS.
+# only when that table is empty. db/seeds.rb seeds exactly
+# LLM::Stages::AVAILABLE_MODELS under LLM::Stages::PROVIDER, so an empty store
+# or a missing row is a setup error, not a warning -- the remedy is
+# `bin/rails db:seed`. Pass candidate ids to check a model BEFORE adding it to
+# AVAILABLE_MODELS (a candidate absent from the store is expected to fail).
 #
 # See docs/05-runbooks/03-llm-model-registry.md.
 #
-# Exits non-zero if any id fails to resolve.
+# Exits non-zero if the store is empty, lacks an offered id, or any id fails
+# to resolve.
 
 require_relative "../config/environment"
 
-candidates = ARGV
-offered = LLM::Stages::AVAILABLE_MODELS.keys
-failures = []
-store_underpopulated = false
-
 # RubyLLM wires config.model_registry_store to the ruby_llm_models table from an
 # `on_load :active_record` hook. This script boots via require "config/environment"
-# rather than `bin/rails runner`, and that path does not touch ActiveRecord — so
+# rather than `bin/rails runner`, and that path does not touch ActiveRecord -- so
 # without the line below the store is nil and RubyLLM::Models would silently
 # resolve against the gem's bundled JSON instead of the DB, which is the exact
 # confusion this script exists to prevent. Referencing ActiveRecord::Base fires
 # the hook on its own; a full eager_load! is not needed.
 ActiveRecord::Base.connection_pool
-store = RubyLLM.config.model_registry_store
-rows = store ? store.count : 0
+result = LLM::RegistryCheck.call(candidates: ARGV)
 
-puts "registry store rows: #{store ? rows : "(no store configured)"}"
+def format_line(resolution)
+  if resolution.ok?
+    # ctx is "?" on a bare seeded row -- expected; a refresh fills it in.
+    format("  OK    %-32s provider=%-11s ctx=%s", resolution.id, resolution.provider, resolution.context_window || "?")
+  else
+    format("  FAIL  %-32s %s", resolution.id, resolution.error)
+  end
+end
+
+puts "registry store rows: #{result.store_rows}"
 puts "resolved registry:   #{RubyLLM::Models.instance.all.size}"
 
-# Three states, only one of which is healthy. A NON-EMPTY store shadows the
-# bundled registry completely, and find_or_create_model writes one row per
-# successful resolution -- so a fresh environment self-poisons: the first chat
-# leaves exactly one row, and from the next boot that row IS the registry.
-# Resolving everything from the bundle is therefore not a pass, it is a warning.
-if rows.zero?
-  puts "\nWARNING: the store is empty, so the ids below resolve from the gem's"
-  puts "bundled registry. The first chat will write ONE row, and that row will"
-  puts "then shadow the bundle entirely. Run RubyLLM.models.refresh! before use."
-elsif rows < offered.size
-  puts "\nFAIL: the store holds #{rows} row(s) but #{offered.size} ids are offered."
-  puts "A non-empty store shadows the bundle, so ids missing from it raise"
-  puts "ModelNotFoundError even when the bundle carries them."
-  store_underpopulated = true
+if result.store_rows.zero?
+  puts "\nFAIL: the store is empty, so RubyLLM is resolving against the gem's bundled"
+  puts "registry -- which is not what production runs on and whose provider set"
+  puts "drifts between gem releases."
+elsif result.missing_rows.any?
+  puts "\nFAIL: no #{LLM::Stages::PROVIDER} row for: #{result.missing_rows.join(', ')}"
 end
 
-def check(id, failures)
-  info, = RubyLLM::Models.resolve(id)
-  puts format("  OK    %-32s provider=%-11s ctx=%s", id, info.provider, info.context_window || "?")
-rescue StandardError => e
-  failures << id
-  puts format("  FAIL  %-32s %s", id, e.class)
-end
+puts "\noffered by LLM::Stages (#{result.offered.size}):"
+result.offered.each { |r| puts format_line(r) }
 
-puts "\noffered by LLM::Stages (#{offered.size}):"
-offered.each { |id| check(id, failures) }
-
-unless candidates.empty?
+unless result.candidates.empty?
   puts "\ncandidates (not yet offered):"
-  candidates.each { |id| check(id, failures) }
+  result.candidates.each { |r| puts format_line(r) }
 end
 
-if failures.any?
-  puts "\n#{failures.size} id(s) did not resolve: #{failures.join(', ')}"
-end
-
-if failures.any? || store_underpopulated
-  puts "Populate the registry with: bin/rails runner 'RubyLLM.models.refresh!'"
-  puts "Then restart long-lived processes — the registry is memoized per process."
+unless result.ok?
+  puts "\nPopulate the store with: bin/rails db:seed   (idempotent -- seeds AVAILABLE_MODELS under #{LLM::Stages::PROVIDER})"
+  puts "Then restart long-lived processes -- the registry is memoised per process."
   exit 1
 end
 
-puts "\nall ids resolve."
+failed_candidates = result.candidates.reject(&:ok?)
+if failed_candidates.any?
+  puts "\n#{failed_candidates.size} candidate(s) do not resolve. A non-empty store shadows the gem's bundle,"
+  puts "so a candidate resolves only once it has its own #{LLM::Stages::PROVIDER} row: add it to"
+  puts "LLM::Stages::AVAILABLE_MODELS, run bin/rails db:seed, and re-run this check."
+  exit 1
+end
+
+puts "\nall ids resolve from the store."

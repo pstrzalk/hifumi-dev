@@ -36,6 +36,18 @@ class LLM::StagesTest < ActiveSupport::TestCase
     end
   end
 
+  # The test store is test/fixtures/ruby_llm_models.yml, derived from
+  # AVAILABLE_MODELS; this guards that RubyLLM actually resolves each offered
+  # id from it under the pinned provider rather than from the gem's bundle.
+  test "every offered model resolves from the store under the pinned provider" do
+    LLM::Stages::AVAILABLE_MODELS.each_key do |id|
+      info, = RubyLLM::Models.resolve(id, provider: LLM::Stages::PROVIDER)
+      assert_equal LLM::Stages::PROVIDER.to_s, info.provider, "#{id} did not resolve under #{LLM::Stages::PROVIDER}"
+      assert RubyLLM::ActiveRecord::Model.exists?(model_id: id, provider: LLM::Stages::PROVIDER.to_s),
+        "#{id} has no #{LLM::Stages::PROVIDER} row in the store — fixture and AVAILABLE_MODELS drifted"
+    end
+  end
+
   test "schema defaults match the registry defaults on both tables" do
     LLM::Stages::ALL.each do |stage|
       assert_equal stage.default_model, Project.column_defaults[stage.project_column.to_s],

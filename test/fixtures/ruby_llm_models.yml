@@ -1,0 +1,14 @@
+# Derived from LLM::Stages::AVAILABLE_MODELS so the test store always covers
+# exactly the offered list under the one provider hifumi talks to. With rows
+# present, RubyLLM reads its registry from this table and never falls back to
+# the gem's bundled models.json (whose provider set drifts between releases,
+# and which find_or_create_model would otherwise copy wholesale — 1 669 rows —
+# into the store on the first chat of every test).
+_fixture:
+  model_class: RubyLLM::ActiveRecord::Model
+<% LLM::Stages::AVAILABLE_MODELS.each do |id, name| %>
+<%= id.tr("/.", "__") %>:
+  model_id: <%= id %>
+  provider: <%= LLM::Stages::PROVIDER %>
+  name: <%= name %>
+<% end %>

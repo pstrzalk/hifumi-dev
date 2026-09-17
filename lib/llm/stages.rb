@@ -20,11 +20,11 @@
 # `claude` CLI's Anthropic API surface, and the plan/template stages need
 # structured output — both rule out arbitrary OpenRouter catalog entries.
 #
-# Adding an id here is NOT sufficient. RubyLLM must also be able to resolve it:
-# it reads the `ruby_llm_models` table as its registry store and falls back to
-# the gem's bundled registry only when that table is empty, so an id missing
-# from both raises ModelNotFoundError. Run `bin/verify-model-registry <id>`
-# before shipping a new entry, and populate with `RubyLLM.models.refresh!`.
+# Adding an id here is NOT sufficient on its own. RubyLLM resolves against the
+# ruby_llm_models table, and db/seeds.rb seeds exactly this list under PROVIDER
+# — so after adding an id, run `bin/rails db:seed` in every environment
+# (idempotent) and restart long-lived processes (the registry is memoised per
+# process). `bin/verify-model-registry` checks the store is in that state.
 # Procedure: docs/05-runbooks/03-llm-model-registry.md.
 #
 # Deliberate exclusions (2026-08-12), so they don't get "fixed" back in:
@@ -43,6 +43,14 @@
 #     handling first.
 module LLM
   module Stages
+    # The one provider hifumi talks to. Every RubyLLM call site passes it
+    # explicitly. Left implicit, RubyLLM ranks candidates by its own
+    # PROVIDER_PREFERENCE, where perplexity outranks openrouter — and both
+    # catalogues list dot-less Anthropic ids (anthropic/claude-sonnet-5,
+    # anthropic/claude-opus-5), so a registry carrying both rows hands the
+    # chat to Perplexity and it dies with ConfigurationError.
+    PROVIDER = :openrouter
+
     AVAILABLE_MODELS = {
       "anthropic/claude-haiku-4.5"  => "Claude Haiku 4.5",
       "anthropic/claude-sonnet-4.6" => "Claude Sonnet 4.6",

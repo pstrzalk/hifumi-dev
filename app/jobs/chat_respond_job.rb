@@ -16,7 +16,7 @@ class ChatRespondJob < ApplicationJob
     agent.with_context(ctx)
     # with_model costs a Model lookup + chat save + project touch — only pay
     # it when the project's selection actually differs from the chat's model.
-    agent.with_model(project.chat_model) unless agent.model_id == project.chat_model
+    agent.with_model(project.chat_model, provider: LLM::Stages::PROVIDER) unless agent.model_id == project.chat_model
     agent.complete do |chunk|
       delta = chunk.content.to_s
       next if delta.empty?

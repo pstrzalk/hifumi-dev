@@ -21,7 +21,7 @@ module PlanApplicationCreation
 
     def self.invoke_llm(system:, user:, openrouter_api_key:, model:)
       ctx = RubyLLM.context { |c| c.openrouter_api_key = openrouter_api_key }
-      chat = ctx.chat(model: model)
+      chat = ctx.chat(model: model, provider: LLM::Stages::PROVIDER)
       chat.with_instructions(system)
       chat.with_schema(PlanSchema).ask(user).parsed
     end
