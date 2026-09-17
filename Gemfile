@@ -42,13 +42,12 @@ gem "image_processing", "~> 1.2"
 
 # Conversation layer: LLM chat + tools (generator UI).
 #
-# 2.0 is unreleased — it exists only as crmne/ruby_llm@main, which still
-# reports VERSION '1.16.0' because the bump happens at release. Pinned to a
-# SHA rather than tracking main: main is explicitly "in development", and
-# BUNDLE_DEPLOYMENT=1 plus HIFUMI_AGENT_IMAGE reusing this image mean the
-# resolved revision has to be a reviewed decision. Swap to a version
-# constraint once 2.0 ships to RubyGems.
-gem "ruby_llm", github: "crmne/ruby_llm", ref: "c45ebd78c819b83696849a3486619d671dbafab6"
+# Exact prerelease pin: 2.0 has reached RubyGems only as release candidates so
+# far, and BUNDLE_DEPLOYMENT=1 plus HIFUMI_AGENT_IMAGE reusing this image mean
+# the resolved version has to be a reviewed decision — bump deliberately with
+# `bundle update ruby_llm`. Loosen to "~> 2.0" once 2.0.0 final ships.
+# Schema notes for this line: docs/05-runbooks/04-ruby-llm-v2-rollout.md.
+gem "ruby_llm", "2.0.0.rc3"
 
 # Orchestration of generation workflows (per-revision Roast subprocess)
 gem "roast-ai", "~> 1.1"

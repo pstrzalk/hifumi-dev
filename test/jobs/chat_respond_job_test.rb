@@ -351,7 +351,7 @@ class ChatRespondJobTest < ActiveJob::TestCase
 
   # One turn's worth of rendered agent instructions. The two tests above that
   # assert on state injection keep their own inline spy — they also assert on
-  # how many times with_runtime_instructions was called, which this discards.
+  # how many times with_instructions was called, which this discards.
   def rendered_agent_instructions
     captured = []
     spy_with_instructions(captured) do
@@ -364,16 +364,16 @@ class ChatRespondJobTest < ActiveJob::TestCase
 
   def spy_with_instructions(captured)
     Chat.class_eval do
-      alias_method :_original_with_runtime_instructions, :with_runtime_instructions
-      define_method(:with_runtime_instructions) do |*args, **kwargs, &block|
+      alias_method :_original_with_instructions, :with_instructions
+      define_method(:with_instructions) do |*args, **kwargs, &block|
         captured << [ args, kwargs ]
-        _original_with_runtime_instructions(*args, **kwargs, &block)
+        _original_with_instructions(*args, **kwargs, &block)
       end
     end
     yield
   ensure
     Chat.class_eval do
-      alias_method :with_runtime_instructions, :_original_with_runtime_instructions if method_defined?(:_original_with_runtime_instructions)
+      alias_method :with_instructions, :_original_with_instructions if method_defined?(:_original_with_instructions)
     end
   end
 

@@ -174,7 +174,7 @@ working tree, so a dirty `schema.rb` could never reach the image regardless;
 `git checkout db/schema.rb` if it is dirty, for tidiness only.)
 
 > **Do not confuse this count with a refresh.** The *migration* preserves the
-> `ruby_llm_models` row count exactly. A `RubyLLM.models.refresh!` **grows** it —
+> `ruby_llm_models` row count exactly. A `RubyLLM.models.refresh` **grows** it —
 > v1's refresh wrote only OpenRouter discovery, while v2 fetches the published
 > registry for every provider (410 → 1464 locally on first refresh). If the count
 > changed, attribute it to whichever step you just ran. See runbook 03.
@@ -341,7 +341,7 @@ kamal app exec --reuse -q "sqlite3 /rails/storage/production.sqlite3 \
    SELECT COUNT(*) FROM ruby_llm_tool_calls WHERE message_type IS NULL;
    SELECT COUNT(*) FROM ruby_llm_batches;'"
 kamal app exec --reuse -q "bin/verify-model-registry"
-#   -> If verify-model-registry passes, do NOT run RubyLLM.models.refresh!.
+#   -> If verify-model-registry passes, do NOT run RubyLLM.models.refresh.
 #      The migrated rows already resolve every offered id, and a refresh is a
 #      ~1464-row write transaction against the live database. See runbook 03.
 ```
@@ -444,12 +444,15 @@ weigh that before running 5.2.
 
 ## Future
 
-- **Once 2.0 ships to RubyGems**: replace the git pin in `Gemfile` with a version
-  constraint, `bundle update ruby_llm`, redeploy. No migration involved — the
-  schema work is done.
-- **Re-pinning before then**: the pin is a reviewed decision, not a moving
-  target. `main` moves daily; re-run the compatibility checks recorded in
-  `thoughts/shared/plans/2026-08-19/ruby-llm-v2-upgrade.md` ("Working Against
-  the Pinned SHA") against any candidate SHA before bumping it.
+- **Done 2026-09-18 — `2.0.0.rc3` from RubyGems** replaced the `c45ebd78` git
+  pin (`gem "ruby_llm", "2.0.0.rc3"`, exact prerelease pin), with one additive,
+  reversible application migration, `AddRubyLLMTemplateColumns`
+  (`ruby_llm_models.unlisted_at`, `ruby_llm_tool_calls.remote`,
+  `ruby_llm_batches.raw_status` / `reported_cost` — the install-template columns
+  this preview schema lacked; upstream's `ruby_llm:upgrade` generator targets
+  1.16 schemas and refuses this one). Plan and evidence:
+  `thoughts/shared/plans/2026-09-17/ruby-llm-2-0-0-rc3-upgrade.md`.
+- **Once 2.0.0 final ships**: loosen the constraint to `"~> 2.0"`,
+  `bundle update ruby_llm`, redeploy. The schema work is done.
 - **`ruby_llm_usages` grows one row per provider attempt.** Nothing reads it
   yet. Worth revisiting if it becomes the largest table.

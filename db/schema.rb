@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_22_224622) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_17_230041) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -173,6 +173,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_224622) do
     t.datetime "created_at", null: false
     t.string "provider", null: false
     t.string "provider_batch_id", null: false
+    t.string "raw_status"
+    t.json "reported_cost"
     t.json "request_counts"
     t.string "status"
     t.datetime "updated_at", null: false
@@ -194,6 +196,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_224622) do
     t.string "name", null: false
     t.json "pricing", default: {}
     t.string "provider", null: false
+    t.datetime "unlisted_at"
     t.datetime "updated_at", null: false
     t.index ["family"], name: "index_ruby_llm_models_on_family"
     t.index ["provider", "model_id"], name: "index_ruby_llm_models_on_provider_and_model_id", unique: true
@@ -207,6 +210,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_22_224622) do
     t.integer "message_id", null: false
     t.string "message_type", null: false
     t.string "name", null: false
+    t.boolean "remote", default: false, null: false
     t.bigint "result_id"
     t.string "result_type"
     t.text "thought_signature"
