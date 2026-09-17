@@ -2,11 +2,4 @@
 # CVEs that are not relevant to the application can be enumerated on the ignore list below.
 
 ignore:
-  # ruby_llm ReDoS in Utils.underscore (patched >= 2.0.0.rc1). The git pin
-  # c45ebd78 already contains the fix commit 9d75b033 (`git merge-base
-  # --is-ancestor` confirmed 2026-09-18; lib/ruby_llm/utils.rb carries the
-  # non-backtracking UNDERSCORE_BOUNDARY regex) but its gemspec still reports
-  # 1.16.0, which is what the version-range check reads. False positive on
-  # the version string only. DELETE this entry with the 2.0.0.rc3 bump — the
-  # released version satisfies the range and the audit must gate again.
-  - CVE-2026-67991
+  - CVE-THAT-DOES-NOT-APPLY
