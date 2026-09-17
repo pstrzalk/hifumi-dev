@@ -91,7 +91,7 @@ covers both web and jobs.
 containers anyway, so the restart comes free and step 4 disappears. Running
 `db:seed` *before* the deploy is fine too — the old code ignores the extra row.
 
-## Optional: enrich metadata with `RubyLLM.models.refresh!`
+## Optional: enrich metadata with `RubyLLM.models.refresh`
 
 Seeded rows are bare: `context_window`, `max_output_tokens`, `pricing` and
 `capabilities` are empty, and `bin/verify-model-registry` prints `ctx=?` for
@@ -100,11 +100,10 @@ them. Nothing on hifumi's paths reads those fields — the request's
 registry row, and no view or job reads cost or context window. Refresh only
 when that metadata is wanted.
 
-`RubyLLM.models.refresh!` fetches the published registry
+`RubyLLM.models.refresh` fetches the published registry
 (`rubyllm.com/models.json`), merges per-provider discovery over it, and persists
 through the store with `find_or_initialize_by(model_id:, provider:) + update!`
-inside a transaction — **no deletes**, so `chats.ruby_llm_model_id` foreign keys
-survive and seeded rows are enriched in place. Prefer it over
+inside a transaction, so seeded rows are enriched in place. Prefer it over
 `bin/rails ruby_llm:load_models`, which only reloads the *bundled* JSON and so
 lags the live catalogue.
 
@@ -115,14 +114,14 @@ carried over unchanged and the failure is logged *"Keeping existing."*
 
 ```bash
 # Local
-bin/rails runner 'RubyLLM.models.refresh!; puts RubyLLM::ActiveRecord::Model.count'
+bin/rails runner 'RubyLLM.models.refresh; puts RubyLLM::ActiveRecord::Model.count'
 
-# Production — run during a quiet window: refresh! wraps every row in ONE
+# Production — run during a quiet window: refresh wraps every row in ONE
 # transaction, and v2 fetches every provider's registry (1464 rows, not v1's
 # 410). That holds the write lock on production.sqlite3 while users are
 # chatting, and config/database.yml sets timeout: 5000 — a chat write that
 # waits longer than 5s raises SQLite3::BusyException.
-kamal app exec --reuse "bin/rails runner 'RubyLLM.models.refresh!; puts RubyLLM::ActiveRecord::Model.count'"
+kamal app exec --reuse "bin/rails runner 'RubyLLM.models.refresh; puts RubyLLM::ActiveRecord::Model.count'"
 ```
 
 A `WARN … Failed to fetch models.dev (ArgumentError: argument out of range)` line
@@ -136,8 +135,13 @@ per-user), so the provider sends the placeholder from
 inline: kamal echoes the full `docker exec` command into its own log output.
 
 A refresh grows the store to every provider's catalogue, which is exactly the
-state the `provider:` pin exists for. Follow it with `bin/verify-model-registry`,
-then restart.
+state the `provider:` pin exists for. **At 2.0.0.rc3 a refresh also deletes**
+rows absent from the refreshed registry (`Model.save_to_database` ends in
+`unlist`); a row a chat's `ruby_llm_model_id` references is kept and stamped
+`unlisted_at` instead, and RubyLLM ranks unlisted rows last — harmless only
+because every call site pins `LLM::Stages::PROVIDER`. So follow a refresh with
+`bin/rails db:seed` (restores any offered id the refresh removed) and
+`bin/verify-model-registry`, then restart.
 
 ## Adding a model to the picker
 
@@ -186,16 +190,21 @@ then restart.
 
 ## Recorded baseline
 
+**2026-09-18** (PR A deployed, release `f915863`, still on the git pin) — the
+production store held **410 rows** before and after: `bin/verify-model-registry`
+resolved all five offered ids under `openrouter`, and a `bin/rails db:seed` run
+as the idempotency proof added nothing. No refresh was run.
+
 **2026-08-23** (post-v2, local) — the upgrade migration carried the 410 rows
-over to `ruby_llm_models` unchanged, and the first `RubyLLM.models.refresh!`
+over to `ruby_llm_models` unchanged, and the first `RubyLLM.models.refresh`
 under v2 took the store to **1464 rows**. The jump is expected and is the one
 number that changed meaning: v1's refresh only wrote what OpenRouter discovery
 returned, while v2 fetches the *published* registry (`rubyllm.com/models.json`,
 every provider) and merges provider discovery over it. Two consequences when
 comparing counts: the **migration** preserves the row count exactly, a
 **refresh** grows it — so attribute any change to whichever step you just ran.
-`PRAGMA foreign_key_check` stayed empty across both, confirming the no-deletes
-claim above against real `chats.ruby_llm_model_id` rows.
+`PRAGMA foreign_key_check` stayed empty across both; at that pin a refresh never
+deleted rows (it does at 2.0.0.rc3 — see the enrichment section).
 
 **2026-08-12** (pre-v2, when the table was still `models`) — both environments
 were found holding a single row
