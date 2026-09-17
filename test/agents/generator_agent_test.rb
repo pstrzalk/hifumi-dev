@@ -49,6 +49,11 @@ class GeneratorAgentTest < ActiveJob::TestCase
     assert_equal @project, create_app.instance_variable_get(:@project)
   end
 
+  test "the agent's chat kwargs pin the provider" do
+    # Agent.model with no arguments is the reader for @chat_kwargs.
+    assert_equal LLM::Stages::PROVIDER, GeneratorAgent.model[:provider]
+  end
+
   private
 
   def capture_tools_during_complete

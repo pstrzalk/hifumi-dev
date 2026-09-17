@@ -1,7 +1,7 @@
 class GeneratorAgent < RubyLLM::Agent
   # Creation-time default only — ChatRespondJob re-applies the project's
   # chat_model selection (via with_model) on every turn.
-  model LLM::Stages.find(:chat).default_model
+  model LLM::Stages.find(:chat).default_model, provider: LLM::Stages::PROVIDER
   chat_model Chat
   instructions { prompt("instructions", current_state: chat.project.current_state_prompt) }
 

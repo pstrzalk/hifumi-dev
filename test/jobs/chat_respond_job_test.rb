@@ -102,6 +102,26 @@ class ChatRespondJobTest < ActiveJob::TestCase
     end
   end
 
+  test "re-points the chat with the pinned provider" do
+    @project.update!(chat_model: "anthropic/claude-sonnet-4.6")
+    captured = []
+    Chat.class_eval do
+      alias_method :_orig_with_model_kw, :with_model
+      define_method(:with_model) { |*args, **kwargs| captured << [ args, kwargs ]; _orig_with_model_kw(*args, **kwargs) }
+    end
+
+    stub_complete(chunks: [ "ok" ]) do
+      perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }
+    end
+
+    assert_equal [ [ "anthropic/claude-sonnet-4.6" ], { provider: LLM::Stages::PROVIDER } ], captured.first
+  ensure
+    Chat.class_eval do
+      alias_method :with_model, :_orig_with_model_kw
+      remove_method :_orig_with_model_kw
+    end
+  end
+
   test "exception mid-stream: broadcasts a chat_notice banner with friendly text" do
     stub_complete(chunks: [ "partial ", "more" ], raise_at: 1) do
       perform_enqueued_jobs { ChatRespondJob.perform_now(@user_message.id) }

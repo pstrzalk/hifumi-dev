@@ -184,6 +184,28 @@ class PlanApplicationCreation::AdHocLLMTest < ActiveSupport::TestCase
     end
   end
 
+  # The only test that runs the real invoke_llm: every other test here stubs
+  # it wholesale, so the chat-construction line has no coverage otherwise.
+  # Same RubyLLM.context swap as test/lib/templates/picker_test.rb.
+  test "invoke_llm builds the chat on the pinned provider" do
+    captured = {}
+    fake_chat = Object.new
+    fake_chat.define_singleton_method(:with_instructions) { |_| self }
+    fake_chat.define_singleton_method(:with_schema)       { |_| self }
+    fake_chat.define_singleton_method(:ask) { |_| Struct.new(:parsed).new({ "instruction_description" => "x", "revisions" => [] }) }
+    fake_ctx = Object.new
+    fake_ctx.define_singleton_method(:chat) { |**kwargs| captured[:chat_kwargs] = kwargs; fake_chat }
+    RubyLLM.singleton_class.alias_method(:__orig_context, :context)
+    RubyLLM.define_singleton_method(:context) { |&_| fake_ctx }
+
+    PlanApplicationCreation::AdHocLLM.invoke_llm(system: "s", user: "u", openrouter_api_key: "sk-test", model: "anthropic/claude-haiku-4.5")
+
+    assert_equal({ model: "anthropic/claude-haiku-4.5", provider: LLM::Stages::PROVIDER }, captured[:chat_kwargs])
+  ensure
+    RubyLLM.singleton_class.alias_method(:context, :__orig_context)
+    RubyLLM.singleton_class.send(:remove_method, :__orig_context)
+  end
+
   test "propagates errors from the LLM" do
     original = PlanApplicationCreation::AdHocLLM.method(:invoke_llm)
     PlanApplicationCreation::AdHocLLM.define_singleton_method(:invoke_llm) do |**|

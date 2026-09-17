@@ -34,10 +34,11 @@ class Templates::PickerTest < ActiveSupport::TestCase
     end
   end
 
-  test "pick passes the selected model to the chat" do
+  test "pick passes the selected model and the pinned provider to the chat" do
     stub_pick("cyber") do |captured|
       Templates::Picker.pick(description: "x", openrouter_api_key: "sk-test", model: "anthropic/claude-opus-4.6")
       assert_equal "anthropic/claude-opus-4.6", captured[:chat_kwargs][:model]
+      assert_equal LLM::Stages::PROVIDER, captured[:chat_kwargs][:provider]
     end
   end
 

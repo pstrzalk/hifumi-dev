@@ -43,6 +43,14 @@
 #     handling first.
 module LLM
   module Stages
+    # The one provider hifumi talks to. Every RubyLLM call site passes it
+    # explicitly. Left implicit, RubyLLM ranks candidates by its own
+    # PROVIDER_PREFERENCE, where perplexity outranks openrouter — and both
+    # catalogues list dot-less Anthropic ids (anthropic/claude-sonnet-5,
+    # anthropic/claude-opus-5), so a registry carrying both rows hands the
+    # chat to Perplexity and it dies with ConfigurationError.
+    PROVIDER = :openrouter
+
     AVAILABLE_MODELS = {
       "anthropic/claude-haiku-4.5"  => "Claude Haiku 4.5",
       "anthropic/claude-sonnet-4.6" => "Claude Sonnet 4.6",

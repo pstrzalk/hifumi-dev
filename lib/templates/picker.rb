@@ -37,7 +37,7 @@ module Templates
 
     def self.pick(description:, openrouter_api_key:, model:)
       ctx = RubyLLM.context { |c| c.openrouter_api_key = openrouter_api_key }
-      chat = ctx.chat(model: model)
+      chat = ctx.chat(model: model, provider: LLM::Stages::PROVIDER)
       chat.with_instructions(SYSTEM_PROMPT)
       response = chat.with_schema(SCHEMA).ask("Description: #{description}")
       # Scoped to `.parsed` alone: RubyLLM decodes provider error bodies as JSON
