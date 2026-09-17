@@ -452,6 +452,20 @@ weigh that before running 5.2.
   this preview schema lacked; upstream's `ruby_llm:upgrade` generator targets
   1.16 schemas and refuses this one). Plan and evidence:
   `thoughts/shared/plans/2026-09-17/ruby-llm-2-0-0-rc3-upgrade.md`.
+- **Done 2026-09-18 — `2.0.0.rc4`** (`gem "ruby_llm", "2.0.0.rc4"`), a same-day
+  follow-on to rc3 and **schema-free**: rc4's install templates define exactly
+  rc3's columns, so no migration and no `db:rollback:primary` step. Its library
+  changes are inert here — prompt-caching payload fixes that only fire under
+  `with_caching` / `cache_until_here` (this app uses neither), copy-upgrade
+  generator guards (this app upgraded in rename mode, has no
+  `ruby_llm_upgrade` initializer), and instrumentation now reporting the
+  provider instance name (nothing subscribes to RubyLLM's `chat.*` events
+  here). Verified locally: full suite 753 runs / 0 failures,
+  `bin/verify-model-registry` green on all five offered ids, `bundler-audit`
+  clean, and one live OpenRouter chat round-trip through the changed
+  `providers/openrouter/chat.rb#render_payload`. Deploy is an ordinary
+  `kamal deploy` — sections 2–5 of this runbook (snapshot, migration watch,
+  rollback) do not apply.
 - **Once 2.0.0 final ships**: loosen the constraint to `"~> 2.0"`,
   `bundle update ruby_llm`, redeploy. The schema work is done.
 - **`ruby_llm_usages` grows one row per provider attempt.** Nothing reads it

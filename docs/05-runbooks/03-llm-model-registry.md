@@ -135,7 +135,7 @@ per-user), so the provider sends the placeholder from
 inline: kamal echoes the full `docker exec` command into its own log output.
 
 A refresh grows the store to every provider's catalogue, which is exactly the
-state the `provider:` pin exists for. **At 2.0.0.rc3 a refresh also deletes**
+state the `provider:` pin exists for. **At 2.0.0.rc3 and rc4 a refresh also deletes**
 rows absent from the refreshed registry (`Model.save_to_database` ends in
 `unlist`); a row a chat's `ruby_llm_model_id` references is kept and stamped
 `unlisted_at` instead, and RubyLLM ranks unlisted rows last — harmless only
@@ -204,7 +204,7 @@ every provider) and merges provider discovery over it. Two consequences when
 comparing counts: the **migration** preserves the row count exactly, a
 **refresh** grows it — so attribute any change to whichever step you just ran.
 `PRAGMA foreign_key_check` stayed empty across both; at that pin a refresh never
-deleted rows (it does at 2.0.0.rc3 — see the enrichment section).
+deleted rows (it does at 2.0.0.rc3 and rc4 — see the enrichment section).
 
 **2026-08-12** (pre-v2, when the table was still `models`) — both environments
 were found holding a single row
