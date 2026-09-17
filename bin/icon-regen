@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Regenerate public/icon.png from public/icon.svg.
+#
+# public/icon.svg is the source of truth for the favicon — edit that, then run
+# this to refresh the PNG that <link rel="icon"> and <link rel="apple-touch-icon">
+# fall back to. The SVG embeds its outlines as a path, so no font is needed.
+#
+#   brew install librsvg
+#   bin/icon-regen
+#
+# Verify afterwards by eye at real sizes:
+#   magick public/icon.png -resize 16x16 -scale 512x512 /tmp/icon-16.png
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+command -v rsvg-convert >/dev/null || { echo "rsvg-convert not found — brew install librsvg"; exit 1; }
+
+rsvg-convert -w 512 -h 512 public/icon.svg -o public/icon.png
+echo "wrote public/icon.png — $(du -h public/icon.png | cut -f1)"
