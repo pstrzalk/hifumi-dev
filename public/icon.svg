@@ -1,3 +1,30 @@
-<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="256" cy="256" r="256" fill="red"/>
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  hifumi.dev favicon — 三 (mi, "three"), the last glyph of the 一二三 wordmark.
+
+  Drawn as geometry, not type: the outline is a hand-built Mincho 三 whose
+  stroke widths, rhythm and uroko (the flag at each stroke's right end) are
+  sampled from Noto Serif CJK JP Black — the face used in app/assets/images/og.svg.
+  Nothing here depends on a font being installed, on this machine or a visitor's.
+
+  Colours are Hifumi tokens (app/assets/tailwind/application.css):
+    field  #CC0000  rails-500  (accent)
+    mark   #FAF7F2  paper-100  (bg)
+
+  Red field rather than paper: the icon has to hold its shape against a light
+  browser tab strip, where a paper-coloured square disappears.
+
+  This file is the source. Regenerate public/icon.png from it with bin/icon-regen.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"
+     role="img" aria-label="hifumi.dev">
+  <rect width="512" height="512" fill="#CC0000"/>
+
+  <!-- Three strokes: body, then a triangular uroko rising off the right end.
+       Widths follow the glyph (top 0.88, middle 0.73, bottom 1.00 of the ink box). -->
+  <path fill="#FAF7F2" d="
+    M83.3 102.6H387.0L398.2 85.8Q416.4 102.6 416.4 172.6H83.3Z
+    M107.5 221.0H359.9L371.0 204.2Q389.3 221.0 389.3 291.0H107.5Z
+    M64.0 339.4H407.4L418.6 322.6Q436.8 339.4 436.8 409.4H64.0Z
+  "/>
 </svg>
