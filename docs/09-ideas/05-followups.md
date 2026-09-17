@@ -116,9 +116,13 @@ A full robustness/OSS-readiness review of the production deployment was done; fi
 
 Shipped 2026-06-11 (`feature/per-project-model-selection`): per-stage model columns on profiles (user defaults) + projects (per-project snapshot), selectors in the build tab / new-project form / account integrations pane, threaded through all six LLM stages via `LLM::Stages` (`lib/llm/stages.rb`). Deliberately deferred:
 
-- **Curated list is 5 Anthropic models.** `LLM::Stages::AVAILABLE_MODELS` is a hand-maintained hash. A full catalog picker could read RubyLLM's own registry store instead — since the v2 upgrade that is `ruby_llm_models`, owned by the gem, already populated (410 rows) and maintained by `RubyLLM.models.refresh!`. So the work is not waking a dormant table: it is capability filtering per stage (`structured_outputs` for plan/template, `tools` for chat) plus a picker over `RubyLLM::ActiveRecord::Model`. See `thoughts/shared/research/2026-05-11/per-user-model-config-per-stage.md`.
+- **Curated list is 5 Anthropic models.** `LLM::Stages::AVAILABLE_MODELS` is a hand-maintained hash. A full catalog picker could read RubyLLM's own registry store instead — since the v2 upgrade that is `ruby_llm_models`, owned by the gem, already populated (410 rows), seeded from `AVAILABLE_MODELS` by `db/seeds.rb`; `RubyLLM.models.refresh!` enriches metadata. So the work is not waking a dormant table: it is capability filtering per stage (`structured_outputs` for plan/template, `tools` for chat) plus a picker over `RubyLLM::ActiveRecord::Model`. See `thoughts/shared/research/2026-05-11/per-user-model-config-per-stage.md`.
 - **Code/docs stages are Anthropic-only by transport.** They run through the `claude` CLI's Anthropic API surface (`bin/roast-openrouter`); non-Anthropic ids have never been exercised there. The "direct-API Roast provider" Phase 5 candidate would lift this.
 - **No cost display.** The 2026-05-11 research scoped per-model pricing display next to each selector; AVAILABLE_MODELS would need pricing metadata (or the models table).
+
+### LLM model registry
+
+- **Seed on boot.** `bin/docker-entrypoint` runs `db:prepare` on `rails server`; adding `db:seed` after it (five idempotent upserts) would make the store converge on every deploy and remove the manual `kamal app exec --reuse "bin/rails db:seed"` step from Runbook 03. Deferred 2026-09-17 to keep PR A to the hardening itself.
 
 ### Agent sandbox — residuals to follow up
 
