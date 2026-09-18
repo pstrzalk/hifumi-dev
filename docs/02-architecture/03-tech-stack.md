@@ -166,7 +166,7 @@ Separate list — gems used in the generator itself, not in generated apps.
 
 | Gem | What for |
 |-----|----------|
-| `ruby_llm` | Conversation layer, chat, tools. `2.0.0.rc3` from RubyGems, exact pin until 2.0.0 final (see `docs/05-runbooks/04-ruby-llm-v2-rollout.md`). Brings `schematist`, which replaced `ruby_llm-schema` as the structured-output DSL |
+| `ruby_llm` | Conversation layer, chat, tools. `2.0.0.rc4` from RubyGems, exact pin until 2.0.0 final (see `docs/05-runbooks/04-ruby-llm-v2-rollout.md`). Brings `schematist`, which replaced `ruby_llm-schema` as the structured-output DSL |
 | `roast-ai` (~> 1.1) | Orchestration of generation workflows. **Requires Ruby >= 3.3.** |
 | `devise` | Auth for generator users |
 | `solid_queue` | Background jobs (generation, preview) |

@@ -47,7 +47,7 @@ gem "image_processing", "~> 1.2"
 # the resolved version has to be a reviewed decision — bump deliberately with
 # `bundle update ruby_llm`. Loosen to "~> 2.0" once 2.0.0 final ships.
 # Schema notes for this line: docs/05-runbooks/04-ruby-llm-v2-rollout.md.
-gem "ruby_llm", "2.0.0.rc3"
+gem "ruby_llm", "2.0.0.rc4"
 
 # Orchestration of generation workflows (per-revision Roast subprocess)
 gem "roast-ai", "~> 1.1"
