@@ -10,6 +10,22 @@ set -euo pipefail
 HOST="${KAMAL_DEPLOY_HOST:-root@77.42.95.154}"
 RUBY_VERSION=$(sed 's/^ruby-//' .ruby-version)
 
+# 0. Refuse to ship an empty runtime secret. Checks what .kamal/secrets
+#    resolves to (credentials or the caller's shell), printing names only —
+#    never values. An empty GITHUB_CLIENT_SECRET makes GitHub reject every
+#    token exchange (incorrect_client_credentials -> "GitHub connection
+#    failed: Invalid credentials", issue #52); an empty SMTP_PASSWORD
+#    silently stops mail.
+empty=$(bin/kamal secrets print | awk -v want="GITHUB_CLIENT_SECRET SMTP_PASSWORD" '
+  BEGIN { n = split(want, w, " "); for (i = 1; i <= n; i++) need[w[i]] = 1 }
+  { k = substr($0, 1, index($0, "=") - 1); v = substr($0, index($0, "=") + 1)
+    if (k in need && v != "") delete need[k] }
+  END { for (k in need) print k }')
+if [ -n "$empty" ]; then
+  echo "[pre-deploy] empty in .kamal/secrets: $(echo $empty); set them before deploying" >&2
+  exit 1
+fi
+
 # 1+2. Ensure --internal preview-internal network on host; ensure kamal-proxy
 #      is attached to it. Both idempotent. --internal blocks outbound traffic
 #      from containers attached only to this network. kamal-proxy retains its
