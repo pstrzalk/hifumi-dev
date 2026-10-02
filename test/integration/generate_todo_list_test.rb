@@ -174,9 +174,7 @@ class GenerateTodoListTest < ActionDispatch::IntegrationTest
   end
 
   def assert_workspace_tests_pass(workspace)
-    ruby_version = File.read(Rails.root.join(".ruby-version")).strip.delete_prefix("ruby-")
-    frum_bin = File.join(Dir.home, ".frum", "versions", ruby_version, "bin")
-    env = File.directory?(frum_bin) ? { "PATH" => "#{frum_bin}:#{ENV.fetch('PATH', '')}" } : {}
+    env = ExecuteInstructionJob.new.send(:subprocess_env)
 
     ok = nil
     Bundler.with_unbundled_env do
