@@ -187,9 +187,12 @@ deploy. Production has data shapes the rehearsal just found and the plan did not
 ```bash
 # 2.0 Check your shell FIRST. Both `kamal deploy` and `kamal app boot`
 #     re-source .kamal/secrets from the caller's environment (`kamal app start`
-#     does not — it reuses the container's env). SMTP_PASSWORD and
-#     GITHUB_CLIENT_SECRET come from your shell, so a local dev export ships
-#     silently to production. This has happened (2026-05-15).
+#     does not — it reuses the container's env). SMTP_PASSWORD comes from
+#     your shell, so a local dev export ships silently to production. This
+#     has happened (2026-05-15). GITHUB_CLIENT_SECRET comes from Rails
+#     credentials (`github.client_secret`) since issue #52 — a shell without
+#     it had shipped a blank. `kamal secrets print` resolves both sources, so
+#     the check below hashes what a deploy would actually send.
 #
 #     Prefixes cannot tell a stale key from a live one — every Resend key
 #     starts `re_` — so compare hashes against what production runs now.
@@ -207,20 +210,21 @@ deploy. Production has data shapes the rehearsal just found and the plan did not
 #             da39a3ee = unset          (sha1 of "")
 #             adc83b19 = set-but-empty  (sha1 of "\n")
 for v in SMTP_PASSWORD GITHUB_CLIENT_SECRET; do
-  mine=$(printenv "$v" | shasum | cut -c1-8)
+  mine=$(kamal secrets print | sed -n "s/^$v=//p" | shasum | cut -c1-8)
   live=$(kamal app exec --reuse -q \
            "sh -c 'printf HASH=; printenv $v | shasum | cut -c1-8'" \
          | sed -n 's/.*HASH=\([0-9a-f]\{8\}\).*/\1/p' | tail -1)
   echo "$v  shell=$mine  prod=${live:-<NOT CAPTURED>}"
 done
-#   -> MUST match. A mismatch means your shell would overwrite production's
-#      value. Fix your environment before going further.
-#   -> shell=da39a3ee with prod=adc83b19 is NOT a real mismatch: unset on one
-#      side, set-but-empty on the other, both empty. Confirm it is what you
-#      intend. GITHUB_CLIENT_SECRET has been empty in production
-#      since at least 2026-09-02; it gates only the OAuth handshake that
-#      LINKS a GitHub account, not sign-in and not export (which uses the
-#      already-stored github_connections.access_token via Octokit).
+#   -> MUST match. A mismatch means the deploy would overwrite production's
+#      value. Fix your environment (or credentials) before going further.
+#   -> da39a3ee / adc83b19 on either side is broken even when they "match":
+#      both secrets must be non-empty. An empty GITHUB_CLIENT_SECRET
+#      (production 2026-09-02 → 2026-10-02, issue #52) makes GitHub reject
+#      every token exchange, so no user can link an account and export is
+#      unreachable for anyone not linked before. .kamal/hooks/pre-deploy
+#      refuses to deploy either secret empty; `kamal app boot` skips that
+#      hook, so check by hand.
 
 # 2.1 Capture the currently-running version. You need this to roll back, and
 #     it is unavailable once the new one is running.
@@ -428,11 +432,10 @@ kamal app exec --reuse \
 > 2.11.0.)
 
 > ⚠️ **`kamal app boot` re-sources `.kamal/secrets` from your shell.**
-> `SMTP_PASSWORD` and `GITHUB_CLIENT_SECRET` are read from the caller's
-> environment, so a local export can silently push the wrong value to
-> production — this has happened before (2026-05-15). Prefer `app start`, and if
-> you must use `boot`, check your shell first:
-> `echo "${SMTP_PASSWORD:0:4} ${GITHUB_CLIENT_SECRET:0:4}"`.
+> `SMTP_PASSWORD` is read from the caller's environment, so a local export can
+> silently push the wrong value to production — this has happened before
+> (2026-05-15). `boot` also skips the pre-deploy hook's empty-secret guard.
+> Prefer `app start`, and if you must use `boot`, run the §2.0 hash check first.
 
 ### If you only realise later
 
