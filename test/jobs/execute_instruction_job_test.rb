@@ -504,14 +504,9 @@ class ExecuteInstructionJobTest < ActiveJob::TestCase
 
   # --- subprocess_env normalization -------------------------------------
 
-  test "subprocess_env strips the ruby- prefix from .ruby-version when computing frum_bin" do
-    raw = File.read(Rails.root.join(".ruby-version")).strip
-    expected_version = raw.delete_prefix("ruby-")
-    expected_bin = File.join(Dir.home, ".frum", "versions", expected_version, "bin")
-    skip "frum bin for #{expected_version} is not installed at #{expected_bin}" unless File.directory?(expected_bin)
-
+  test "subprocess_env puts the running Ruby's bin dir first on PATH" do
     env = ExecuteInstructionJob.new.send(:subprocess_env)
-    assert_equal "#{expected_bin}:#{ENV.fetch('PATH', '')}", env["PATH"]
+    assert_equal "#{RbConfig::CONFIG.fetch('bindir')}:#{ENV.fetch('PATH', '')}", env["PATH"]
   end
 
   # --- verify sentinel → revision.metrics["verify"] -----------------------

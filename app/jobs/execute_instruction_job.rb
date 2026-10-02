@@ -150,16 +150,12 @@ class ExecuteInstructionJob < ApplicationJob
   end
 
   # Cwd for rails new / git / bundle is outside this repo (Project.workspace_root),
-  # so the frum shim can't resolve Ruby from .ruby-version there. Prepend the
-  # pinned Ruby's bin dir to PATH the same way bin/roast does.
-  #
-  # `.ruby-version` content carries the `ruby-` prefix (e.g. `ruby-4.0.2`) but
-  # frum's directory layout omits it (`~/.frum/versions/4.0.2/`), so strip.
+  # so a version-manager shim there resolves Ruby by *that* directory, not by our
+  # .ruby-version. The Ruby running this process is already the pinned one, so put
+  # its bin dir first — no version manager assumed (works under any of them and in
+  # the production container alike).
   def subprocess_env
-    ruby_version = File.read(Rails.root.join(".ruby-version")).strip.delete_prefix("ruby-")
-    frum_bin = File.join(Dir.home, ".frum", "versions", ruby_version, "bin")
-    return {} unless File.directory?(frum_bin)
-    { "PATH" => "#{frum_bin}:#{ENV.fetch('PATH', '')}" }
+    { "PATH" => "#{RbConfig::CONFIG.fetch('bindir')}:#{ENV.fetch('PATH', '')}" }
   end
 
   # `instruction.user_intent` is the synthesis the chat agent passes to

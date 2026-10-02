@@ -21,7 +21,7 @@ Output is intentionally a plain Rails repository: your own git history, your own
 
 ## Requirements
 
-- Ruby 4.0.2 (pinned in `.ruby-version`; install with `frum install 4.0.2`)
+- Ruby 4.0.2 (pinned in `.ruby-version`; install with any version manager)
 - SQLite
 - Docker (any recent Desktop or Engine; verify with `docker --version`) — required for the preview pane
 - Claude CLI logged in (`claude login`) — used by the per-revision implementation step on the subscription plan
@@ -255,7 +255,7 @@ If `HIFUMI_OPERATOR_NAME` is unset in production, `/privacy` renders a warning n
 
 `ExecuteInstructionJob` picks one of two wrappers based on environment:
 
-- `bin/roast-claudesubscription` — dev default. Uses the local `claude` CLI's OAuth subscription. Free given a paid Claude plan; throttled by the plan's quota. The wrapper unsets `ANTHROPIC_*` env vars and pins frum's Ruby on PATH.
+- `bin/roast-claudesubscription` — dev default. Uses the local `claude` CLI's OAuth subscription. Free given a paid Claude plan; throttled by the plan's quota. The wrapper unsets `ANTHROPIC_*` env vars and refuses to run unless the Ruby on PATH matches `.ruby-version`.
 - `bin/roast-openrouter` — production default (and dev when `FORCE_OPENROUTER=1`). Uses OpenRouter's Anthropic-compatible API. Paid per-token; needs `OPENROUTER_API_KEY`.
 
 `bin/roast` itself is the bundler binstub (`bundle exec roast` raw, no env setup) — for direct testing only. Don't rely on it from `ExecuteInstructionJob`.

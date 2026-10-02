@@ -15,13 +15,15 @@ unset ANTHROPIC_DEFAULT_HAIKU_MODEL
 
 cd "$(dirname "$0")/.."
 
-# Pin Ruby to 4.0.2 (see .ruby-version). When the wrapper is invoked as a subprocess
-# from a shell under a different Ruby (e.g. the default 3.2.6), the frum shim for bundle
-# resolves the wrong version and looks for gems in 3.2.0 instead of 4.0.0.
+# Fail fast on a Ruby mismatch instead of guessing where a version manager keeps
+# the pinned one. ExecuteInstructionJob runs this under the generator's own Ruby;
+# by hand, run it from a shell whose Ruby matches .ruby-version.
 RUBY_VERSION_PIN=$(cat .ruby-version)
-FRUM_RUBY_BIN="$HOME/.frum/versions/$RUBY_VERSION_PIN/bin"
-if [ -d "$FRUM_RUBY_BIN" ]; then
-  export PATH="$FRUM_RUBY_BIN:$PATH"
+RUBY_VERSION_PIN="${RUBY_VERSION_PIN#ruby-}"
+RUBY_VERSION_ACTIVE=$(ruby -e 'print RUBY_VERSION')
+if [ "$RUBY_VERSION_ACTIVE" != "$RUBY_VERSION_PIN" ]; then
+  echo "$(basename "$0"): ruby on PATH is $RUBY_VERSION_ACTIVE, .ruby-version pins $RUBY_VERSION_PIN" >&2
+  exit 1
 fi
 
 exec bundle exec roast "$@"
